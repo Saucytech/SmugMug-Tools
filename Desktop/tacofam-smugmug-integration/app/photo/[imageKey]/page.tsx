@@ -38,8 +38,8 @@ export default function PhotoDetailPage() {
       try {
         const response = await fetch(`/api/smugmug/image/${imageKey}`, {
           headers: {
-            'x-access-token': accessToken,
-            'x-access-token-secret': accessTokenSecret,
+            'X-Access-Token': accessToken,
+            'X-Access-Token-Secret': accessTokenSecret,
           },
         });
 

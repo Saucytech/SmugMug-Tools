@@ -45,15 +45,15 @@ export default function AlbumPage() {
 
         const response = await fetch(`/api/smugmug/albums/${albumKey}/images`, {
           headers: {
-            'x-access-token': tokens.accessToken,
-            'x-access-token-secret': tokens.accessTokenSecret,
+            'X-Access-Token': tokens.accessToken,
+            'X-Access-Token-Secret': tokens.accessTokenSecret,
           },
         });
 
         if (!response.ok) throw new Error('Failed to fetch photos');
 
         const data = await response.json();
-        setPhotos(data.Response?.AlbumImage || []);
+        setPhotos(data.images || []);
       } catch (err: any) {
         setError(err.message);
       } finally {
