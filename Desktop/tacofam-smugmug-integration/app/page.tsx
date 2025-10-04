@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ImageIcon, FolderIcon, LogOut, Download } from 'lucide-react';
+import { ImageIcon, FolderIcon, LogOut, Download, Book, Database } from 'lucide-react';
 import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
 
 interface Album {
@@ -147,6 +147,27 @@ export default function Home() {
               Apply here
             </a>
           </p>
+
+          {/* Developer Tools */}
+          <div className="mt-12 pt-8 border-t border-gray-700">
+            <h3 className="text-lg font-semibold mb-4">Developer Tools</h3>
+            <div className="flex gap-4 justify-center">
+              <a
+                href="/api-reference"
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Book className="w-5 h-5" />
+                API Reference
+              </a>
+              <a
+                href="/metadata"
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Database className="w-5 h-5" />
+                Metadata Viewer
+              </a>
+            </div>
+          </div>
         </div>
       </main>
     );
@@ -158,13 +179,32 @@ export default function Home() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900">SmugMug Photo Browser</h1>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href="/api-reference"
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <Book className="w-4 h-4" />
+              API Reference
+            </a>
+            <a
+              href={`/metadata?${new URLSearchParams({
+                access_token: tokenStorage.getTokens()?.accessToken || '',
+                access_token_secret: tokenStorage.getTokens()?.accessTokenSecret || ''
+              }).toString()}`}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <Database className="w-4 h-4" />
+              Metadata
+            </a>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Error Message */}
