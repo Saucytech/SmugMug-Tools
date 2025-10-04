@@ -21,8 +21,8 @@ export async function GET(
   { params }: { params: { imageKey: string } }
 ) {
   try {
-    const accessToken = request.headers.get('x-access-token');
-    const accessTokenSecret = request.headers.get('x-access-token-secret');
+    const accessToken = request.headers.get('X-Access-Token');
+    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
 
     if (!accessToken || !accessTokenSecret) {
       return NextResponse.json(
