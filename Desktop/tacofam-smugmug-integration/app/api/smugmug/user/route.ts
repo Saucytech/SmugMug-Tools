@@ -2,15 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 
-// Custom nonce generator to ensure uniqueness
-function generateNonce(): string {
-  return crypto.randomBytes(32).toString('base64')
-    .replace(/\+/g, '')
-    .replace(/\//g, '')
-    .replace(/=/g, '')
-    .substring(0, 32);
-}
-
 const oauth = new OAuth({
   consumer: {
     key: process.env.SMUGMUG_API_KEY!,
@@ -18,34 +9,26 @@ const oauth = new OAuth({
   },
   signature_method: 'HMAC-SHA1',
   hash_function(base_string, key) {
-    return crypto
-      .createHmac('sha1', key)
-      .update(base_string)
-      .digest('base64');
+    return crypto.createHmac('sha1', key).update(base_string).digest('base64');
   },
-  nonce_length: 32,
 });
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { albumKey: string } }
-) {
+export async function GET(request: NextRequest) {
   try {
     const accessToken = request.headers.get('X-Access-Token');
     const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
 
     if (!accessToken || !accessTokenSecret) {
       return NextResponse.json(
-        { error: 'Not authenticated' },
+        { error: 'Missing authentication tokens' },
         { status: 401 }
       );
     }
 
-    const albumKey = params.albumKey;
-    const imagesUrl = `https://api.smugmug.com/api/v2/album/${albumKey}!images`;
+    const url = 'https://api.smugmug.com/api/v2!authuser';
 
     const requestData = {
-      url: imagesUrl,
+      url,
       method: 'GET',
     };
 
@@ -53,25 +36,33 @@ export async function GET(
       oauth.authorize(requestData, {
         key: accessToken,
         secret: accessTokenSecret,
-      }, generateNonce())
+      })
     );
 
-    const response = await fetch(imagesUrl, {
+    const response = await fetch(url, {
+      method: 'GET',
       headers: {
         ...authHeader,
         Accept: 'application/json',
       },
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('SmugMug API error:', errorText);
+      throw new Error(`SmugMug API error: ${response.statusText}`);
+    }
+
     const data = await response.json();
 
+    // Return the user object
     return NextResponse.json({
-      images: data.Response.AlbumImage || [],
+      user: data.Response?.User || null,
     });
   } catch (error) {
-    console.error('Error fetching images:', error);
+    console.error('Error fetching user:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch images' },
+      { error: 'Failed to fetch user information' },
       { status: 500 }
     );
   }

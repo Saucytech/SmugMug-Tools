@@ -36,15 +36,48 @@ app/api/
 │   ├── route.ts              # OAuth initiation (WORKING ✅)
 │   └── callback/route.ts     # OAuth callback (WORKING ✅)
 └── smugmug/
-    └── albums/
-        ├── route.ts          # Fetch albums (WORKING ✅)
-        └── [albumKey]/images/route.ts  # Fetch images (WORKING ✅)
+    ├── albums/
+    │   ├── route.ts          # Fetch albums (WORKING ✅)
+    │   └── [albumKey]/images/route.ts  # Fetch images (WORKING ✅)
+    └── image/[imageKey]/route.ts  # ⚠️ NOT USED - See note below
 ```
 
 ### Demo UI Components
 - `app/page.tsx` - Example UI showing album browsing and image selection
+- `app/albums/[albumKey]/page.tsx` - Album photo grid with sessionStorage caching
+- `app/photo/[imageKey]/page.tsx` - Photo detail page using cached data
 - `app/layout.tsx` - Root layout with Tailwind CSS
 - State management with Zustand (see existing implementation)
+
+### ⚠️ Known SmugMug API Limitation
+
+**DO NOT use the `/api/v2/image/{imageKey}` SmugMug endpoint directly.**
+
+**Problem**: The SmugMug `/api/v2/image/{imageKey}` endpoint has a persistent OAuth nonce collision issue. Even with cryptographically unique nonces and fresh OAuth instances per request, SmugMug returns `oauth_problem=nonce_used` errors consistently. This appears to be a SmugMug API bug or undocumented rate limiting specific to this endpoint.
+
+**Solution**: Use the sessionStorage pattern instead:
+1. The `/api/v2/album/{albumKey}!images` endpoint returns ALL photo data (including metadata)
+2. Store photo data in `sessionStorage` when user clicks on a photo
+3. Photo detail page reads from sessionStorage instead of making individual image API calls
+
+**Implementation**:
+```typescript
+// In album page - when photo is clicked:
+sessionStorage.setItem('currentPhoto', JSON.stringify(photo));
+
+// In photo detail page:
+const cachedPhoto = sessionStorage.getItem('currentPhoto');
+if (cachedPhoto) {
+  const photo = JSON.parse(cachedPhoto);
+  setMetadata({ Response: { Image: photo } });
+}
+```
+
+**Why this works better**:
+- Avoids the OAuth nonce issue entirely
+- Faster (no additional API call)
+- More efficient (data already fetched)
+- Better user experience (instant page load)
 
 ---
 
@@ -213,6 +246,15 @@ LOG_LEVEL=info
 
 ### ❌ DON'T: Rewrite working authentication
 The OAuth flow is complex and tested. Don't touch unless specifically asked.
+
+### ❌ DON'T: Use the `/api/v2/image/{imageKey}` SmugMug endpoint
+This endpoint has persistent OAuth nonce issues. Use the sessionStorage pattern documented above instead.
+
+### ❌ DON'T: Try to "fix" OAuth nonce errors with more randomness
+If you encounter `oauth_problem=nonce_used` errors from SmugMug:
+- It's NOT a code issue - it's a SmugMug API limitation on certain endpoints
+- Increasing nonce length, using crypto.randomBytes, or creating fresh OAuth instances won't help
+- Use the sessionStorage workaround or a different SmugMug endpoint
 
 ### ❌ DON'T: Hardcode secrets
 Always use environment variables for API keys and secrets.

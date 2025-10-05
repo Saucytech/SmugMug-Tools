@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 
+// Custom nonce generator to ensure uniqueness
+function generateNonce(): string {
+  return crypto.randomBytes(32).toString('base64')
+    .replace(/\+/g, '')
+    .replace(/\//g, '')
+    .replace(/=/g, '')
+    .substring(0, 32);
+}
+
 const oauth = new OAuth({
   consumer: {
     key: process.env.SMUGMUG_API_KEY!,
@@ -14,6 +23,7 @@ const oauth = new OAuth({
       .update(base_string)
       .digest('base64');
   },
+  nonce_length: 32,
 });
 
 export async function GET(request: NextRequest) {
@@ -41,7 +51,7 @@ export async function GET(request: NextRequest) {
       oauth.authorize(userRequestData, {
         key: accessToken,
         secret: accessTokenSecret,
-      })
+      }, generateNonce())
     );
 
     const userResponse = await fetch(userUrl, {
@@ -54,32 +64,46 @@ export async function GET(request: NextRequest) {
     const userData = await userResponse.json();
     const nickname = userData.Response.User.NickName;
 
-    // Now get albums
-    const albumsUrl = `https://api.smugmug.com/api/v2/user/${nickname}!albums`;
+    // Now get ALL albums with pagination
+    let allAlbums: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    const pageSize = 100; // Max allowed by SmugMug
 
-    const requestData = {
-      url: albumsUrl,
-      method: 'GET',
-    };
+    while (hasMore) {
+      const albumsUrl = `https://api.smugmug.com/api/v2/user/${nickname}!albums?start=${(page - 1) * pageSize + 1}&count=${pageSize}`;
 
-    const authHeader = oauth.toHeader(
-      oauth.authorize(requestData, {
-        key: accessToken,
-        secret: accessTokenSecret,
-      })
-    );
+      const requestData = {
+        url: albumsUrl,
+        method: 'GET',
+      };
 
-    const response = await fetch(albumsUrl, {
-      headers: {
-        ...authHeader,
-        Accept: 'application/json',
-      },
-    });
+      const authHeader = oauth.toHeader(
+        oauth.authorize(requestData, {
+          key: accessToken,
+          secret: accessTokenSecret,
+        }, generateNonce())
+      );
 
-    const data = await response.json();
+      const response = await fetch(albumsUrl, {
+        headers: {
+          ...authHeader,
+          Accept: 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      const albums = data.Response.Album || [];
+
+      allAlbums = allAlbums.concat(albums);
+
+      // Check if there are more pages
+      hasMore = albums.length === pageSize;
+      page++;
+    }
 
     return NextResponse.json({
-      albums: data.Response.Album || [],
+      albums: allAlbums,
     });
   } catch (error) {
     console.error('Error fetching albums:', error);

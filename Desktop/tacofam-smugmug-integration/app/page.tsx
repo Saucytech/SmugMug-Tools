@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ImageIcon, FolderIcon, LogOut, Book, Database } from 'lucide-react';
+import { ImageIcon, FolderIcon, LogOut, Book, Database, ShoppingCart, Code2, Wrench, Heart } from 'lucide-react';
 import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
+import { useRouter } from 'next/navigation';
+import ToolboxHeader from '@/components/ToolboxHeader';
 
 interface Album {
   AlbumKey: string;
@@ -13,10 +15,19 @@ interface Album {
 
 
 export default function Home() {
+  const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
+
+  // Pagination, filtering, and sorting state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'count' | 'recent'>('name');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
   // Check for OAuth callback tokens in URL
   useEffect(() => {
@@ -42,9 +53,6 @@ export default function Home() {
     tokenStorage.clearTokens();
     setIsAuthenticated(false);
     setAlbums([]);
-    setSelectedAlbum(null);
-    setPhotos([]);
-    setSelectedPhotos(new Set());
   };
 
   const fetchAlbums = async () => {
@@ -61,15 +69,36 @@ export default function Home() {
     }
   };
 
+  // Filter albums by search term
+  const filteredAlbums = albums.filter((album) =>
+    album.Name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Sort albums
+  const sortedAlbums = [...filteredAlbums].sort((a, b) => {
+    if (sortBy === 'name') {
+      return a.Name.localeCompare(b.Name);
+    } else if (sortBy === 'count') {
+      return b.ImageCount - a.ImageCount;
+    }
+    // 'recent' - no sorting, keep original order (assumes API returns recent first)
+    return 0;
+  });
+
+  // Paginate albums
+  const totalPages = Math.ceil(sortedAlbums.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedAlbums = sortedAlbums.slice(startIndex, startIndex + itemsPerPage);
+
 
   if (!isAuthenticated) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
         <div className="text-center max-w-2xl">
-          <ImageIcon className="w-20 h-20 mx-auto mb-6 text-blue-400" />
-          <h1 className="text-5xl font-bold mb-4">TacoFam SmugMug Integration</h1>
+          <Wrench className="w-20 h-20 mx-auto mb-6 text-blue-400" />
+          <h1 className="text-5xl font-bold mb-4">SmugMug Toolbox</h1>
           <p className="text-xl mb-8 text-gray-300">
-            Connect your SmugMug account to browse albums and select photos for your TacoFam articles
+            Professional tools to enhance your SmugMug workflow
           </p>
           <button
             onClick={handleAuth}
@@ -114,39 +143,103 @@ export default function Home() {
     );
   }
 
-  return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">SmugMug Photo Browser</h1>
-          <div className="flex items-center gap-3">
-            <a
-              href="/api-reference"
-              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              <Book className="w-4 h-4" />
-              API Reference
-            </a>
-            <a
-              href={`/metadata?${new URLSearchParams({
-                access_token: tokenStorage.getTokens()?.accessToken || '',
-                access_token_secret: tokenStorage.getTokens()?.accessTokenSecret || ''
-              }).toString()}`}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              <Database className="w-4 h-4" />
-              Metadata
-            </a>
+  // If no tool selected, show toolbox dashboard
+  if (!selectedTool) {
+    return (
+      <>
+        <ToolboxHeader />
+        <main className="min-h-screen bg-gray-50 p-8">
+          <div className="max-w-7xl mx-auto">
+            {/* Welcome Section */}
+            <div className="mb-12 text-center">
+              <Wrench className="w-16 h-16 text-purple-600 mx-auto mb-4" />
+              <h1 className="text-5xl font-bold text-gray-900 mb-3">SmugMug Toolbox</h1>
+              <p className="text-xl text-gray-600">Professional tools to enhance your SmugMug workflow</p>
+            </div>
+
+          {/* Tools Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Embed and Sell Tool */}
             <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+              onClick={() => setSelectedTool('embed-sell')}
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-purple-500 text-left"
             >
-              <LogOut className="w-4 h-4" />
-              Logout
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <ShoppingCart className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Embed & Sell</h2>
+              <p className="text-gray-600 mb-4">
+                Create beautiful embeddable galleries with buy buttons. Perfect for selling photos on your own website.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">Multi-select</span>
+                <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">3 Layouts</span>
+                <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">Buy Buttons</span>
+              </div>
+              <div className="mt-6 text-purple-600 font-semibold flex items-center gap-2">
+                Launch Tool
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </button>
+
+            {/* Favorites Selector Tool */}
+            <button
+              onClick={() => router.push('/favorites-manager')}
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-pink-500 text-left"
+            >
+              <div className="bg-gradient-to-br from-pink-500 to-pink-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Heart className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Favorites Selector</h2>
+              <p className="text-gray-600 mb-4">
+                Let customers select their favorite photos from your albums. Perfect for client galleries and photo approvals.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-pink-100 text-pink-700 text-xs font-semibold rounded-full">Shareable Links</span>
+                <span className="px-3 py-1 bg-pink-100 text-pink-700 text-xs font-semibold rounded-full">Vote Tracking</span>
+                <span className="px-3 py-1 bg-pink-100 text-pink-700 text-xs font-semibold rounded-full">Results Dashboard</span>
+              </div>
+              <div className="mt-6 text-pink-600 font-semibold flex items-center gap-2">
+                Launch Tool
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </button>
+
+            {/* MetaData Monster Tool */}
+            <button
+              onClick={() => router.push('/metadata-monster')}
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-green-500 text-left"
+            >
+              <div className="bg-gradient-to-br from-green-500 to-green-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Code2 className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">MetaData Monster</h2>
+              <p className="text-gray-600 mb-4">
+                AI-powered automatic Title, Caption, and Keyword generator. Bulk process your entire photo library in minutes.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">AI-Powered</span>
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">Bulk Processing</span>
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">Auto-Save</span>
+              </div>
+              <div className="mt-6 text-green-600 font-semibold flex items-center gap-2">
+                Launch Tool
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
             </button>
           </div>
         </div>
+      </main>
+      </>
+    );
+  }
+
+  // Show the selected tool (Embed & Sell)
+  return (
+    <>
+      <ToolboxHeader currentTool="embed-sell" />
+      <main className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-7xl mx-auto">
 
         {/* Error Message */}
         {error && (
@@ -156,10 +249,27 @@ export default function Home() {
         )}
 
         {/* Albums Section */}
-        {(
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-semibold text-gray-800">Your Albums</h2>
+        <div>
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-800">Select Albums</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Choose one or more albums to select photos from
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {selectedAlbumsForEmbed.size > 0 && (
+                <button
+                  onClick={() => {
+                    // Navigate to multi-album photo selector
+                    const albumKeys = Array.from(selectedAlbumsForEmbed).join(',');
+                    router.push(`/multi-album-selector?albums=${albumKeys}`);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors font-medium"
+                >
+                  Continue with {selectedAlbumsForEmbed.size} Album{selectedAlbumsForEmbed.size !== 1 ? 's' : ''}
+                </button>
+              )}
               <button
                 onClick={fetchAlbums}
                 disabled={loading}
@@ -168,31 +278,126 @@ export default function Home() {
                 {loading ? 'Loading...' : albums.length > 0 ? 'Refresh Albums' : 'Load Albums'}
               </button>
             </div>
-
-            {albums.length === 0 && !loading && (
-              <div className="text-center py-20 text-gray-500">
-                <FolderIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p>Click "Load Albums" to see your SmugMug albums</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {albums.map((album) => (
-                <a
-                  key={album.AlbumKey}
-                  href={`/albums/${album.AlbumKey}?albumName=${encodeURIComponent(album.Name)}`}
-                  className="bg-white border-2 border-gray-200 rounded-lg p-6 hover:shadow-xl hover:border-blue-500 cursor-pointer transition-all block"
-                >
-                  <FolderIcon className="w-12 h-12 mb-3 text-blue-600" />
-                  <h3 className="font-semibold text-lg mb-1 text-gray-900">{album.Name}</h3>
-                  <p className="text-sm text-gray-600">{album.ImageCount} photos</p>
-                </a>
-              ))}
-            </div>
           </div>
-        )}
+
+          {albums.length === 0 && !loading && (
+            <div className="text-center py-20 text-gray-500">
+              <FolderIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <p>Click "Load Albums" to see your SmugMug albums</p>
+            </div>
+          )}
+
+          {albums.length > 0 && (
+            <>
+              {/* Search and Sort Controls */}
+              <div className="flex gap-4 mb-6">
+                <input
+                  type="text"
+                  placeholder="Search albums..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1); // Reset to first page on search
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value as 'name' | 'count' | 'recent');
+                    setCurrentPage(1); // Reset to first page on sort change
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="name">Sort by Name</option>
+                  <option value="count">Sort by Photo Count</option>
+                  <option value="recent">Most Recent</option>
+                </select>
+              </div>
+
+              {/* Results Count */}
+              <div className="mb-4 text-sm text-gray-600">
+                Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedAlbums.length)} of {sortedAlbums.length} albums
+                {searchTerm && ` (filtered from ${albums.length} total)`}
+              </div>
+
+              {/* Albums Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {paginatedAlbums.map((album) => {
+                  const isSelected = selectedAlbumsForEmbed.has(album.AlbumKey);
+                  return (
+                    <button
+                      key={album.AlbumKey}
+                      onClick={() => {
+                        const newSelection = new Set(selectedAlbumsForEmbed);
+                        if (isSelected) {
+                          newSelection.delete(album.AlbumKey);
+                        } else {
+                          newSelection.add(album.AlbumKey);
+                        }
+                        setSelectedAlbumsForEmbed(newSelection);
+                      }}
+                      className={`bg-white border-2 rounded-lg p-6 hover:shadow-xl cursor-pointer transition-all text-left relative ${
+                        isSelected
+                          ? 'border-purple-500 ring-4 ring-purple-200'
+                          : 'border-gray-200 hover:border-blue-500'
+                      }`}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-3 right-3 bg-purple-500 text-white w-6 h-6 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-bold">✓</span>
+                        </div>
+                      )}
+                      <FolderIcon className={`w-12 h-12 mb-3 ${isSelected ? 'text-purple-600' : 'text-blue-600'}`} />
+                      <h3 className="font-semibold text-lg mb-1 text-gray-900">{album.Name}</h3>
+                      <p className="text-sm text-gray-600">{album.ImageCount} photos</p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-8">
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded-lg transition-colors"
+                  >
+                    Previous
+                  </button>
+
+                  <div className="flex gap-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 hover:bg-gray-300'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded-lg transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
       </div>
     </main>
+    </>
   );
 }

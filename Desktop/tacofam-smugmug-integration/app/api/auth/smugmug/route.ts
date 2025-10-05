@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     }
 
     // Store request token secret in cookie for callback
-    const authorizeUrl = `${AUTHORIZE_URL}?oauth_token=${requestToken}&Access=Full&Permissions=Read`;
+    const authorizeUrl = `${AUTHORIZE_URL}?oauth_token=${requestToken}&Access=Full&Permissions=Modify`;
 
     const response = NextResponse.redirect(authorizeUrl);
     response.cookies.set('oauth_token_secret', requestTokenSecret, {
