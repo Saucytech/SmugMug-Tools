@@ -8,7 +8,9 @@ A battle-tested, fully authenticated Next.js starter template for building any S
 
 ## 🎯 What Is This?
 
-This is a **complete, working foundation** for any SmugMug API project. The hardest part (OAuth 1.0a) is done and tested. Use this template to build:
+This is a **complete, working foundation** for any SmugMug API project. The hardest part (OAuth 1.0a) is done and tested. Now includes professional photographer tools for client galleries, AI-powered metadata generation, and more!
+
+Use this template to build:
 
 - 📸 Photo gallery websites
 - 🔄 Backup and sync tools
@@ -18,6 +20,8 @@ This is a **complete, working foundation** for any SmugMug API project. The hard
 - 📝 Content management systems
 - 🔍 Photo search engines
 - 💾 Media libraries
+- 🤖 AI-powered metadata tools
+- 👥 Client photo selection galleries
 - ...and anything else you can imagine!
 
 ---
@@ -38,12 +42,35 @@ This is a **complete, working foundation** for any SmugMug API project. The hard
 - **OAuth 1.0a** - Secure authentication with `oauth-1.0a` package
 - **SmugMug API v2** - Latest API version
 
-### 📦 Example Features (Starter UI)
-- Album browsing
-- Image viewing with thumbnails
-- Multi-select functionality
-- JSON export to clipboard
-- Responsive design
+### 📦 Professional Tools Included
+
+#### 🧰 SmugMug Toolbox (Production-Ready Features)
+- **Favorites Manager** - Let clients select their favorite photos from galleries
+  - Customizable branding with logo upload
+  - Multiple theme options
+  - Optional "Buy" button integration
+  - Shareable client links
+  - Track customer selections
+
+- **MetaData Monster** - AI-powered photo metadata generation
+  - Batch process titles, captions, and keywords
+  - Multiple prompt styles (Professional, Creative, SEO, etc.)
+  - Edit before saving
+  - Export reports
+  - Auto-save to SmugMug
+
+- **Multi-Album Selector** - Create embeddable galleries
+  - Select photos from multiple albums
+  - Generate embed codes (HTML, React, WordPress)
+  - Multiple display layouts (Grid, Carousel, Masonry)
+  - Export to JSON
+
+#### 🛠️ Developer Tools
+- **API Reference Browser** - Interactive SmugMug API documentation
+- **Metadata Viewer** - Inspect EXIF and image metadata
+- Album browsing and navigation
+- URL-based folder/album navigation
+- Responsive design throughout
 
 ### 🏗️ Clean Architecture
 ```
@@ -52,12 +79,20 @@ app/
 │   ├── auth/smugmug/
 │   │   ├── route.ts              # OAuth initiation (✅ Working)
 │   │   └── callback/route.ts     # OAuth callback (✅ Working)
+│   ├── ai/
+│   │   └── generate-metadata/    # AI metadata generation
 │   └── smugmug/
-│       └── albums/
-│           ├── route.ts          # Example: Fetch albums
-│           └── [albumKey]/images/route.ts  # Example: Fetch images
+│       ├── albums/               # Album endpoints
+│       ├── folders/              # Folder endpoints
+│       ├── user/                 # User info
+│       └── image/[imageKey]/     # Image updates
+├── favorites-manager/            # Client photo selection tool
+├── metadata-monster/             # AI metadata generator
+├── multi-album-selector/         # Gallery embed creator
+├── api-reference/                # API documentation browser
+├── metadata/                     # Metadata viewer
 ├── layout.tsx                    # Root layout
-└── page.tsx                      # Example UI (customize or replace)
+└── page.tsx                      # Main dashboard
 ```
 
 ---
@@ -374,11 +409,64 @@ MIT - Use this template for anything!
 
 ---
 
+## 🧰 Using the Built-in Tools
+
+### Favorites Manager
+Perfect for professional photographers working with clients:
+
+1. Navigate to `/favorites-manager`
+2. Create a new favorites session
+3. Select albums for clients to browse
+4. Customize the theme and branding
+5. Share the link with your client
+6. Track their selections in real-time
+
+**Client view includes:**
+- Beautiful, responsive photo gallery
+- Heart icon to mark favorites
+- Optional "Buy" buttons
+- Custom branding with your logo
+
+### MetaData Monster
+AI-powered bulk metadata generation:
+
+1. Navigate to `/metadata-monster`
+2. Select an album
+3. Choose what to generate (titles, captions, keywords)
+4. Select a prompt style (Professional, Creative, SEO, etc.)
+5. Process selected photos
+6. Edit generated metadata before saving
+7. Auto-save to SmugMug or export as CSV
+
+**Uses AI vision to:**
+- Analyze photo content
+- Generate relevant titles
+- Write descriptive captions
+- Create SEO-optimized keywords
+
+### Multi-Album Selector
+Create embeddable photo galleries:
+
+1. Navigate to `/multi-album-selector`
+2. Select photos from multiple albums
+3. Choose display layout (Grid, Carousel, Masonry)
+4. Generate embed code (HTML, React, WordPress, JSON)
+5. Copy and use in your website
+
+---
+
 ## 🌟 What's Next?
 
-You now have a **fully working, authenticated SmugMug API connection**. The hard part is done!
+You now have a **fully working, authenticated SmugMug API connection** with professional tools included! The hard part is done!
 
-**Ideas to build:**
+**Already Built:**
+- ✅ Client photo selection galleries
+- ✅ AI metadata generation
+- ✅ Gallery embed code generator
+- ✅ API reference browser
+- ✅ Metadata viewer
+
+**More Ideas to build:**
 - Photo portfolio site with automatic SmugMug sync
 - Family photo sharing app
 - Photography business website
@@ -386,6 +474,6 @@ You now have a **fully working, authenticated SmugMug API connection**. The hard
 - Print-on-demand integration
 - Social media scheduler
 - Photo contest platform
-- Client gallery delivery system
+- Advanced analytics dashboard
 
 **The possibilities are endless - start building! 🚀**

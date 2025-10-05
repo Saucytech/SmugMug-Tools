@@ -33,10 +33,13 @@ export default function FavoritesManagerPage() {
   useEffect(() => {
     // Check auth
     const tokens = tokenStorage.getTokens();
-    if (!tokens) {
+    if (!tokens || !tokens.accessToken || !tokens.accessTokenSecret) {
+      console.error('[Favorites Manager] No auth tokens found, redirecting to home');
       router.push('/');
       return;
     }
+
+    console.log('[Favorites Manager] Auth tokens found, loading data');
 
     // Load sessions
     loadSessions();
@@ -284,7 +287,8 @@ export default function FavoritesManagerPage() {
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
                     placeholder="e.g., Wedding Photos Selection"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    style={{ color: '#111827 !important' }}
                   />
                 </div>
 
@@ -298,7 +302,8 @@ export default function FavoritesManagerPage() {
                     onChange={(e) => setSessionDescription(e.target.value)}
                     placeholder="Instructions for your customers..."
                     rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    style={{ color: '#111827 !important' }}
                   />
                 </div>
 
@@ -318,16 +323,16 @@ export default function FavoritesManagerPage() {
                           className={`p-4 rounded-lg border-2 text-left transition-all ${
                             selectedAlbums.has(album.AlbumKey)
                               ? 'border-purple-500 bg-purple-50'
-                              : 'border-gray-200 hover:border-purple-300'
+                              : 'border-gray-200 hover:border-purple-300 bg-white'
                           }`}
                         >
                           <div className="flex items-start justify-between mb-2">
-                            <h3 className="font-semibold text-sm">{album.Name}</h3>
+                            <h3 className="font-semibold text-sm text-gray-900">{album.Name}</h3>
                             {selectedAlbums.has(album.AlbumKey) && (
                               <Check className="w-5 h-5 text-purple-600" />
                             )}
                           </div>
-                          <p className="text-xs text-gray-500">{album.ImageCount} photos</p>
+                          <p className="text-xs text-gray-600">{album.ImageCount} photos</p>
                         </button>
                       ))}
                     </div>

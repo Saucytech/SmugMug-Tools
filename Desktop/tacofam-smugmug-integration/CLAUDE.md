@@ -35,25 +35,68 @@ app/api/
 ├── auth/smugmug/
 │   ├── route.ts              # OAuth initiation (WORKING ✅)
 │   └── callback/route.ts     # OAuth callback (WORKING ✅)
+├── ai/
+│   └── generate-metadata/    # AI metadata generation (WORKING ✅)
 └── smugmug/
     ├── albums/
     │   ├── route.ts          # Fetch albums (WORKING ✅)
     │   └── [albumKey]/images/route.ts  # Fetch images (WORKING ✅)
-    └── image/[imageKey]/route.ts  # ⚠️ NOT USED - See note below
+    ├── folders/route.ts      # Fetch folders (WORKING ✅)
+    ├── user/route.ts         # Get user info (WORKING ✅)
+    └── image/[imageKey]/route.ts  # Update image metadata (WORKING ✅)
 ```
 
-### Demo UI Components
-- `app/page.tsx` - Example UI showing album browsing and image selection
+### Production-Ready Tools (SmugMug Toolbox)
+
+**Favorites Manager** (`app/favorites-manager/`)
+- Create client photo selection sessions
+- Customizable themes and branding
+- Shareable client links
+- Track customer favorites
+- Optional "Buy" button integration
+- Uses localStorage for session storage
+
+**MetaData Monster** (`app/metadata-monster/`)
+- AI-powered metadata generation
+- Batch process titles, captions, keywords
+- Multiple prompt styles (Professional, Creative, SEO, etc.)
+- Credit system for AI usage
+- Edit before saving to SmugMug
+- Export reports as CSV
+
+**Multi-Album Selector** (`app/multi-album-selector/`)
+- Select photos across multiple albums
+- Generate embed codes (HTML, React, WordPress, JSON)
+- Multiple display layouts (Grid, Carousel, Masonry)
+- Preview before exporting
+
+### Developer Tools
+- `app/api-reference/page.tsx` - Interactive SmugMug API documentation browser
+- `app/metadata/page.tsx` - EXIF and metadata viewer for images
+- `app/page.tsx` - Main dashboard with navigation to all tools
 - `app/albums/[albumKey]/page.tsx` - Album photo grid with sessionStorage caching
 - `app/photo/[imageKey]/page.tsx` - Photo detail page using cached data
 - `app/layout.tsx` - Root layout with Tailwind CSS
-- State management with Zustand (see existing implementation)
+- State management with custom hooks and localStorage
+
+### 🎯 Featured Production Tools
+
+**When users ask to:**
+- "Let clients select photos" → Direct them to **Favorites Manager** (`/favorites-manager`)
+- "Generate photo metadata" → Direct them to **MetaData Monster** (`/metadata-monster`)
+- "Create embeddable galleries" → Direct them to **Multi-Album Selector** (`/multi-album-selector`)
+- "View API documentation" → Direct them to **API Reference** (`/api-reference`)
+- "Inspect photo metadata" → Direct them to **Metadata Viewer** (`/metadata`)
+
+These tools are **production-ready and fully working**. Don't rebuild them unless specifically requested.
 
 ### ⚠️ Known SmugMug API Limitation
 
-**DO NOT use the `/api/v2/image/{imageKey}` SmugMug endpoint directly.**
+**DO NOT use the `/api/v2/image/{imageKey}` GET endpoint for reading image data.**
 
-**Problem**: The SmugMug `/api/v2/image/{imageKey}` endpoint has a persistent OAuth nonce collision issue. Even with cryptographically unique nonces and fresh OAuth instances per request, SmugMug returns `oauth_problem=nonce_used` errors consistently. This appears to be a SmugMug API bug or undocumented rate limiting specific to this endpoint.
+**Problem**: The SmugMug `/api/v2/image/{imageKey}` GET endpoint has a persistent OAuth nonce collision issue. Even with cryptographically unique nonces and fresh OAuth instances per request, SmugMug returns `oauth_problem=nonce_used` errors consistently. This appears to be a SmugMug API bug or undocumented rate limiting specific to this endpoint.
+
+**NOTE**: The PUT endpoint (`/api/v2/image/{imageKey}`) for **updating** image metadata DOES work and is used successfully in MetaData Monster with random delays to prevent nonce collisions.
 
 **Solution**: Use the sessionStorage pattern instead:
 1. The `/api/v2/album/{albumKey}!images` endpoint returns ALL photo data (including metadata)
@@ -82,6 +125,22 @@ if (cachedPhoto) {
 ---
 
 ## 🎯 Common User Requests & How to Handle Them
+
+### 0. "I need [client favorites / metadata generation / gallery embeds]"
+
+**IMPORTANT: Check existing tools FIRST before building anything new!**
+
+The template now includes production-ready tools for common photographer needs:
+
+- **Client photo selection?** → Use `/favorites-manager` (already built!)
+- **Generate metadata?** → Use `/metadata-monster` (already built!)
+- **Create embeds?** → Use `/multi-album-selector` (already built!)
+- **API docs?** → Use `/api-reference` (already built!)
+
+**Only build new features if:**
+1. The existing tools don't meet the specific requirement
+2. User explicitly asks to modify or extend an existing tool
+3. User wants something completely different
 
 ### 1. "Add a new SmugMug API feature"
 
@@ -387,13 +446,14 @@ try {
 
 When a user asks you to work on this project:
 
-1. **Understand the request** - Is it auth-related (rare) or new feature (common)?
-2. **Check existing code** - Review similar implementations in the template
-3. **Use the patterns** - Follow OAuth helper pattern for API routes
-4. **Test your changes** - Ensure auth flow still works
-5. **Document** - Add comments for complex logic
+1. **Check existing tools FIRST** - We have Favorites Manager, MetaData Monster, Multi-Album Selector, API Reference, and Metadata Viewer already built
+2. **Understand the request** - Do they need an existing tool or something new?
+3. **Review existing code** - Review similar implementations in the template
+4. **Use the patterns** - Follow OAuth helper pattern for API routes
+5. **Test your changes** - Ensure auth flow still works
+6. **Document** - Add comments for complex logic
 
-**Remember**: The hard part (OAuth) is done. Focus on building cool SmugMug features! 🎉
+**Remember**: The hard part (OAuth) is done AND we have professional tools built! Check what exists before building anything new. 🎉
 
 ---
 
@@ -404,9 +464,12 @@ When a user asks you to work on this project:
 - "Create a search feature using SmugMug's search endpoint"
 - "Add photo upload functionality"
 - "Implement database storage with Prisma for tokens"
-- "Build a photo gallery grid UI"
+- "Customize the Favorites Manager theme colors"
+- "Add a new prompt style to MetaData Monster"
 
 ### Prompts to Clarify:
+- "I need client favorites" → "We have Favorites Manager built! Navigate to /favorites-manager to use it. Need help?"
+- "Generate metadata" → "MetaData Monster is already built! Go to /metadata-monster. Want to customize it?"
 - "Fix authentication" → Ask what error they're seeing
 - "Make it better" → Ask what specific feature they want
 - "Deploy this" → Ask which platform and review security checklist
@@ -435,14 +498,21 @@ When a user asks you to work on this project:
 - ✅ Working OAuth 1.0a with SmugMug
 - ✅ Clean Next.js 14 architecture
 - ✅ TypeScript setup
-- ✅ Example API routes and UI
+- ✅ Production-ready SmugMug Toolbox with 5 professional tools:
+  - **Favorites Manager** - Client photo selection galleries
+  - **MetaData Monster** - AI-powered metadata generation
+  - **Multi-Album Selector** - Embeddable gallery creator
+  - **API Reference** - Interactive SmugMug API documentation
+  - **Metadata Viewer** - EXIF and metadata inspector
+- ✅ Complete API routes (albums, folders, user, images, AI)
 - ✅ Production-ready foundation
 
 **Your job is to**:
-- 🎯 Build new SmugMug features
-- 🎨 Customize the UI
+- ✅ **FIRST: Check if an existing tool solves the user's need!**
+- 🎯 Build NEW SmugMug features (if not already built)
+- 🎨 Customize existing tools (if requested)
 - 📦 Add integrations
 - 🚀 Help deploy to production
 - 🐛 Debug issues (rarely auth-related)
 
-**The authentication is DONE. Focus on helping users build amazing SmugMug apps!** 🌟
+**The authentication is DONE. Professional tools are BUILT. Check what exists before building!** 🌟

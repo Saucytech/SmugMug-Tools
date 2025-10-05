@@ -80,7 +80,7 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
 
   const handleLogout = () => {
     tokenStorage.clearTokens();
-    router.push('/');
+    window.location.href = '/';
   };
 
   const getCurrentTool = () => {

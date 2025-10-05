@@ -2,8 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 
-// Simple mutex to prevent concurrent OAuth requests
-let requestLock: Promise<void> | null = null;
+// Global request queue to prevent concurrent OAuth requests and nonce collisions
+let lastRequestTime = 0;
+const MIN_REQUEST_GAP = 10000; // 10 seconds minimum between requests - SmugMug has aggressive nonce caching
+
+async function waitForRequestSlot() {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+
+  if (timeSinceLastRequest < MIN_REQUEST_GAP) {
+    const waitTime = MIN_REQUEST_GAP - timeSinceLastRequest;
+    console.log(`Waiting ${waitTime}ms for request slot...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+
+  lastRequestTime = Date.now();
+}
 
 const oauth = new OAuth({
   consumer: {
@@ -98,34 +112,68 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export async function PATCH(
   request: NextRequest,
   { params }: { params: { imageKey: string } }
 ) {
-  try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
+  const maxRetries = 3;
+  let lastError: any = null;
 
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Missing authentication tokens' },
-        { status: 401 }
-      );
-    }
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const accessToken = request.headers.get('X-Access-Token');
+      const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
 
-    const imageKey = params.imageKey;
-    const body = await request.json();
-    const { Title, Caption, Keywords } = body;
+      if (!accessToken || !accessTokenSecret) {
+        return NextResponse.json(
+          { error: 'Missing authentication tokens' },
+          { status: 401 }
+        );
+      }
+
+      const imageKey = params.imageKey;
+
+      // Parse body only once on first attempt
+      let body;
+      if (attempt === 1) {
+        body = await request.json();
+      } else {
+        // For retries, we need to get the body from the original request clone
+        // This is a limitation - we'll need to pass it differently
+        body = lastError?.body || {};
+      }
+
+      // Build update payload - only include non-empty fields
+      const updatePayload: any = {};
+      if (body.Title !== undefined && body.Title !== null) {
+        updatePayload.Title = body.Title;
+      }
+      if (body.Caption !== undefined && body.Caption !== null) {
+        updatePayload.Caption = body.Caption;
+      }
+      if (body.Keywords !== undefined && body.Keywords !== null) {
+        updatePayload.Keywords = body.Keywords;
+      }
+
+      // Don't make request if nothing to update
+      if (Object.keys(updatePayload).length === 0) {
+        return NextResponse.json({ success: true, message: 'No changes to save' });
+      }
+
+      // Store for potential retry
+      lastError = { body };
+
+      // Wait for global request slot (ensures 5 second gap between ALL requests)
+      await waitForRequestSlot();
 
     const url = `https://api.smugmug.com/api/v2/image/${imageKey}`;
 
     const requestData = {
       url,
-      method: 'PUT',
+      method: 'PATCH',
     };
 
-    // Create fresh OAuth instance for PUT to avoid nonce reuse
-    // Add random component to ensure unique nonce
+    // Create completely fresh OAuth instance with extended nonce
     const freshOAuth = new OAuth({
       consumer: {
         key: process.env.SMUGMUG_API_KEY!,
@@ -138,9 +186,10 @@ export async function PUT(
           .update(base_string)
           .digest('base64');
       },
-      nonce_length: 64, // Increased from 42 for more uniqueness
+      nonce_length: 96, // Very long nonce
     });
 
+    // Generate auth with fresh instance (don't include body in OAuth signature for JSON PATCH)
     const authHeader = freshOAuth.toHeader(
       freshOAuth.authorize(requestData, {
         key: accessToken,
@@ -148,36 +197,81 @@ export async function PUT(
       })
     );
 
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        ...authHeader,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ Title, Caption, Keywords }),
-    });
+      console.log(`Updating image metadata (attempt ${attempt}/${maxRetries}):`, {
+        imageKey,
+        fields: Object.keys(updatePayload),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('==================== SMUGMUG PUT ERROR ====================');
-      console.error('Status:', response.status);
-      console.error('Status Text:', response.statusText);
-      console.error('URL:', url);
-      console.error('Request Body:', JSON.stringify({ Title, Caption, Keywords }));
-      console.error('Response Body:', errorText);
-      console.error('=============================================================');
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          ...authHeader,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatePayload),
+      });
 
-      throw new Error(`SmugMug API error: ${response.statusText} - ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        // Check if it's a nonce_used error and we can retry
+        if (errorText.includes('nonce_used') && attempt < maxRetries) {
+          console.warn(`Nonce collision on attempt ${attempt}, retrying...`);
+          continue; // Retry with longer delay
+        }
+
+        console.error('==================== SMUGMUG PATCH ERROR ====================');
+        console.error('Status:', response.status);
+        console.error('Status Text:', response.statusText);
+        console.error('URL:', url);
+        console.error('Image Key:', imageKey);
+        console.error('Attempt:', `${attempt}/${maxRetries}`);
+        console.error('Request Body:', JSON.stringify(updatePayload));
+        console.error('Response Body:', errorText);
+        console.error('Auth Header:', Object.keys(authHeader));
+        console.error('=============================================================');
+
+        return NextResponse.json(
+          {
+            error: `SmugMug API error: ${response.statusText}`,
+            details: errorText,
+            status: response.status,
+            attempt: attempt
+          },
+          { status: response.status }
+        );
+      }
+
+      const data = await response.json();
+      console.log(`Successfully updated image metadata (attempt ${attempt}):`, imageKey);
+      return NextResponse.json({ success: true, data, attempt });
+
+    } catch (error) {
+      console.error(`Error on attempt ${attempt}:`, error);
+      lastError = error;
+
+      if (attempt === maxRetries) {
+        return NextResponse.json(
+          {
+            error: 'Failed to update image metadata after retries',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            attempts: maxRetries
+          },
+          { status: 500 }
+        );
+      }
+      // Continue to next retry
     }
-
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error updating image metadata:', error);
-    return NextResponse.json(
-      { error: 'Failed to update image metadata' },
-      { status: 500 }
-    );
   }
+
+  // If we get here, all retries failed
+  return NextResponse.json(
+    {
+      error: 'Failed to update image metadata after all retries',
+      details: lastError instanceof Error ? lastError.message : 'Unknown error',
+      attempts: maxRetries
+    },
+    { status: 500 }
+  );
 }

@@ -202,11 +202,14 @@ export default function MetaDataMonster() {
       return;
     }
 
-    // Add small random delay to prevent nonce collisions (0-200ms)
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 200));
+    // Add small random delay to prevent nonce collisions (0-300ms)
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 300));
 
-    const response = await fetch(`/api/smugmug/image/${photo.ImageKey}`, {
-      method: 'PUT',
+    console.log('Saving metadata for image:', photo.ImageKey, updateData);
+
+    // Use AlbumImage endpoint instead of Image endpoint to avoid nonce issues
+    const response = await fetch(`/api/smugmug/album/${selectedAlbum}/image/${photo.ImageKey}`, {
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'X-Access-Token': tokens.accessToken || '',
@@ -216,8 +219,13 @@ export default function MetaDataMonster() {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to save metadata');
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('Failed to save metadata:', errorData);
+      throw new Error(errorData.error || 'Failed to save metadata to SmugMug');
     }
+
+    const result = await response.json();
+    console.log('Successfully saved metadata:', result);
   };
 
   const togglePhotoSelection = (index: number) => {
@@ -333,18 +341,25 @@ export default function MetaDataMonster() {
         idx === index ? { ...p, generated, status: 'generated' } : p
       ));
 
-      setPhotos(prev => prev.map((p, idx) =>
-        idx === index ? { ...p, status: 'saving' } : p
-      ));
+      if (options.saveToSmugMug) {
+        setPhotos(prev => prev.map((p, idx) =>
+          idx === index ? { ...p, status: 'saving' } : p
+        ));
 
-      await saveMetadata({ ...photo, generated });
+        await saveMetadata({ ...photo, generated });
 
-      setPhotos(prev => prev.map((p, idx) =>
-        idx === index ? { ...p, status: 'saved' } : p
-      ));
+        setPhotos(prev => prev.map((p, idx) =>
+          idx === index ? { ...p, status: 'saved' } : p
+        ));
+      }
     } catch (err) {
+      console.error('Retry error:', err);
       setPhotos(prev => prev.map((p, idx) =>
-        idx === index ? { ...p, status: 'error', error: err instanceof Error ? err.message : 'Unknown error' } : p
+        idx === index ? {
+          ...p,
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Unknown error'
+        } : p
       ));
     }
   };
@@ -469,6 +484,27 @@ export default function MetaDataMonster() {
           </div>
         ) : (
           <>
+            {/* Back Button & Album Info */}
+            <div className="mb-6 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setSelectedAlbum(null);
+                  setPhotos([]);
+                  setSelectedPhotos(new Set());
+                }}
+                className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Albums
+              </button>
+              <div className="text-right">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {albums.find(a => a.AlbumKey === selectedAlbum)?.Name || 'Album'}
+                </h2>
+                <p className="text-sm text-gray-600">{photos.length} photos</p>
+              </div>
+            </div>
+
             {/* Settings Panel */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Processing Settings</h2>
