@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Sparkles, FolderTree, Image as ImageIcon, CheckCircle, XCircle, Loader, AlertCircle, Folder, Layers, Plus, Trash2 } from 'lucide-react';
+import { Send, Sparkles, FolderTree, Image as ImageIcon, CheckCircle, XCircle, Loader, AlertCircle, Folder, Layers, Plus, Trash2, ChevronLeft, ChevronRight, Minimize2, Maximize2, ExternalLink } from 'lucide-react';
 import { tokenStorage } from '@/lib/smugmug-client';
 import ToolboxHeader from '@/components/ToolboxHeader';
 
@@ -79,6 +79,10 @@ export default function AIGalleryCreatorPage() {
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const [enableGuestUpload, setEnableGuestUpload] = useState(false);
   const [guestUploadPassword, setGuestUploadPassword] = useState('');
+
+  // Chat panel state
+  const [chatPanelState, setChatPanelState] = useState<'open' | 'collapsed' | 'hidden' | 'popped'>('open');
+  const [chatWidth, setChatWidth] = useState(30); // percentage
 
   useEffect(() => {
     // Check auth
@@ -565,10 +569,62 @@ export default function AIGalleryCreatorPage() {
           </div>
         </div>
 
-        {/* Split Layout: 30% Chat | 70% Manual Tools */}
-        <div className="flex" style={{ height: 'calc(100vh - 140px)' }}>
-          {/* LEFT: AI Chat Sidebar (30%) */}
-          <div className="w-[30%] border-r border-gray-200 bg-white flex flex-col">
+        {/* Split Layout with Resizable Chat */}
+        <div className="flex relative" style={{ height: 'calc(100vh - 140px)' }}>
+          {/* LEFT: AI Chat Sidebar - Resizable */}
+          {chatPanelState !== 'hidden' && chatPanelState !== 'popped' && (
+            <div
+              className="border-r border-gray-200 bg-white flex flex-col relative"
+              style={{
+                width: chatPanelState === 'collapsed' ? '48px' : `${chatWidth}%`,
+                transition: chatPanelState === 'collapsed' ? 'width 0.2s ease' : 'none'
+              }}
+            >
+              {/* Chat Controls Header */}
+              <div className="flex items-center justify-between p-2 border-b border-gray-200 bg-gray-50">
+                {chatPanelState !== 'collapsed' && (
+                  <span className="text-xs font-semibold text-gray-600 ml-1">AI Chat</span>
+                )}
+                <div className="flex items-center gap-1 ml-auto">
+                  {chatPanelState !== 'collapsed' && (
+                    <>
+                      <button
+                        onClick={() => window.open(`/ai-gallery-creator?chat-only=true`, '_blank', 'width=500,height=800')}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title="Pop out to new window"
+                      >
+                        <ExternalLink className="w-4 h-4 text-gray-600" />
+                      </button>
+                      <button
+                        onClick={() => setChatPanelState('collapsed')}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title="Collapse chat"
+                      >
+                        <ChevronLeft className="w-4 h-4 text-gray-600" />
+                      </button>
+                    </>
+                  )}
+                  {chatPanelState === 'collapsed' && (
+                    <button
+                      onClick={() => setChatPanelState('open')}
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      title="Expand chat"
+                    >
+                      <ChevronRight className="w-4 h-4 text-gray-600" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setChatPanelState('hidden')}
+                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                    title="Hide chat"
+                  >
+                    <Minimize2 className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
+              </div>
+
+              {chatPanelState !== 'collapsed' && (
+                <>
             {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.map((message, idx) => (
@@ -623,11 +679,34 @@ export default function AIGalleryCreatorPage() {
                   <Send className="w-4 h-4" />
                 </button>
               </div>
+                </>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* RIGHT: Manual Creation Tools (70%) */}
-          <div className="w-[70%] bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto">
+          {/* Chat Panel Hidden - Show Button */}
+          {chatPanelState === 'hidden' && (
+            <button
+              onClick={() => setChatPanelState('open')}
+              className="absolute top-4 left-4 z-10 bg-teal-600 hover:bg-teal-700 text-white p-2 rounded-lg shadow-lg transition-colors flex items-center gap-2"
+              title="Show AI Chat"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm font-medium">Show AI Chat</span>
+            </button>
+          )}
+
+          {/* RIGHT: Manual Creation Tools */}
+          <div
+            className="bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto"
+            style={{
+              width: chatPanelState === 'hidden' || chatPanelState === 'popped'
+                ? '100%'
+                : chatPanelState === 'collapsed'
+                ? 'calc(100% - 48px)'
+                : `${100 - chatWidth}%`
+            }}
+          >
             <div className="p-8">
               <div className="max-w-4xl mx-auto">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
