@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { tokenStorage } from '@/lib/smugmug-client';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import {
   ClipboardCheck,
@@ -83,12 +82,27 @@ export default function SanityChecker() {
   const [ignoredFindings, setIgnoredFindings] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (tokenStorage.hasTokens()) {
+    checkAuth();
+  }, [router]);
+
+  const checkAuth = async () => {
+    try {
+      const authCheck = await fetch('/api/smugmug/user', {
+        credentials: 'include'
+      });
+
+      if (!authCheck.ok) {
+        console.error('Sanity Checker: Not authenticated');
+        router.push('/');
+        return;
+      }
+
       setIsAuthenticated(true);
-    } else {
+    } catch (error) {
+      console.error('Sanity Checker: Auth check failed:', error);
       router.push('/');
     }
-  }, [router]);
+  };
 
   // Load cached index data from Photo Organizer
   const loadCachedIndexData = (): GalleryIndexEntry[] => {

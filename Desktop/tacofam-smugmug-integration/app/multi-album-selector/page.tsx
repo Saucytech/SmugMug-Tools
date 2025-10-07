@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Heart, Grid, LayoutGrid, Columns, X, Copy, Check, Play, Image as ImageIcon, Sparkles, Layout, Layers, Film, Camera, Monitor, Tablet, Smartphone, Code2, Eye } from 'lucide-react';
-import { tokenStorage } from '@/lib/smugmug-client';
 import ToolboxHeader from '@/components/ToolboxHeader';
 
 interface Photo {
@@ -96,8 +95,19 @@ export default function MultiAlbumSelector() {
     }
 
     setLoading(true);
-    const tokens = tokenStorage.getTokens();
-    if (!tokens) {
+
+    // Check authentication first
+    try {
+      const authCheck = await fetch('/api/smugmug/user', {
+        credentials: 'include',
+      });
+
+      if (!authCheck.ok) {
+        router.push('/');
+        return;
+      }
+    } catch (error) {
+      console.error('[Multi-Album Selector] Auth check failed:', error);
       router.push('/');
       return;
     }
@@ -107,10 +117,7 @@ export default function MultiAlbumSelector() {
     for (const albumKey of albumKeys) {
       try {
         const response = await fetch(`/api/smugmug/albums/${albumKey}/images`, {
-          headers: {
-            'X-Access-Token': tokens.accessToken,
-            'X-Access-Token-Secret': tokens.accessTokenSecret,
-          },
+          credentials: 'include',
         });
 
         if (response.ok) {
@@ -956,6 +963,19 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
     <div className="min-h-screen bg-gray-50">
       <ToolboxHeader currentTool="embed-sell" />
       <div className="max-w-7xl mx-auto p-8">
+
+        {/* Instructions */}
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-gray-800">
+              <span className="font-semibold">How to use:</span> Select one or more albums from your SmugMug account → Choose which photos to include → Pick a display layout (Grid, Carousel, or Masonry) → Generate embed code for your website or platform.
+            </p>
+          </div>
+        </div>
+
         {/* Page Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

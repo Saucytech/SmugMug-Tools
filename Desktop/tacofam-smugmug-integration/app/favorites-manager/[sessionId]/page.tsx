@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Users, Heart, Download, Mail, Trophy } from 'lucide-react';
 import { favoritesStorage, FavoriteSession } from '@/lib/favorites-storage';
-import { tokenStorage } from '@/lib/smugmug-client';
 import ToolboxHeader from '@/components/ToolboxHeader';
 
 interface PhotoWithVotes {
@@ -28,15 +27,27 @@ export default function FavoritesResultsPage() {
   const [sortBy, setSortBy] = useState<'votes' | 'recent'>('votes');
 
   useEffect(() => {
-    // Check auth
-    const tokens = tokenStorage.getTokens();
-    if (!tokens) {
-      router.push('/');
-      return;
-    }
-
-    loadSessionResults();
+    checkAuthAndLoad();
   }, [sessionId, router]);
+
+  const checkAuthAndLoad = async () => {
+    try {
+      const authCheck = await fetch('/api/smugmug/user', {
+        credentials: 'include'
+      });
+
+      if (!authCheck.ok) {
+        console.error('Favorites Manager: Not authenticated');
+        router.push('/');
+        return;
+      }
+
+      loadSessionResults();
+    } catch (error) {
+      console.error('Favorites Manager: Auth check failed:', error);
+      router.push('/');
+    }
+  };
 
   const loadSessionResults = async () => {
     const sessionData = favoritesStorage.getSession(sessionId);
@@ -53,12 +64,8 @@ export default function FavoritesResultsPage() {
 
     for (const albumKey of sessionData.albumKeys) {
       try {
-        const tokens = tokenStorage.getTokens();
         const response = await fetch(`/api/smugmug/albums/${albumKey}/images`, {
-          headers: {
-            'X-Access-Token': tokens?.accessToken || '',
-            'X-Access-Token-Secret': tokens?.accessTokenSecret || '',
-          },
+          credentials: 'include'
         });
 
         if (response.ok) {

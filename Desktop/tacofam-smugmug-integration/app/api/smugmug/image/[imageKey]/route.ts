@@ -39,8 +39,8 @@ export async function GET(
   { params }: { params: { imageKey: string } }
 ) {
   try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
+    const accessToken = request.cookies.get('smugmug_access_token')?.value;
+    const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
 
     if (!accessToken || !accessTokenSecret) {
       return NextResponse.json(
@@ -121,8 +121,8 @@ export async function PATCH(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const accessToken = request.headers.get('X-Access-Token');
-      const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
+      const accessToken = request.cookies.get('smugmug_access_token')?.value;
+      const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
 
       if (!accessToken || !accessTokenSecret) {
         return NextResponse.json(

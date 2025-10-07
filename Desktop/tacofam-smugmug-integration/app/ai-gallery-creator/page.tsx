@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, Sparkles, FolderTree, Image as ImageIcon, CheckCircle, XCircle, Loader, AlertCircle, Folder, Layers, Plus, Trash2, RefreshCw, Save, Download, BookTemplate, X, Pencil, Check } from 'lucide-react';
-import { tokenStorage } from '@/lib/smugmug-client';
 import ToolboxHeader from '@/components/ToolboxHeader';
 
 interface Message {
@@ -231,38 +230,44 @@ export default function AIGalleryCreatorPage() {
   const [editValue, setEditValue] = useState('');
 
   useEffect(() => {
-    // Check auth
-    const tokens = tokenStorage.getTokens();
-    if (!tokens) {
-      router.push('/');
-      return;
-    }
-
-    // Welcome message
-    setMessages([
-      {
-        role: 'assistant',
-        content: "👋 Hi! I'm your AI assistant for creating SmugMug folders and galleries.\n\nI can help you:\n• Create new folder structures from scratch\n• Add galleries to your existing folders\n• Organize complex event hierarchies\n\n**Examples:**\n• \"Create a wedding event structure\"\n• \"Add 5 galleries to my Wedding Events folder\"\n• \"Look for the Sports folder and create team galleries inside\"\n• \"Set up my 2025 portfolio with folders for different types of shoots\"",
-        timestamp: new Date(),
-      },
-    ]);
-
-    // Load album templates and folders
-    loadAlbumTemplates();
-    loadSmugmugFolders();
+    checkAuthAndInitialize();
   }, [router]);
+
+  const checkAuthAndInitialize = async () => {
+    try {
+      const authCheck = await fetch('/api/smugmug/user', {
+        credentials: 'include'
+      });
+
+      if (!authCheck.ok) {
+        console.error('AI Gallery Creator: Not authenticated');
+        router.push('/');
+        return;
+      }
+
+      // Welcome message
+      setMessages([
+        {
+          role: 'assistant',
+          content: "👋 Hi! I'm your AI assistant for creating SmugMug folders and galleries.\n\nI can help you:\n• Create new folder structures from scratch\n• Add galleries to your existing folders\n• Organize complex event hierarchies\n\n**Examples:**\n• \"Create a wedding event structure\"\n• \"Add 5 galleries to my Wedding Events folder\"\n• \"Look for the Sports folder and create team galleries inside\"\n• \"Set up my 2025 portfolio with folders for different types of shoots\"",
+          timestamp: new Date(),
+        },
+      ]);
+
+      // Load album templates and folders
+      loadAlbumTemplates();
+      loadSmugmugFolders();
+    } catch (error) {
+      console.error('AI Gallery Creator: Auth check failed:', error);
+      router.push('/');
+    }
+  };
 
   const loadSmugmugFolders = async () => {
     setIsLoadingFolders(true);
     try {
-      const tokens = tokenStorage.getTokens();
-      if (!tokens) return;
-
       const response = await fetch('/api/smugmug/folders', {
-        headers: {
-          'X-Access-Token': tokens.accessToken || '',
-          'X-Access-Token-Secret': tokens.accessTokenSecret || '',
-        },
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -280,14 +285,8 @@ export default function AIGalleryCreatorPage() {
   const loadAlbumTemplates = async () => {
     setIsLoadingTemplates(true);
     try {
-      const tokens = tokenStorage.getTokens();
-      if (!tokens) return;
-
       const response = await fetch('/api/smugmug/album-templates', {
-        headers: {
-          'X-Access-Token': tokens.accessToken || '',
-          'X-Access-Token-Secret': tokens.accessTokenSecret || '',
-        },
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -389,9 +388,8 @@ export default function AIGalleryCreatorPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Access-Token': tokenStorage.getTokens()?.accessToken || '',
-          'X-Access-Token-Secret': tokenStorage.getTokens()?.accessTokenSecret || '',
         },
+        credentials: 'include',
         body: JSON.stringify({ plan: currentPlan }),
       });
 
@@ -574,9 +572,8 @@ export default function AIGalleryCreatorPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Access-Token': tokenStorage.getTokens()?.accessToken || '',
-          'X-Access-Token-Secret': tokenStorage.getTokens()?.accessTokenSecret || '',
         },
+        credentials: 'include',
         body: JSON.stringify({ plan }),
       });
 
@@ -801,8 +798,23 @@ export default function AIGalleryCreatorPage() {
     <div className="flex flex-col min-h-screen">
       <ToolboxHeader currentTool="ai-gallery-creator" />
       <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-50">
+
+        {/* Instructions */}
+        <div className="max-w-full mx-auto px-8 pt-6">
+          <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-gray-800">
+                <span className="font-semibold">How to use:</span> Describe what galleries and folders you want to create (AI understands natural language) → Review the visual hierarchy of your structure → Execute to create all folders and galleries on SmugMug with real-time progress tracking.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Header */}
-        <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
+        <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm mt-6">
           <div className="max-w-full mx-auto px-8 py-4">
             <div className="flex items-center gap-3">
               <div className="bg-gradient-to-br from-teal-500 to-cyan-600 w-10 h-10 rounded-xl flex items-center justify-center">
@@ -886,171 +898,33 @@ export default function AIGalleryCreatorPage() {
                   Manual Creation Tools
                 </h2>
 
-                {/* Creation Form */}
+                {/* Template Management - Always Visible at Top */}
                 <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-                  <div className="grid grid-cols-2 gap-6">
-                    {/* Left Column: Add Folder */}
-                    <div className="space-y-4">
-                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                        <Folder className="w-5 h-5 text-teal-600" />
-                        Add Folder
-                      </h3>
-                      <input
-                        type="text"
-                        value={newFolderName}
-                        onChange={(e) => setNewFolderName(e.target.value)}
-                        placeholder="Folder name"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      />
-                      <button
-                        onClick={addManualFolder}
-                        disabled={!newFolderName.trim()}
-                        className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Folder
-                      </button>
-                    </div>
-
-                    {/* Right Column: Add Gallery */}
-                    <div className="space-y-4">
-                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                        <ImageIcon className="w-5 h-5 text-teal-600" />
-                        Add Gallery
-                      </h3>
-                      <input
-                        type="text"
-                        value={newGalleryName}
-                        onChange={(e) => setNewGalleryName(e.target.value)}
-                        placeholder="Gallery name"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      />
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Gallery Preset (optional)
-                        </label>
-                        <select
-                          value={selectedTemplate}
-                          onChange={(e) => setSelectedTemplate(e.target.value)}
-                          disabled={isLoadingTemplates}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
-                        >
-                          <option value="">Default</option>
-                          {albumTemplates.map((template) => (
-                            <option key={template.AlbumTemplateKey} value={template.Uri}>
-                              {template.Name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={enableGuestUpload}
-                            onChange={(e) => setEnableGuestUpload(e.target.checked)}
-                            className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
-                          />
-                          <span className="text-sm font-semibold text-gray-700">
-                            Enable Guest Uploads
-                          </span>
-                        </label>
-                        {enableGuestUpload && (
-                          <input
-                            type="text"
-                            value={guestUploadPassword}
-                            onChange={(e) => setGuestUploadPassword(e.target.value)}
-                            placeholder="Password (optional, auto-generated if empty)"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-                          />
-                        )}
-                      </div>
-                      <button
-                        onClick={addManualGallery}
-                        disabled={!newGalleryName.trim()}
-                        className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Gallery
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Shared Options */}
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-semibold text-gray-700">
-                            Parent Folder (optional)
-                          </label>
-                          <button
-                            onClick={loadSmugmugFolders}
-                            disabled={isLoadingFolders}
-                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded transition-colors disabled:opacity-50"
-                            title="Sync folder structure from SmugMug"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${isLoadingFolders ? 'animate-spin' : ''}`} />
-                            {isLoadingFolders ? 'Syncing...' : 'Manual Sync'}
-                          </button>
-                        </div>
-                        <select
-                          value={selectedParentFolder}
-                          onChange={(e) => setSelectedParentFolder(e.target.value)}
-                          disabled={isLoadingFolders}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
-                        >
-                          <option value="">Root (No Parent)</option>
-                          {isLoadingFolders && <option disabled>Loading folders...</option>}
-                          {!isLoadingFolders && (
-                            <>
-                              <optgroup label="Your SmugMug Folders">
-                                {smugmugFolders.map((folder) => (
-                                  <option key={folder.NodeID} value={folder.NodeID}>
-                                    {folder.Name}
-                                  </option>
-                                ))}
-                              </optgroup>
-                              {manualFolders.length > 0 && (
-                                <optgroup label="Newly Created Folders">
-                                  {manualFolders.map((folder) => (
-                                    <option key={folder.tempId} value={folder.name}>
-                                      {folder.name} (new)
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              )}
-                            </>
-                          )}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Privacy (applies to all)
-                        </label>
-                        <select
-                          value={selectedPrivacy}
-                          onChange={(e) => {
-                            const newPrivacy = e.target.value as 'Public' | 'Private' | 'Unlisted';
-                            setSelectedPrivacy(newPrivacy);
-                            // Auto-apply to all existing folders and galleries
-                            setManualFolders(prev => prev.map(f => ({ ...f, privacy: newPrivacy })));
-                            setManualGalleries(prev => prev.map(g => ({ ...g, privacy: newPrivacy })));
-                          }}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        >
-                          <option value="Private">Private</option>
-                          <option value="Public">Public</option>
-                          <option value="Unlisted">Unlisted</option>
-                        </select>
-                      </div>
-                    </div>
+                  <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <BookTemplate className="w-5 h-5 text-purple-600" />
+                    Template Management
+                  </h3>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowTemplateBrowser(true)}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                    >
+                      <BookTemplate className="w-4 h-4" />
+                      Load Template
+                    </button>
+                    <button
+                      onClick={() => setShowTemplateModal(true)}
+                      disabled={manualFolders.length === 0 && manualGalleries.length === 0}
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                    >
+                      <Save className="w-4 h-4" />
+                      Save as Template
+                    </button>
                   </div>
                 </div>
 
-                {/* Preview & Execute */}
-                <div className="bg-white rounded-2xl shadow-lg p-6">
+                {/* Preview Structure */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
                   <h3 className="font-bold text-gray-900 mb-4 flex items-center justify-between">
                     <span className="flex items-center gap-2">
                       <Layers className="w-5 h-5 text-teal-600" />
@@ -1222,28 +1096,9 @@ export default function AIGalleryCreatorPage() {
                     <div className="text-center py-8 text-gray-500">
                       <FolderTree className="w-12 h-12 mx-auto mb-3 opacity-30" />
                       <p>No folders or galleries added yet.</p>
-                      <p className="text-sm">Use the form above to add items.</p>
+                      <p className="text-sm">Use the form below to add items.</p>
                     </div>
                   )}
-
-                  {/* Template Actions */}
-                  <div className="flex gap-3 mt-4">
-                    <button
-                      onClick={() => setShowTemplateBrowser(true)}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
-                    >
-                      <BookTemplate className="w-4 h-4" />
-                      Load Template
-                    </button>
-                    <button
-                      onClick={() => setShowTemplateModal(true)}
-                      disabled={manualFolders.length === 0 && manualGalleries.length === 0}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
-                    >
-                      <Save className="w-4 h-4" />
-                      Save as Template
-                    </button>
-                  </div>
 
                   {/* Execute Button */}
                   <button
@@ -1254,6 +1109,174 @@ export default function AIGalleryCreatorPage() {
                     <CheckCircle className="w-5 h-5" />
                     {status === 'creating' ? 'Creating...' : 'Create All Now'}
                   </button>
+                </div>
+
+                {/* Add Folder/Gallery Form - Moved Down */}
+                <div className="bg-white rounded-2xl shadow-lg p-6">
+                  <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-teal-600" />
+                    Add Folders & Galleries
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Left Column: Add Folder */}
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                        <Folder className="w-4 h-4 text-teal-600" />
+                        Add Folder
+                      </h4>
+                      <input
+                        type="text"
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        placeholder="Folder name"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                      <button
+                        onClick={addManualFolder}
+                        disabled={!newFolderName.trim()}
+                        className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Folder
+                      </button>
+                    </div>
+
+                    {/* Right Column: Add Gallery */}
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-teal-600" />
+                        Add Gallery
+                      </h4>
+                      <input
+                        type="text"
+                        value={newGalleryName}
+                        onChange={(e) => setNewGalleryName(e.target.value)}
+                        placeholder="Gallery name"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Gallery Preset (optional)
+                        </label>
+                        <select
+                          value={selectedTemplate}
+                          onChange={(e) => setSelectedTemplate(e.target.value)}
+                          disabled={isLoadingTemplates}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                        >
+                          <option value="">Default</option>
+                          {albumTemplates.map((template) => (
+                            <option key={template.AlbumTemplateKey} value={template.Uri}>
+                              {template.Name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={enableGuestUpload}
+                            onChange={(e) => setEnableGuestUpload(e.target.checked)}
+                            className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                          />
+                          <span className="text-sm font-semibold text-gray-700">
+                            Enable Guest Uploads
+                          </span>
+                        </label>
+                        {enableGuestUpload && (
+                          <input
+                            type="text"
+                            value={guestUploadPassword}
+                            onChange={(e) => setGuestUploadPassword(e.target.value)}
+                            placeholder="Password (optional, auto-generated if empty)"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                          />
+                        )}
+                      </div>
+                      <button
+                        onClick={addManualGallery}
+                        disabled={!newGalleryName.trim()}
+                        className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Gallery
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Shared Options */}
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-semibold text-gray-700">
+                            Parent Folder (optional)
+                          </label>
+                          <button
+                            onClick={loadSmugmugFolders}
+                            disabled={isLoadingFolders}
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded transition-colors disabled:opacity-50"
+                            title="Sync folder structure from SmugMug"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${isLoadingFolders ? 'animate-spin' : ''}`} />
+                            {isLoadingFolders ? 'Syncing...' : 'Manual Sync'}
+                          </button>
+                        </div>
+                        <select
+                          value={selectedParentFolder}
+                          onChange={(e) => setSelectedParentFolder(e.target.value)}
+                          disabled={isLoadingFolders}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                        >
+                          <option value="">Root (No Parent)</option>
+                          {isLoadingFolders && <option disabled>Loading folders...</option>}
+                          {!isLoadingFolders && (
+                            <>
+                              <optgroup label="Your SmugMug Folders">
+                                {smugmugFolders.map((folder) => (
+                                  <option key={folder.NodeID} value={folder.NodeID}>
+                                    {folder.Name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              {manualFolders.length > 0 && (
+                                <optgroup label="Newly Created Folders">
+                                  {manualFolders.map((folder) => (
+                                    <option key={folder.tempId} value={folder.name}>
+                                      {folder.name} (new)
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Privacy (applies to all)
+                        </label>
+                        <select
+                          value={selectedPrivacy}
+                          onChange={(e) => {
+                            const newPrivacy = e.target.value as 'Public' | 'Private' | 'Unlisted';
+                            setSelectedPrivacy(newPrivacy);
+                            // Auto-apply to all existing folders and galleries
+                            setManualFolders(prev => prev.map(f => ({ ...f, privacy: newPrivacy })));
+                            setManualGalleries(prev => prev.map(g => ({ ...g, privacy: newPrivacy })));
+                          }}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        >
+                          <option value="Private">Private</option>
+                          <option value="Public">Public</option>
+                          <option value="Unlisted">Unlisted</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

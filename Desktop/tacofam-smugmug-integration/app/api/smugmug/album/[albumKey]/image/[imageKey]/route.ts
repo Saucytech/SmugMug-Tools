@@ -26,10 +26,13 @@ export async function PATCH(
   const maxRetries = 3;
   let lastError: any = null;
 
+  // Parse body once before the retry loop
+  const requestBody = await request.json();
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const accessToken = request.headers.get('X-Access-Token');
-      const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
+      const accessToken = request.cookies.get('smugmug_access_token')?.value;
+      const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
 
       if (!accessToken || !accessTokenSecret) {
         return NextResponse.json(
@@ -40,14 +43,8 @@ export async function PATCH(
 
       const { albumKey, imageKey } = params;
 
-      // Parse body only once on first attempt
-      let body;
-      if (attempt === 1) {
-        body = await request.json();
-      } else {
-        // For retries, use stored body
-        body = lastError?.body || {};
-      }
+      // Use the stored request body for all attempts
+      const body = requestBody;
 
       // Build update payload - only include non-empty fields
       const updatePayload: any = {};
@@ -72,7 +69,8 @@ export async function PATCH(
       // Wait for global request slot
       await waitForRequestSlot();
 
-      // Use AlbumImage endpoint instead of Image endpoint
+      // Use AlbumImage endpoint with versioned image key (e.g., MLB2MBL-0)
+      // This prevents redirects and OAuth nonce issues
       const url = `https://api.smugmug.com/api/v2/album/${albumKey}/image/${imageKey}`;
 
       const requestData = {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ImageIcon, FolderIcon, LogOut, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
-import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
+import { smugmugApi } from '@/lib/smugmug-client';
 import { useRouter } from 'next/navigation';
 import ToolboxHeader from '@/components/ToolboxHeader';
 
@@ -29,28 +29,36 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // Check for OAuth callback tokens in URL
+  // Check authentication status via API call (cookies are HTTP-only now)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const accessToken = params.get('access_token');
-    const accessTokenSecret = params.get('access_token_secret');
-
-    if (accessToken && accessTokenSecret) {
-      tokenStorage.setTokens(accessToken, accessTokenSecret);
-      // Clean URL
-      window.history.replaceState({}, '', '/');
-      setIsAuthenticated(true);
-    } else if (tokenStorage.hasTokens()) {
-      setIsAuthenticated(true);
-    }
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/smugmug/user', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.log('Not authenticated');
+      }
+    };
+    checkAuth();
   }, []);
 
   const handleAuth = () => {
     window.location.href = '/api/auth/smugmug';
   };
 
-  const handleLogout = () => {
-    tokenStorage.clearTokens();
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     // Clear photo organizer index when logging out
     localStorage.removeItem('photo-organizer-index');
     setIsAuthenticated(false);
@@ -164,7 +172,7 @@ export default function Home() {
             {/* Embed and Sell Tool */}
             <button
               onClick={() => setSelectedTool('embed-sell')}
-              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-purple-500 text-left"
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-200 focus:border-purple-500 text-left"
             >
               <div className="bg-gradient-to-br from-purple-500 to-purple-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <ShoppingCart className="w-8 h-8 text-white" />
@@ -210,7 +218,7 @@ export default function Home() {
             {/* MetaData Monster Tool */}
             <button
               onClick={() => router.push('/metadata-monster')}
-              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-green-500 text-left"
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-green-500 focus:outline-none focus:ring-4 focus:ring-green-200 focus:border-green-500 text-left"
             >
               <div className="bg-gradient-to-br from-green-500 to-green-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <Code2 className="w-8 h-8 text-white" />
@@ -332,6 +340,21 @@ export default function Home() {
   return (
     <>
       <ToolboxHeader currentTool="embed-sell" />
+
+      {/* Instructions Banner */}
+      <div className="bg-purple-50 border-b border-purple-200 p-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-gray-800">
+              <span className="font-semibold">How to use:</span> Select one or more albums from your SmugMug account, then choose individual photos to create embeddable galleries. Export as HTML, React components, WordPress shortcodes, or JSON for your website.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <main className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
 

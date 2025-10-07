@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Image as ImageIcon, Check, Grid, LayoutGrid, Columns, X, Copy } from 'lucide-react';
-import { tokenStorage } from '@/lib/smugmug-client';
 
 interface Photo {
   ImageKey: string;
@@ -40,8 +39,13 @@ export default function AlbumPage() {
   useEffect(() => {
     const fetchPhotos = async () => {
       try {
-        const tokens = tokenStorage.getTokens();
-        if (!tokens) {
+        // Check authentication
+        const authCheck = await fetch('/api/smugmug/user', {
+          credentials: 'include'
+        });
+
+        if (!authCheck.ok) {
+          console.error('Album Page: Not authenticated');
           router.push('/');
           return;
         }
@@ -55,10 +59,7 @@ export default function AlbumPage() {
         }
 
         const response = await fetch(`/api/smugmug/albums/${albumKey}/images`, {
-          headers: {
-            'X-Access-Token': tokens.accessToken,
-            'X-Access-Token-Secret': tokens.accessTokenSecret,
-          },
+          credentials: 'include'
         });
 
         if (!response.ok) throw new Error('Failed to fetch photos');

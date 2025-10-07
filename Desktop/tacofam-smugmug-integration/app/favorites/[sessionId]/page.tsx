@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Heart, Check, Send, Mail, ShoppingCart } from 'lucide-react';
 import { favoritesStorage, FavoriteSession } from '@/lib/favorites-storage';
-import { tokenStorage } from '@/lib/smugmug-client';
 
 interface Photo {
   ImageKey: string;
@@ -127,21 +126,25 @@ export default function FavoritesSelectionPage() {
   };
 
   const loadPhotosForSession = async (sessionData: FavoriteSession) => {
-    // Check if there are tokens in localStorage (owner viewing their own session)
-    const hasTokens = tokenStorage.hasTokens();
+    // Check if user is authenticated (owner viewing their own session)
+    let isAuthenticated = false;
+    try {
+      const authCheck = await fetch('/api/smugmug/user', {
+        credentials: 'include'
+      });
+      isAuthenticated = authCheck.ok;
+    } catch (err) {
+      isAuthenticated = false;
+    }
 
-    if (hasTokens) {
+    if (isAuthenticated) {
       // Owner has access - fetch real photos from SmugMug
       const allPhotos: Photo[] = [];
 
       for (const albumKey of sessionData.albumKeys) {
         try {
-          const tokens = tokenStorage.getTokens();
           const response = await fetch(`/api/smugmug/albums/${albumKey}/images`, {
-            headers: {
-              'X-Access-Token': tokens?.accessToken || '',
-              'X-Access-Token-Secret': tokens?.accessTokenSecret || '',
-            },
+            credentials: 'include'
           });
 
           if (response.ok) {

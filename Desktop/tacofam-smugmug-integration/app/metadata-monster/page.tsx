@@ -20,6 +20,7 @@ interface Album {
 
 interface Photo {
   ImageKey: string;
+  Uri?: string; // SmugMug's versioned URI (e.g., /api/v2/album/xxx/image/yyy-0)
   FileName: string;
   Title?: string;
   Caption?: string;
@@ -97,8 +98,18 @@ export default function MetaDataMonster() {
   }, []);
 
   const loadAlbums = async () => {
-    const tokens = tokenStorage.getTokens();
-    if (!tokens) {
+    // First check authentication via API
+    try {
+      const authCheck = await fetch('/api/smugmug/user', {
+        credentials: 'include',
+      });
+
+      if (!authCheck.ok) {
+        router.push('/');
+        return;
+      }
+    } catch (error) {
+      console.error('[MetaData Monster] Auth check failed:', error);
       router.push('/');
       return;
     }
@@ -106,10 +117,7 @@ export default function MetaDataMonster() {
     setLoading(true);
     try {
       const response = await fetch('/api/smugmug/albums', {
-        headers: {
-          'X-Access-Token': tokens.accessToken,
-          'X-Access-Token-Secret': tokens.accessTokenSecret,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -123,10 +131,7 @@ export default function MetaDataMonster() {
           .map(async (album: Album) => {
             try {
               const imageResponse = await fetch(`${album.Uris!.AlbumImage!.Uri}?_accept=application/json`, {
-                headers: {
-                  'X-Access-Token': tokens.accessToken,
-                  'X-Access-Token-Secret': tokens.accessTokenSecret,
-                },
+                credentials: 'include',
               });
               if (imageResponse.ok) {
                 const imageData = await imageResponse.json();
@@ -158,16 +163,10 @@ export default function MetaDataMonster() {
   };
 
   const loadPhotos = async (albumKey: string) => {
-    const tokens = tokenStorage.getTokens();
-    if (!tokens) return;
-
     setLoading(true);
     try {
       const response = await fetch(`/api/smugmug/albums/${albumKey}/images`, {
-        headers: {
-          'X-Access-Token': tokens.accessToken,
-          'X-Access-Token-Secret': tokens.accessTokenSecret,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -224,8 +223,7 @@ export default function MetaDataMonster() {
   };
 
   const saveMetadata = async (photo: PhotoWithMetadata): Promise<void> => {
-    const tokens = tokenStorage.getTokens();
-    if (!tokens || !photo.generated) return;
+    if (!photo.generated) return;
 
     // Only include fields that were actually generated (and have values)
     const updateData: any = {};
@@ -247,15 +245,25 @@ export default function MetaDataMonster() {
     // Add small random delay to prevent nonce collisions (0-300ms)
     await new Promise(resolve => setTimeout(resolve, Math.random() * 300));
 
-    console.log('Saving metadata for image:', photo.ImageKey, updateData);
+    // Extract versioned image key from Uri if available
+    // The Uri looks like /api/v2/album/XXXX/image/YYYY-0 where -0 is the serial number
+    let versionedImageKey = photo.ImageKey;
+    if (photo.Uri) {
+      const uriParts = photo.Uri.split('/');
+      const lastPart = uriParts[uriParts.length - 1];
+      if (lastPart && lastPart.includes('-')) {
+        versionedImageKey = lastPart; // This will be something like "MLB2MBL-0"
+      }
+    }
 
-    // Use AlbumImage endpoint instead of Image endpoint to avoid nonce issues
-    const response = await fetch(`/api/smugmug/album/${selectedAlbum}/image/${photo.ImageKey}`, {
+    console.log('Saving metadata for image:', versionedImageKey, updateData);
+
+    // Use AlbumImage endpoint with versioned image key to avoid redirect and nonce issues
+    const response = await fetch(`/api/smugmug/album/${selectedAlbum}/image/${versionedImageKey}`, {
       method: 'PATCH',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-Access-Token': tokens.accessToken || '',
-        'X-Access-Token-Secret': tokens.accessTokenSecret || '',
       },
       body: JSON.stringify(updateData),
     });
@@ -455,6 +463,20 @@ export default function MetaDataMonster() {
       <ToolboxHeader currentTool="metadata-monster" />
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
+
+          {/* Instructions Banner */}
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-gray-800">
+                <span className="font-semibold">How to use:</span> Select an album and photos that need metadata. Choose a prompt style (Professional, Creative, SEO, etc.) and generate AI-powered titles, captions, and keywords. Review and edit before saving to SmugMug.
+              </p>
+            </div>
+          </div>
+
+
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>

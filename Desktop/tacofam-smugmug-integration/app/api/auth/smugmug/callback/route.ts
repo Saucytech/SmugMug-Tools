@@ -71,14 +71,28 @@ export async function GET(request: NextRequest) {
       throw new Error('Failed to get access token');
     }
 
-    // In production, store these securely in a database or secure session
-    // For now, we'll redirect with the tokens (NOT SECURE, just for demo)
-    const redirectUrl = new URL('/', process.env.NEXT_PUBLIC_APP_URL!);
-    redirectUrl.searchParams.set('access_token', accessToken);
-    redirectUrl.searchParams.set('access_token_secret', accessTokenSecret);
+    // Store tokens in secure HTTP-only cookies
+    const redirectResponse = NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_APP_URL!));
 
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-    // Clear the temporary cookie
+    // Set access token in HTTP-only, secure cookie
+    redirectResponse.cookies.set('smugmug_access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: '/',
+    });
+
+    // Set token secret in HTTP-only, secure cookie
+    redirectResponse.cookies.set('smugmug_access_token_secret', accessTokenSecret, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: '/',
+    });
+
+    // Clear the temporary OAuth cookie
     redirectResponse.cookies.delete('oauth_token_secret');
 
     return redirectResponse;

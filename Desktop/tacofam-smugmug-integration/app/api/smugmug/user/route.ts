@@ -15,8 +15,9 @@ const oauth = new OAuth({
 
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
+    // Read tokens from cookies instead of headers
+    const accessToken = request.cookies.get('smugmug_access_token')?.value;
+    const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
 
     if (!accessToken || !accessTokenSecret) {
       return NextResponse.json(

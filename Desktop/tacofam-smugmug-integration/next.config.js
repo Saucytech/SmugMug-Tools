@@ -4,7 +4,6 @@ const nextConfig = {
     domains: [
       'photos.smugmug.com',
       'smugmug.com',
-      'photos.smugmug.com',
     ],
   },
 }

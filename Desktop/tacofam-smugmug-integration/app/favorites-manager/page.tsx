@@ -31,21 +31,33 @@ export default function FavoritesManagerPage() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check auth
-    const tokens = tokenStorage.getTokens();
-    if (!tokens || !tokens.accessToken || !tokens.accessTokenSecret) {
-      console.error('[Favorites Manager] No auth tokens found, redirecting to home');
-      router.push('/');
-      return;
-    }
+    // Check auth via API call to verify cookies
+    const checkAuthAndLoad = async () => {
+      try {
+        const response = await fetch('/api/smugmug/user', {
+          credentials: 'include',
+        });
 
-    console.log('[Favorites Manager] Auth tokens found, loading data');
+        if (!response.ok) {
+          console.error('[Favorites Manager] Authentication failed, redirecting to home');
+          router.push('/');
+          return;
+        }
 
-    // Load sessions
-    loadSessions();
+        console.log('[Favorites Manager] Authentication verified, loading data');
 
-    // Load albums
-    loadAlbums();
+        // Load sessions
+        loadSessions();
+
+        // Load albums
+        loadAlbums();
+      } catch (error) {
+        console.error('[Favorites Manager] Auth check failed:', error);
+        router.push('/');
+      }
+    };
+
+    checkAuthAndLoad();
   }, [router]);
 
   const loadSessions = () => {
@@ -148,6 +160,19 @@ export default function FavoritesManagerPage() {
       <ToolboxHeader currentTool="favorites" />
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
+
+          {/* Instructions Banner */}
+          <div className="mb-6 bg-pink-50 border border-pink-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-gray-800">
+                <span className="font-semibold">How to use:</span> Create a session by selecting albums and customizing settings. Share the generated link with clients for photo selection. View and export their favorites anytime.
+              </p>
+            </div>
+          </div>
+
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -236,6 +261,29 @@ export default function FavoritesManagerPage() {
                   </button>
                 </div>
 
+                {/* Customer Details */}
+                {Object.keys(session.customerFavorites).length > 0 && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Customer Selections:</p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {Object.entries(session.customerFavorites).map(([email, data]) => (
+                        <div key={email} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <Users className="w-3 h-3 text-blue-600" />
+                            <span className="font-medium text-gray-800">
+                              {data.customerName || 'Unknown'}
+                            </span>
+                            <span className="text-gray-600">({email})</span>
+                          </div>
+                          <span className="text-blue-600 font-semibold">
+                            {data.photoKeys.length} photos
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Customer Link Display */}
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between gap-3">
@@ -287,8 +335,7 @@ export default function FavoritesManagerPage() {
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
                     placeholder="e.g., Wedding Photos Selection"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-                    style={{ color: '#111827 !important' }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900"
                   />
                 </div>
 
@@ -302,8 +349,7 @@ export default function FavoritesManagerPage() {
                     onChange={(e) => setSessionDescription(e.target.value)}
                     placeholder="Instructions for your customers..."
                     rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-                    style={{ color: '#111827 !important' }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900"
                   />
                 </div>
 
@@ -452,8 +498,8 @@ export default function FavoritesManagerPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
-    </div>
     </>
   );
 }

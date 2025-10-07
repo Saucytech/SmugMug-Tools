@@ -242,6 +242,18 @@ After sending this email:
 
 ---
 
-**Email sent:** [Date]
-**Response received:** [Date]
-**Resolution status:** Pending
+**Email sent:** October 2025
+**Response received:** October 2025
+**Resolution status:** RESOLVED
+
+## Solution from SmugMug Engineer (Erik 'Egg' Giberti)
+
+The issue was that we were using the non-versioned image key (e.g., `MLB2MBL`) instead of the versioned one with serial number (e.g., `MLB2MBL-0`).
+
+When using the non-versioned endpoint, SmugMug returns a redirect to the versioned endpoint, but the OAuth client was following the redirect without re-signing the request, causing the `oauth_problem=nonce_used` error.
+
+**Fix**: Always use the versioned URI from the SmugMug API response, which includes the serial number suffix (e.g., `-0`). The API returns this in the `Uri` field of each image object.
+
+Example:
+- ❌ Wrong: `PATCH /api/v2/album/G644RP/image/MLB2MBL`
+- ✅ Correct: `PATCH /api/v2/album/G644RP/image/MLB2MBL-0`
