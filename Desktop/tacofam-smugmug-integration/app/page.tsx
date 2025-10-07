@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ImageIcon, FolderIcon, LogOut, Book, Database, ShoppingCart, Code2, Wrench, Heart } from 'lucide-react';
+import { ImageIcon, FolderIcon, LogOut, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
 import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
 import { useRouter } from 'next/navigation';
 import ToolboxHeader from '@/components/ToolboxHeader';
@@ -51,6 +51,8 @@ export default function Home() {
 
   const handleLogout = () => {
     tokenStorage.clearTokens();
+    // Clear photo organizer index when logging out
+    localStorage.removeItem('photo-organizer-index');
     setIsAuthenticated(false);
     setAlbums([]);
   };
@@ -223,6 +225,98 @@ export default function Home() {
                 <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">Auto-Save</span>
               </div>
               <div className="mt-6 text-green-600 font-semibold flex items-center gap-2">
+                Launch Tool
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </button>
+
+            {/* AI Gallery Creator Tool */}
+            <button
+              onClick={() => router.push('/ai-gallery-creator')}
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-teal-500 text-left"
+            >
+              <div className="bg-gradient-to-br from-teal-500 to-cyan-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">AI Gallery Creator</h2>
+              <p className="text-gray-600 mb-4">
+                Chat with AI to create complex folder and gallery structures automatically. Build your entire SmugMug organization in minutes.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-teal-100 text-teal-700 text-xs font-semibold rounded-full">AI Chatbot</span>
+                <span className="px-3 py-1 bg-teal-100 text-teal-700 text-xs font-semibold rounded-full">Nested Folders</span>
+                <span className="px-3 py-1 bg-teal-100 text-teal-700 text-xs font-semibold rounded-full">Bulk Creation</span>
+              </div>
+              <div className="mt-6 text-teal-600 font-semibold flex items-center gap-2">
+                Launch Tool
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </button>
+
+            {/* Photo Organizer Tool */}
+            <button
+              onClick={() => router.push('/photo-organizer')}
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-indigo-500 text-left"
+            >
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Brain className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Photo Organizer</h2>
+              <p className="text-gray-600 mb-4">
+                AI-powered photo organization with smart gallery indexing. Build an index once, then auto-sort new images with confidence-based suggestions.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">Smart Index</span>
+                <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">Auto-Sort</span>
+                <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">Dry Run</span>
+              </div>
+              <div className="mt-6 text-indigo-600 font-semibold flex items-center gap-2">
+                Launch Tool
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </button>
+
+            {/* Guest Upload Manager Tool */}
+            <button
+              onClick={() => router.push('/guest-upload-manager')}
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-blue-500 text-left"
+            >
+              <div className="bg-gradient-to-br from-blue-500 to-cyan-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Upload className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Guest Upload Manager</h2>
+              <p className="text-gray-600 mb-4">
+                Share upload links with clients and guests. Let them upload photos directly to your SmugMug albums with optional password protection.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Shareable Links</span>
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Password Protected</span>
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Direct Upload</span>
+              </div>
+              <div className="mt-6 text-blue-600 font-semibold flex items-center gap-2">
+                Launch Tool
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </button>
+
+            {/* Sanity Checker Tool */}
+            <button
+              onClick={() => router.push('/sanity-checker')}
+              className="group bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border-2 border-gray-200 hover:border-orange-500 text-left"
+            >
+              <div className="bg-gradient-to-br from-orange-500 to-red-600 w-16 h-16 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <ClipboardCheck className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Sanity Checker</h2>
+              <p className="text-gray-600 mb-4">
+                Comprehensive account analysis tool. Reviews all galleries, metadata, and settings to find optimization opportunities and potential issues.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">AI Analysis</span>
+                <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">Auto-Fix</span>
+                <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">Reports</span>
+              </div>
+              <div className="mt-6 text-orange-600 font-semibold flex items-center gap-2">
                 Launch Tool
                 <span className="group-hover:translate-x-1 transition-transform">→</span>
               </div>

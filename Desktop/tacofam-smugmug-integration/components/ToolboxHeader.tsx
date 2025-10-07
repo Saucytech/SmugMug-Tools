@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Wrench, ChevronDown, LogOut, User, ShoppingCart, Heart, Code2, Home } from 'lucide-react';
+import { Wrench, ChevronDown, LogOut, User, ShoppingCart, Heart, Code2, Home, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
 import { tokenStorage } from '@/lib/smugmug-client';
 
 interface Tool {
@@ -34,6 +34,34 @@ const TOOLS: Tool[] = [
     icon: <Code2 className="w-4 h-4" />,
     path: '/metadata-monster',
     color: 'text-green-600',
+  },
+  {
+    id: 'ai-gallery-creator',
+    name: 'AI Gallery Creator',
+    icon: <Sparkles className="w-4 h-4" />,
+    path: '/ai-gallery-creator',
+    color: 'text-teal-600',
+  },
+  {
+    id: 'photo-organizer',
+    name: 'Photo Organizer',
+    icon: <Brain className="w-4 h-4" />,
+    path: '/photo-organizer',
+    color: 'text-indigo-600',
+  },
+  {
+    id: 'guest-upload-manager',
+    name: 'Guest Upload Manager',
+    icon: <Upload className="w-4 h-4" />,
+    path: '/guest-upload-manager',
+    color: 'text-blue-600',
+  },
+  {
+    id: 'sanity-checker',
+    name: 'Sanity Checker',
+    icon: <ClipboardCheck className="w-4 h-4" />,
+    path: '/sanity-checker',
+    color: 'text-orange-600',
   },
 ];
 
@@ -80,6 +108,8 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
 
   const handleLogout = () => {
     tokenStorage.clearTokens();
+    // Clear photo organizer index when logging out
+    localStorage.removeItem('photo-organizer-index');
     window.location.href = '/';
   };
 

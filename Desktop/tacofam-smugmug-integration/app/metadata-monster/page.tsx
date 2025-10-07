@@ -11,6 +11,11 @@ interface Album {
   AlbumKey: string;
   Name: string;
   ImageCount: number;
+  Uris?: {
+    AlbumImage?: {
+      Uri?: string;
+    };
+  };
 }
 
 interface Photo {
@@ -75,6 +80,9 @@ export default function MetaDataMonster() {
   // Multi-select
   const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
 
+  // Album featured images
+  const [albumImages, setAlbumImages] = useState<{ [key: string]: string }>({});
+
   useEffect(() => {
     loadAlbums();
 
@@ -106,7 +114,41 @@ export default function MetaDataMonster() {
 
       if (response.ok) {
         const data = await response.json();
-        setAlbums(data.albums || []);
+        const albumsList = data.albums || [];
+        setAlbums(albumsList);
+
+        // Fetch album images for albums that have them
+        const imagePromises = albumsList
+          .filter((album: Album) => album.Uris?.AlbumImage?.Uri)
+          .map(async (album: Album) => {
+            try {
+              const imageResponse = await fetch(`${album.Uris!.AlbumImage!.Uri}?_accept=application/json`, {
+                headers: {
+                  'X-Access-Token': tokens.accessToken,
+                  'X-Access-Token-Secret': tokens.accessTokenSecret,
+                },
+              });
+              if (imageResponse.ok) {
+                const imageData = await imageResponse.json();
+                return {
+                  albumKey: album.AlbumKey,
+                  imageUrl: imageData.Response?.AlbumImage?.Uris?.ImageSizes?.SmallImageUrl,
+                };
+              }
+            } catch (err) {
+              console.error('Error loading album image:', err);
+            }
+            return null;
+          });
+
+        const images = await Promise.all(imagePromises);
+        const imageMap: { [key: string]: string } = {};
+        images.forEach(img => {
+          if (img && img.imageUrl) {
+            imageMap[img.albumKey] = img.imageUrl;
+          }
+        });
+        setAlbumImages(imageMap);
       }
     } catch (err) {
       console.error('Error loading albums:', err);
@@ -469,9 +511,17 @@ export default function MetaDataMonster() {
                     className="bg-white border-2 border-gray-200 rounded-lg p-6 hover:shadow-xl hover:border-green-500 cursor-pointer transition-all text-left"
                   >
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="bg-green-100 p-3 rounded-lg">
-                        <Wand2 className="w-6 h-6 text-green-600" />
-                      </div>
+                      {albumImages[album.AlbumKey] ? (
+                        <img
+                          src={albumImages[album.AlbumKey]}
+                          alt={album.Name}
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="bg-green-100 p-3 rounded-lg w-16 h-16 flex items-center justify-center">
+                          <Wand2 className="w-6 h-6 text-green-600" />
+                        </div>
+                      )}
                       <div className="flex-1">
                         <h3 className="font-semibold text-lg text-gray-900">{album.Name}</h3>
                         <p className="text-sm text-gray-600">{album.ImageCount} photos</p>
