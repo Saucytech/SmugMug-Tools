@@ -43,6 +43,8 @@ export async function GET(_request: Request) {
 
     const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/smugmug/callback`;
     console.log('OAuth callback URL:', callbackUrl);
+    console.log('SmugMug API Key (first 10 chars):', process.env.SMUGMUG_API_KEY?.substring(0, 10));
+    console.log('SmugMug API Secret exists:', !!process.env.SMUGMUG_API_SECRET);
 
     // Step 1: Get request token
     const requestData = {
@@ -54,6 +56,7 @@ export async function GET(_request: Request) {
     };
 
     const authHeader = oauth.toHeader(oauth.authorize(requestData));
+    console.log('OAuth Authorization header:', JSON.stringify(authHeader, null, 2));
 
     const tokenResponse = await fetch(`${REQUEST_TOKEN_URL}?oauth_callback=${encodeURIComponent(callbackUrl)}`, {
       method: 'GET',
