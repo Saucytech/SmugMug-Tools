@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 const oauth = new OAuth({
   consumer: {
     key: process.env.SMUGMUG_API_KEY!,
