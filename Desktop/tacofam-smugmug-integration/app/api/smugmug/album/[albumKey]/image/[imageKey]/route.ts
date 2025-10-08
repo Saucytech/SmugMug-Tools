@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 // Global request queue to prevent concurrent OAuth requests and nonce collisions
 let lastRequestTime = 0;
 const MIN_REQUEST_GAP = 10000; // 10 seconds minimum between requests
@@ -163,13 +165,13 @@ export async function PATCH(
 
     } catch (_error) {
       console.error(`❌ Error on attempt ${attempt}:`, _error);
-      lastError = error;
+      lastError = _error;
 
       if (attempt === maxRetries) {
         return NextResponse.json(
           {
             error: 'Failed to update AlbumImage metadata after retries',
-            details: error instanceof Error ? error.message : 'Unknown error',
+            details: _error instanceof Error ? _error.message : 'Unknown error',
             attempts: maxRetries,
             endpoint: 'AlbumImage'
           },
