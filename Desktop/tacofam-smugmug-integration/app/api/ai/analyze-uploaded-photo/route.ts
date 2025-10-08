@@ -5,6 +5,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+const MODEL = 'claude-sonnet-4-5-20250929';
+
 const SYSTEM_PROMPT = `Uploaded photo analyzer for SmugMug gallery placement.
 
 **YOUR ROLE:**
@@ -37,14 +39,14 @@ Be conservative with confidence scores. Accuracy matters more than speed.`;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('getSystemPrompt') === 'true') {
-    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT, model: MODEL });
   }
   return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageBase64, metadata, galleryIndex, customPrompt } = await request.json();
+    const { imageBase64, metadata, galleryIndex, customPrompt, model } = await request.json();
 
     if (!imageBase64 || !galleryIndex || galleryIndex.length === 0) {
       return NextResponse.json(
@@ -78,7 +80,7 @@ Gallery: "${gallery.name}"
 Provide your analysis in the exact JSON format specified above.`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: model || MODEL,
       max_tokens: 1000,
       messages: [
         {
@@ -132,7 +134,10 @@ Provide your analysis in the exact JSON format specified above.`;
 
     return NextResponse.json({
       ...analysis,
-      tokensUsed: message.usage?.input_tokens || 0 + message.usage?.output_tokens || 0,
+      usage: {
+        input_tokens: message.usage.input_tokens,
+        output_tokens: message.usage.output_tokens,
+      },
     });
 
   } catch (_error) {

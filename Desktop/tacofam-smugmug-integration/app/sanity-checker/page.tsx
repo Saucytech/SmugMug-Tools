@@ -6,6 +6,8 @@ import Link from 'next/link';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import SystemPromptViewer from '@/components/SystemPromptViewer';
 import { tokenStorage } from '@/lib/smugmug-client';
+import { useModelPreferences, AVAILABLE_MODELS } from '@/stores/modelPreferencesStore';
+import { useAIActivityStore } from '@/stores/aiActivityStore';
 import {
   ClipboardCheck,
   AlertTriangle,
@@ -83,6 +85,11 @@ export default function SanityChecker() {
   const [ignoredFindings, setIgnoredFindings] = useState<Set<string>>(new Set());
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [cachedGalleries, setCachedGalleries] = useState<GalleryIndexEntry[]>([]);
+
+  // AI Model & Activity Tracking
+  const { getModel } = useModelPreferences();
+  const { addJob, completeJob, failJob } = useAIActivityStore();
+  const selectedModel = getModel('sanity-checker');
 
   useEffect(() => {
     checkAuth();
@@ -190,52 +197,83 @@ export default function SanityChecker() {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('/api/ai/analyze-sanity', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Access-Token': tokens.accessToken,
-          'X-Access-Token-Secret': tokens.accessTokenSecret,
-        },
-        body: JSON.stringify(analysisData),
+      // Create unique job ID and register AI activity
+      const jobId = `sanity-check-${Date.now()}`;
+      const modelInfo = AVAILABLE_MODELS[selectedModel];
+
+      addJob({
+        id: jobId,
+        tool: 'Sanity Checker',
+        toolPath: '/sanity-checker',
+        status: 'processing',
+        startTime: new Date(),
+        message: `Analyzing ${loadedGalleries.length} galleries`,
+        model: selectedModel,
+        modelName: modelInfo.name,
       });
 
-      if (!response.ok) {
-        addLog('❌ AI analysis request failed');
-        throw new Error('Analysis failed');
+      try {
+        const response = await fetch('/api/ai/analyze-sanity', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Access-Token': tokens.accessToken,
+            'X-Access-Token-Secret': tokens.accessTokenSecret,
+          },
+          body: JSON.stringify({
+            ...analysisData,
+            model: selectedModel, // Pass selected model
+          }),
+        });
+
+        if (!response.ok) {
+          addLog('❌ AI analysis request failed');
+          failJob(jobId, 'AI analysis request failed');
+          throw new Error('Analysis failed');
+        }
+
+        const result = await response.json();
+        addLog('✓ AI analysis completed successfully');
+
+        // Complete the job with token usage
+        const inputTokens = result.usage?.input_tokens || 0;
+        const outputTokens = result.usage?.output_tokens || 0;
+        const totalTokens = inputTokens + outputTokens;
+        completeJob(jobId, totalTokens, inputTokens, outputTokens);
+
+        setCurrentTask('Processing findings...');
+        setScanProgress(90);
+        addLog('📋 Processing and categorizing findings...');
+
+        // Process findings
+        const processedFindings: Finding[] = result.findings || [];
+        setFindings(processedFindings);
+
+        // Update stats
+        const criticalCount = processedFindings.filter(f => f.severity === 'critical').length;
+        const optimizationCount = processedFindings.filter(f => f.severity === 'optimization').length;
+        const suggestionCount = processedFindings.filter(f => f.severity === 'suggestion').length;
+
+        setStats({
+          totalGalleries: loadedGalleries.length,
+          totalImages: totalImages,
+          galleriesScanned: loadedGalleries.length,
+          imagesScanned: totalImages,
+          criticalIssues: criticalCount,
+          optimizations: optimizationCount,
+          suggestions: suggestionCount,
+        });
+
+        addLog(`✓ Found ${criticalCount} critical issues, ${optimizationCount} optimizations, ${suggestionCount} suggestions`);
+
+        setScanProgress(100);
+        setCurrentTask('Analysis complete!');
+        addLog('✅ Scan complete!');
+      } catch (aiError) {
+        console.error('AI analysis error:', aiError);
+        failJob(jobId, aiError instanceof Error ? aiError.message : 'Unknown error');
+        throw aiError;
       }
-
-      const result = await response.json();
-      addLog('✓ AI analysis completed successfully');
-
-      setCurrentTask('Processing findings...');
-      setScanProgress(90);
-      addLog('📋 Processing and categorizing findings...');
-
-      // Process findings
-      const processedFindings: Finding[] = result.findings || [];
-      setFindings(processedFindings);
-
-      // Update stats
-      const criticalCount = processedFindings.filter(f => f.severity === 'critical').length;
-      const optimizationCount = processedFindings.filter(f => f.severity === 'optimization').length;
-      const suggestionCount = processedFindings.filter(f => f.severity === 'suggestion').length;
-
-      setStats({
-        totalGalleries: loadedGalleries.length,
-        totalImages: totalImages,
-        galleriesScanned: loadedGalleries.length,
-        imagesScanned: totalImages,
-        criticalIssues: criticalCount,
-        optimizations: optimizationCount,
-        suggestions: suggestionCount,
-      });
-
-      addLog(`✓ Found ${criticalCount} critical issues, ${optimizationCount} optimizations, ${suggestionCount} suggestions`);
-
-      setScanProgress(100);
-      setCurrentTask('Analysis complete!');
-      addLog('✅ Scan complete!');
 
     } catch (error: any) {
       console.error('Scan error:', error);
@@ -314,73 +352,73 @@ export default function SanityChecker() {
   return (
     <>
       <ToolboxHeader currentTool="sanity-checker" />
-      <main className="min-h-screen bg-gray-50 p-8">
+      <main className="min-h-screen bg-gray-50 p-3 sm:p-8">
         <div className="max-w-7xl mx-auto">
 
           {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="bg-gradient-to-br from-orange-500 to-red-600 w-16 h-16 rounded-xl flex items-center justify-center">
-                <ClipboardCheck className="w-8 h-8 text-white" />
+          <div className="mb-4 sm:mb-8">
+            <div className="flex items-center gap-3 sm:gap-4 mb-2 sm:mb-4">
+              <div className="bg-gradient-to-br from-orange-500 to-red-600 w-12 h-12 sm:w-16 sm:h-16 rounded-lg sm:rounded-xl flex items-center justify-center">
+                <ClipboardCheck className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-gray-900">Sanity Checker</h1>
-                <p className="text-gray-600">Comprehensive account analysis and optimization</p>
+                <h1 className="text-2xl sm:text-4xl font-bold text-gray-900">Sanity Checker</h1>
+                <p className="text-sm sm:text-base text-gray-600">Comprehensive account analysis and optimization</p>
               </div>
             </div>
           </div>
 
           {/* Stats Overview */}
           {stats.totalGalleries > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-                <div className="flex items-center justify-between mb-2">
-                  <FolderTree className="w-8 h-8 text-purple-600" />
-                  <span className="text-2xl font-bold text-gray-900">{stats.galleriesScanned}</span>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-8">
+              <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 border-2 border-gray-200">
+                <div className="flex items-center justify-between mb-1 sm:mb-2">
+                  <FolderTree className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600" />
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.galleriesScanned}</span>
                 </div>
-                <div className="text-sm text-gray-600">Galleries Scanned</div>
+                <div className="text-xs sm:text-sm text-gray-600">Galleries Scanned</div>
               </div>
 
-              <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-                <div className="flex items-center justify-between mb-2">
-                  <ImageIcon className="w-8 h-8 text-blue-600" />
-                  <span className="text-2xl font-bold text-gray-900">{stats.imagesScanned.toLocaleString()}</span>
+              <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 border-2 border-gray-200">
+                <div className="flex items-center justify-between mb-1 sm:mb-2">
+                  <ImageIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
+                  <span className="text-xl sm:text-2xl font-bold text-gray-900">{stats.imagesScanned.toLocaleString()}</span>
                 </div>
-                <div className="text-sm text-gray-600">Images Analyzed</div>
+                <div className="text-xs sm:text-sm text-gray-600">Images Analyzed</div>
               </div>
 
-              <div className="bg-white rounded-xl p-6 border-2 border-red-300 bg-red-50">
-                <div className="flex items-center justify-between mb-2">
-                  <XCircle className="w-8 h-8 text-red-600" />
-                  <span className="text-2xl font-bold text-red-700">{stats.criticalIssues}</span>
+              <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 border-2 border-red-300 bg-red-50">
+                <div className="flex items-center justify-between mb-1 sm:mb-2">
+                  <XCircle className="w-6 h-6 sm:w-8 sm:h-8 text-red-600" />
+                  <span className="text-xl sm:text-2xl font-bold text-red-700">{stats.criticalIssues}</span>
                 </div>
-                <div className="text-sm text-red-600 font-medium">Critical Issues</div>
+                <div className="text-xs sm:text-sm text-red-600 font-medium">Critical Issues</div>
               </div>
 
-              <div className="bg-white rounded-xl p-6 border-2 border-yellow-300 bg-yellow-50">
-                <div className="flex items-center justify-between mb-2">
-                  <TrendingUp className="w-8 h-8 text-yellow-600" />
-                  <span className="text-2xl font-bold text-yellow-700">{stats.optimizations + stats.suggestions}</span>
+              <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 border-2 border-yellow-300 bg-yellow-50">
+                <div className="flex items-center justify-between mb-1 sm:mb-2">
+                  <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
+                  <span className="text-xl sm:text-2xl font-bold text-yellow-700">{stats.optimizations + stats.suggestions}</span>
                 </div>
-                <div className="text-sm text-yellow-600 font-medium">Opportunities</div>
+                <div className="text-xs sm:text-sm text-yellow-600 font-medium">Opportunities</div>
               </div>
             </div>
           )}
 
           {/* Scan Button */}
           {!scanning && findings.length === 0 && (
-            <div className="bg-white rounded-2xl p-12 text-center border-2 border-gray-200">
-              <ClipboardCheck className="w-20 h-20 text-orange-500 mx-auto mb-6" />
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready to Analyze Your SmugMug Account</h2>
-              <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+            <div className="bg-white rounded-lg sm:rounded-2xl p-6 sm:p-12 text-center border-2 border-gray-200">
+              <ClipboardCheck className="w-16 h-16 sm:w-20 sm:h-20 text-orange-500 mx-auto mb-3 sm:mb-6" />
+              <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">Ready to Analyze Your SmugMug Account</h2>
+              <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-8 max-w-2xl mx-auto leading-snug sm:leading-relaxed">
                 This tool will analyze your galleries, images, metadata, and settings to find optimization opportunities and potential issues.
                 It uses cached data from the Photo Organizer to speed up the analysis.
               </p>
               <button
                 onClick={startScan}
-                className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-all shadow-lg hover:shadow-xl flex items-center gap-3 mx-auto"
+                className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 active:scale-[0.98] text-white font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg text-base sm:text-lg transition-all shadow-lg hover:shadow-xl flex items-center gap-2 sm:gap-3 mx-auto"
               >
-                <Play className="w-6 h-6" />
+                <Play className="w-5 h-5 sm:w-6 sm:h-6" />
                 Start Full Scan
               </button>
             </div>
@@ -388,35 +426,35 @@ export default function SanityChecker() {
 
           {/* Scanning Progress */}
           {scanning && (
-            <div className="bg-white rounded-2xl p-12 border-2 border-orange-300">
-              <div className="flex items-center justify-center mb-6">
-                <Loader className="w-12 h-12 text-orange-600 animate-spin" />
+            <div className="bg-white rounded-lg sm:rounded-2xl p-6 sm:p-12 border-2 border-orange-300">
+              <div className="flex items-center justify-center mb-3 sm:mb-6">
+                <Loader className="w-10 h-10 sm:w-12 sm:h-12 text-orange-600 animate-spin" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 text-center mb-4">Scanning Your Account...</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-2 sm:mb-4">Scanning Your Account...</h2>
               <div className="max-w-xl mx-auto">
-                <div className="bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
+                <div className="bg-gray-200 rounded-full h-3 sm:h-4 mb-2 sm:mb-4 overflow-hidden">
                   <div
                     className="bg-gradient-to-r from-orange-500 to-red-600 h-full rounded-full transition-all duration-500"
                     style={{ width: `${scanProgress}%` }}
                   />
                 </div>
-                <p className="text-center text-gray-600">{currentTask}</p>
+                <p className="text-center text-sm sm:text-base text-gray-600">{currentTask}</p>
               </div>
 
               {/* Terminal Log */}
               {terminalLogs.length > 0 && (
-                <div className="mt-8">
-                  <div className="bg-gray-900 rounded-xl p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
-                      <div className="flex gap-1.5">
-                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <div className="mt-4 sm:mt-8">
+                  <div className="bg-gray-900 rounded-lg sm:rounded-xl p-3 sm:p-4 font-mono text-xs text-green-400 max-h-[300px] sm:max-h-[400px] overflow-y-auto">
+                    <div className="flex items-center gap-2 mb-2 sm:mb-3 pb-2 border-b border-gray-700">
+                      <div className="flex gap-1 sm:gap-1.5">
+                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500"></div>
+                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-yellow-500"></div>
+                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-green-500"></div>
                       </div>
-                      <span className="text-gray-400">sanity-checker.log</span>
+                      <span className="text-gray-400 text-xs">sanity-checker.log</span>
                     </div>
                     {terminalLogs.map((log, idx) => (
-                      <div key={idx} className="whitespace-pre-wrap leading-relaxed">
+                      <div key={idx} className="whitespace-pre-wrap leading-snug sm:leading-relaxed">
                         {log}
                       </div>
                     ))}
@@ -430,10 +468,10 @@ export default function SanityChecker() {
           {!scanning && findings.length > 0 && (
             <>
               {/* Filter Tabs */}
-              <div className="flex gap-4 mb-6">
+              <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2">
                 <button
                   onClick={() => setSelectedSeverity('all')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors whitespace-nowrap active:scale-[0.98] ${
                     selectedSeverity === 'all'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-gray-400'
@@ -443,7 +481,7 @@ export default function SanityChecker() {
                 </button>
                 <button
                   onClick={() => setSelectedSeverity('critical')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors whitespace-nowrap active:scale-[0.98] ${
                     selectedSeverity === 'critical'
                       ? 'bg-red-600 text-white'
                       : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-red-400'
@@ -453,7 +491,7 @@ export default function SanityChecker() {
                 </button>
                 <button
                   onClick={() => setSelectedSeverity('optimization')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors whitespace-nowrap active:scale-[0.98] ${
                     selectedSeverity === 'optimization'
                       ? 'bg-yellow-600 text-white'
                       : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-yellow-400'
@@ -463,7 +501,7 @@ export default function SanityChecker() {
                 </button>
                 <button
                   onClick={() => setSelectedSeverity('suggestion')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors whitespace-nowrap active:scale-[0.98] ${
                     selectedSeverity === 'suggestion'
                       ? 'bg-blue-600 text-white'
                       : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-blue-400'
@@ -474,31 +512,31 @@ export default function SanityChecker() {
               </div>
 
               {/* Findings List */}
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {filteredFindings.map((finding) => (
                   <div
                     key={finding.id}
-                    className={`bg-white rounded-xl p-6 border-2 ${getSeverityColor(finding.severity)}`}
+                    className={`bg-white rounded-lg sm:rounded-xl p-4 sm:p-6 border-2 ${getSeverityColor(finding.severity)}`}
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-start gap-4 flex-1">
-                        <div className="mt-1">
+                    <div className="flex items-start justify-between mb-2 sm:mb-4">
+                      <div className="flex items-start gap-2 sm:gap-4 flex-1">
+                        <div className="mt-0.5 sm:mt-1">
                           {getSeverityIcon(finding.severity)}
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-xl font-bold text-gray-900">{finding.title}</h3>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getSeverityColor(finding.severity)}`}>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-900">{finding.title}</h3>
+                            <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold ${getSeverityColor(finding.severity)}`}>
                               {finding.category}
                             </span>
                           </div>
-                          <p className="text-gray-700 mb-3">{finding.description}</p>
-                          <div className="bg-gray-50 rounded-lg p-4 mb-3">
-                            <div className="font-semibold text-sm text-gray-700 mb-2">💡 Suggestion:</div>
-                            <p className="text-sm text-gray-600">{finding.suggestion}</p>
+                          <p className="text-sm sm:text-base text-gray-700 mb-2 sm:mb-3 leading-snug sm:leading-relaxed">{finding.description}</p>
+                          <div className="bg-gray-50 rounded-lg p-3 sm:p-4 mb-2 sm:mb-3">
+                            <div className="font-semibold text-xs sm:text-sm text-gray-700 mb-1 sm:mb-2">💡 Suggestion:</div>
+                            <p className="text-xs sm:text-sm text-gray-600 leading-snug sm:leading-relaxed">{finding.suggestion}</p>
                           </div>
                           {finding.affectedItems.length > 0 && (
-                            <div className="text-sm text-gray-600">
+                            <div className="text-xs sm:text-sm text-gray-600">
                               <span className="font-medium">Affected:</span>{' '}
                               {finding.affectedItems.slice(0, 3).map((item, idx) => {
                                 // Try to find matching gallery to create link
@@ -540,11 +578,11 @@ export default function SanityChecker() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-3 mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex gap-2 sm:gap-3 mt-2 sm:mt-4 pt-2 sm:pt-4 border-t border-gray-200">
                       {finding.autoFixAvailable && (
                         <button
                           onClick={() => executeAction(finding)}
-                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                          className="flex items-center gap-1.5 sm:gap-2 bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white px-3 sm:px-4 py-2 rounded-lg font-medium transition-all text-sm sm:text-base"
                         >
                           <Zap className="w-4 h-4" />
                           Auto-Fix
@@ -552,7 +590,7 @@ export default function SanityChecker() {
                       )}
                       <button
                         onClick={() => ignoreFinding(finding.id)}
-                        className="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors"
+                        className="flex items-center gap-1.5 sm:gap-2 bg-gray-200 hover:bg-gray-300 active:scale-[0.98] text-gray-700 px-3 sm:px-4 py-2 rounded-lg font-medium transition-all text-sm sm:text-base"
                       >
                         <ThumbsDown className="w-4 h-4" />
                         Ignore
@@ -562,10 +600,10 @@ export default function SanityChecker() {
                 ))}
 
                 {filteredFindings.length === 0 && (
-                  <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200">
-                    <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">No Issues Found</h3>
-                    <p className="text-gray-600">Everything looks good in this category!</p>
+                  <div className="bg-white rounded-lg sm:rounded-xl p-6 sm:p-12 text-center border-2 border-gray-200">
+                    <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 text-green-500 mx-auto mb-2 sm:mb-4" />
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">No Issues Found</h3>
+                    <p className="text-sm sm:text-base text-gray-600">Everything looks good in this category!</p>
                   </div>
                 )}
               </div>
@@ -576,7 +614,7 @@ export default function SanityChecker() {
       </main>
 
       {/* System Prompt Viewer */}
-      <SystemPromptViewer toolName="Sanity Checker" apiEndpoint="/api/ai/analyze-sanity" />
+      <SystemPromptViewer toolName="Sanity Checker" apiEndpoint="/api/ai/analyze-sanity" toolId="sanity-checker" />
     </>
   );
 }

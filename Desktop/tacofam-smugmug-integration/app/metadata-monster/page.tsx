@@ -7,6 +7,8 @@ import { tokenStorage } from '@/lib/smugmug-client';
 import { creditsStorage } from '@/lib/credits-storage';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import SystemPromptViewer from '@/components/SystemPromptViewer';
+import { useModelPreferences, AVAILABLE_MODELS } from '@/stores/modelPreferencesStore';
+import { useAIActivityStore } from '@/stores/aiActivityStore';
 
 interface Album {
   AlbumKey: string;
@@ -68,6 +70,11 @@ export default function MetaDataMonster() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
+  // AI Model & Activity Tracking
+  const { getModel } = useModelPreferences();
+  const { addJob, updateJob, completeJob, failJob } = useAIActivityStore();
+  const selectedModel = getModel('metadata-monster');
 
   // Seek and Capture Mode
   const [mode, setMode] = useState<Mode>('normal');
@@ -206,35 +213,71 @@ export default function MetaDataMonster() {
     const baseCaption = photo.generated?.caption || photo.Caption || '';
     const baseKeywords = photo.generated?.keywords || photo.Keywords || '';
 
-    // Call AI API to generate metadata based on image
-    const response = await fetch('/api/ai/generate-metadata', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageUrl: photo.ThumbnailUrl,
-        fileName: photo.FileName,
-        existingTitle: baseTitle,
-        existingCaption: baseCaption,
-        existingKeywords: baseKeywords,
-        promptStyle: options.promptStyle,
-        generateTitle: options.generateTitle,
-        generateCaption: options.generateCaption,
-        generateKeywords: options.generateKeywords,
-      }),
+    // Create unique job ID and register AI activity
+    const jobId = `metadata-${photo.ImageKey}-${Date.now()}`;
+    const modelInfo = AVAILABLE_MODELS[selectedModel];
+
+    addJob({
+      id: jobId,
+      tool: 'MetaData Monster',
+      toolPath: '/metadata-monster',
+      status: 'processing',
+      startTime: new Date(),
+      message: `Generating metadata for ${photo.FileName}`,
+      model: selectedModel,
+      modelName: modelInfo.name,
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to generate metadata');
+    try {
+      // Call AI API to generate metadata based on image
+      const response = await fetch('/api/ai/generate-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: photo.ThumbnailUrl,
+          fileName: photo.FileName,
+          existingTitle: baseTitle,
+          existingCaption: baseCaption,
+          existingKeywords: baseKeywords,
+          promptStyle: options.promptStyle,
+          generateTitle: options.generateTitle,
+          generateCaption: options.generateCaption,
+          generateKeywords: options.generateKeywords,
+          model: selectedModel,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate metadata');
+      }
+
+      const generated = await response.json();
+
+      // Complete the job with success and token usage
+      const inputTokens = generated.usage?.input_tokens || 0;
+      const outputTokens = generated.usage?.output_tokens || 0;
+      const totalTokens = inputTokens + outputTokens;
+
+      console.log('📊 Token Usage:', {
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        fullResponse: generated
+      });
+
+      completeJob(jobId, totalTokens, inputTokens, outputTokens);
+
+      // Return generated fields + preserve existing for disabled fields
+      return {
+        title: generated.title || baseTitle,
+        caption: generated.caption || baseCaption,
+        keywords: generated.keywords || baseKeywords,
+      };
+    } catch (error) {
+      // Fail the job with error message
+      failJob(jobId, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
     }
-
-    const generated = await response.json();
-
-    // Return generated fields + preserve existing for disabled fields
-    return {
-      title: generated.title || baseTitle,
-      caption: generated.caption || baseCaption,
-      keywords: generated.keywords || baseKeywords,
-    };
   };
 
   const saveMetadata = async (photo: PhotoWithMetadata): Promise<void> => {
@@ -384,7 +427,7 @@ export default function MetaDataMonster() {
       } catch (_err) {
         console.error(`Error processing photo ${photoIndex}:`, _err);
         setPhotos(prev => prev.map((p, idx) =>
-          idx === photoIndex ? { ...p, status: 'error', error: err instanceof Error ? err.message : 'Unknown error' } : p
+          idx === photoIndex ? { ...p, status: 'error', error: _err instanceof Error ? _err.message : 'Unknown error' } : p
         ));
       }
     }
@@ -406,24 +449,15 @@ export default function MetaDataMonster() {
         idx === index ? { ...p, generated, status: 'generated' } : p
       ));
 
-      if (options.saveToSmugMug) {
-        setPhotos(prev => prev.map((p, idx) =>
-          idx === index ? { ...p, status: 'saving' } : p
-        ));
-
-        await saveMetadata({ ...photo, generated });
-
-        setPhotos(prev => prev.map((p, idx) =>
-          idx === index ? { ...p, status: 'saved' } : p
-        ));
-      }
+      // Don't auto-save on rescan - let user review and manually save
+      // This allows users to try different models and compare results
     } catch (_err) {
       console.error('Retry error:', _err);
       setPhotos(prev => prev.map((p, idx) =>
         idx === index ? {
           ...p,
           status: 'error',
-          error: err instanceof Error ? err.message : 'Unknown error'
+          error: _err instanceof Error ? _err.message : 'Unknown error'
         } : p
       ));
     }
@@ -528,9 +562,9 @@ export default function MetaDataMonster() {
       }
 
       // Group photos by what's missing
-      const groups: MissingMetadataGroup[] = [
+      const groups: MissingMetadataGroup[] = ([
         {
-          type: 'all',
+          type: 'all' as const,
           label: 'Missing All Metadata (Title, Caption, Keywords)',
           photos: allPhotosWithMissingData.filter(p =>
             (!p.Title || p.Title.trim() === '') &&
@@ -539,7 +573,7 @@ export default function MetaDataMonster() {
           ),
         },
         {
-          type: 'title',
+          type: 'title' as const,
           label: 'Missing Title Only',
           photos: allPhotosWithMissingData.filter(p =>
             (!p.Title || p.Title.trim() === '') &&
@@ -548,7 +582,7 @@ export default function MetaDataMonster() {
           ),
         },
         {
-          type: 'caption',
+          type: 'caption' as const,
           label: 'Missing Caption Only',
           photos: allPhotosWithMissingData.filter(p =>
             (p.Title && p.Title.trim() !== '') &&
@@ -557,7 +591,7 @@ export default function MetaDataMonster() {
           ),
         },
         {
-          type: 'keywords',
+          type: 'keywords' as const,
           label: 'Missing Keywords Only',
           photos: allPhotosWithMissingData.filter(p =>
             (p.Title && p.Title.trim() !== '') &&
@@ -565,7 +599,7 @@ export default function MetaDataMonster() {
             (!p.Keywords || p.Keywords.trim() === '')
           ),
         },
-      ].filter(g => g.photos.length > 0); // Only show groups with photos
+      ] as MissingMetadataGroup[]).filter(g => g.photos.length > 0); // Only show groups with photos
 
       setMissingMetadataGroups(groups);
       console.log(`Found ${allPhotosWithMissingData.length} photos with missing metadata`);
@@ -596,48 +630,50 @@ export default function MetaDataMonster() {
   return (
     <>
       <ToolboxHeader currentTool="metadata-monster" />
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
 
-          {/* Mode Toggle */}
-          <div className="mb-6 flex items-center gap-4 bg-white border border-gray-200 rounded-lg p-4">
-            <button
-              onClick={() => {
-                setMode('normal');
-                setMissingMetadataGroups([]);
-                setSelectedGalleries(new Set());
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
-                mode === 'normal'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Wand2 className="w-4 h-4" />
-              Normal Mode
-            </button>
-            <button
-              onClick={() => {
-                setMode('seek-and-capture');
-                setSelectedAlbum(null);
-                setPhotos([]);
-                setSelectedPhotos(new Set());
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
-                mode === 'seek-and-capture'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Target className="w-4 h-4" />
-              Seek & Capture
-            </button>
-            <div className="flex-1 text-sm text-gray-600">
-              {mode === 'normal' ? (
-                'Select an album and process photos individually'
-              ) : (
-                'Scan multiple galleries to find photos missing metadata'
-              )}
+          {/* Mode Toggle - Mobile Optimized */}
+          <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+              <button
+                onClick={() => {
+                  setMode('normal');
+                  setMissingMetadataGroups([]);
+                  setSelectedGalleries(new Set());
+                }}
+                className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 rounded-lg font-semibold transition-all min-h-[48px] ${
+                  mode === 'normal'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                }`}
+              >
+                <Wand2 className="w-5 h-5 sm:w-4 sm:h-4" />
+                Normal Mode
+              </button>
+              <button
+                onClick={() => {
+                  setMode('seek-and-capture');
+                  setSelectedAlbum(null);
+                  setPhotos([]);
+                  setSelectedPhotos(new Set());
+                }}
+                className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 rounded-lg font-semibold transition-all min-h-[48px] ${
+                  mode === 'seek-and-capture'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                }`}
+              >
+                <Target className="w-5 h-5 sm:w-4 sm:h-4" />
+                Seek & Capture
+              </button>
+              <div className="flex-1 text-sm text-gray-600 text-center sm:text-left pt-2 sm:pt-0">
+                {mode === 'normal' ? (
+                  'Select an album and process photos individually'
+                ) : (
+                  'Scan multiple galleries to find photos missing metadata'
+                )}
+              </div>
             </div>
           </div>
 
@@ -658,18 +694,18 @@ export default function MetaDataMonster() {
           </div>
 
 
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">MetaData Monster</h1>
-              <p className="text-gray-600">AI-powered metadata generation for your photos</p>
+          {/* Header - Mobile Optimized */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">MetaData Monster</h1>
+              <p className="text-sm sm:text-base text-gray-600">AI-powered metadata generation for your photos</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               {/* Credits Display */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <button
                   onClick={() => setShowCreditsModal(true)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all font-semibold"
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-3 sm:py-2 rounded-lg shadow-lg hover:shadow-xl active:shadow transition-all font-semibold min-h-[48px]"
                 >
                   <Coins className="w-5 h-5" />
                   {credits.remaining} Credits
@@ -679,7 +715,7 @@ export default function MetaDataMonster() {
                     creditsStorage.reset();
                     setCredits(creditsStorage.getBalance()!);
                   }}
-                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-800 underline self-center min-h-[44px] flex items-center justify-center"
                   title="Reset credits to 100 (dev only)"
                 >
                   Reset
@@ -690,10 +726,11 @@ export default function MetaDataMonster() {
               {photos.length > 0 && (
                 <button
                   onClick={exportReport}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                  className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 sm:py-2 rounded-lg transition-colors min-h-[48px]"
                 >
                   <Download className="w-4 h-4" />
-                  Export Report
+                  <span className="hidden sm:inline">Export Report</span>
+                  <span className="sm:hidden">Export</span>
                 </button>
               )}
             </div>
@@ -751,37 +788,37 @@ export default function MetaDataMonster() {
             {loading ? (
               <div className="text-center py-20 text-gray-600">Loading galleries...</div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                 {albums.map(album => (
                   <div
                     key={album.AlbumKey}
                     onClick={() => toggleGallerySelection(album.AlbumKey)}
-                    className={`bg-white border-2 rounded-lg p-6 cursor-pointer transition-all ${
+                    className={`bg-white border-2 rounded-lg p-4 sm:p-6 cursor-pointer transition-all min-h-[80px] ${
                       selectedGalleries.has(album.AlbumKey)
                         ? 'border-purple-500 ring-2 ring-purple-200 shadow-lg'
-                        : 'border-gray-200 hover:shadow-xl hover:border-purple-300'
+                        : 'border-gray-200 hover:shadow-xl hover:border-purple-300 active:bg-gray-50'
                     }`}
                   >
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
                         checked={selectedGalleries.has(album.AlbumKey)}
                         onChange={() => {}}
-                        className="w-5 h-5 text-purple-600 rounded"
+                        className="w-6 h-6 text-purple-600 rounded flex-shrink-0"
                       />
                       {albumImages[album.AlbumKey] ? (
                         <img
                           src={albumImages[album.AlbumKey]}
                           alt={album.Name}
-                          className="w-16 h-16 object-cover rounded-lg"
+                          className="w-16 h-16 sm:w-16 sm:h-16 object-cover rounded-lg flex-shrink-0"
                         />
                       ) : (
-                        <div className="bg-purple-100 p-3 rounded-lg w-16 h-16 flex items-center justify-center">
+                        <div className="bg-purple-100 p-3 rounded-lg w-16 h-16 flex items-center justify-center flex-shrink-0">
                           <Target className="w-6 h-6 text-purple-600" />
                         </div>
                       )}
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg text-gray-900">{album.Name}</h3>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-base sm:text-lg text-gray-900 truncate">{album.Name}</h3>
                         <p className="text-sm text-gray-600">{album.ImageCount} photos</p>
                       </div>
                     </div>
@@ -865,27 +902,27 @@ export default function MetaDataMonster() {
             {loading ? (
               <div className="text-center py-20 text-gray-600">Loading albums...</div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                 {albums.map(album => (
                   <button
                     key={album.AlbumKey}
                     onClick={() => loadPhotos(album.AlbumKey)}
-                    className="bg-white border-2 border-gray-200 rounded-lg p-6 hover:shadow-xl hover:border-green-500 cursor-pointer transition-all text-left"
+                    className="bg-white border-2 border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-xl hover:border-green-500 active:bg-green-50 cursor-pointer transition-all text-left min-h-[80px]"
                   >
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-3">
                       {albumImages[album.AlbumKey] ? (
                         <img
                           src={albumImages[album.AlbumKey]}
                           alt={album.Name}
-                          className="w-16 h-16 object-cover rounded-lg"
+                          className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
                         />
                       ) : (
-                        <div className="bg-green-100 p-3 rounded-lg w-16 h-16 flex items-center justify-center">
+                        <div className="bg-green-100 p-3 rounded-lg w-16 h-16 flex items-center justify-center flex-shrink-0">
                           <Wand2 className="w-6 h-6 text-green-600" />
                         </div>
                       )}
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg text-gray-900">{album.Name}</h3>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-base sm:text-lg text-gray-900 truncate">{album.Name}</h3>
                         <p className="text-sm text-gray-600">{album.ImageCount} photos</p>
                       </div>
                     </div>
@@ -919,41 +956,41 @@ export default function MetaDataMonster() {
               </div>
             </div>
 
-            {/* Settings Panel */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Processing Settings</h2>
+            {/* Settings Panel - Mobile Optimized */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 sm:p-6 mb-8">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">Processing Settings</h2>
 
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Left Column - What to Generate */}
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3">What to Generate</h3>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                       <input
                         type="checkbox"
                         checked={options.generateTitle}
                         onChange={(e) => setOptions({ ...options, generateTitle: e.target.checked })}
-                        className="w-4 h-4 text-green-600 rounded"
+                        className="w-5 h-5 sm:w-4 sm:h-4 text-green-600 rounded flex-shrink-0"
                       />
-                      <span className="text-sm text-gray-700">Titles</span>
+                      <span className="text-base sm:text-sm text-gray-700">Titles</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                       <input
                         type="checkbox"
                         checked={options.generateCaption}
                         onChange={(e) => setOptions({ ...options, generateCaption: e.target.checked })}
-                        className="w-4 h-4 text-green-600 rounded"
+                        className="w-5 h-5 sm:w-4 sm:h-4 text-green-600 rounded flex-shrink-0"
                       />
-                      <span className="text-sm text-gray-700">Captions</span>
+                      <span className="text-base sm:text-sm text-gray-700">Captions</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                       <input
                         type="checkbox"
                         checked={options.generateKeywords}
                         onChange={(e) => setOptions({ ...options, generateKeywords: e.target.checked })}
-                        className="w-4 h-4 text-green-600 rounded"
+                        className="w-5 h-5 sm:w-4 sm:h-4 text-green-600 rounded flex-shrink-0"
                       />
-                      <span className="text-sm text-gray-700">Keywords</span>
+                      <span className="text-base sm:text-sm text-gray-700">Keywords</span>
                     </label>
                   </div>
                 </div>
@@ -965,7 +1002,7 @@ export default function MetaDataMonster() {
                     <select
                       value={options.promptStyle}
                       onChange={(e) => setOptions({ ...options, promptStyle: e.target.value as PromptStyle })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm text-gray-900 bg-white"
+                      className="w-full px-4 py-3 sm:px-3 sm:py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-base sm:text-sm text-gray-900 bg-white min-h-[48px]"
                     >
                       <option value="professional">Professional - Clean, business-appropriate language</option>
                       <option value="creative">Creative - Artistic, expressive, evocative descriptions</option>
@@ -973,7 +1010,7 @@ export default function MetaDataMonster() {
                       <option value="seo">SEO - Search-optimized keywords and phrases</option>
                       <option value="minimal">Minimal - Brief, concise descriptions</option>
                     </select>
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-gray-500 mt-2 hidden sm:block">
                       Example for tortilla photo: {
                         options.promptStyle === 'professional' ? '"Traditional Tortilla Making on Rustic Griddle"' :
                         options.promptStyle === 'creative' ? '"Hands Dancing Across Sun-Kissed Stone"' :
@@ -983,14 +1020,14 @@ export default function MetaDataMonster() {
                       }
                     </p>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                     <input
                       type="checkbox"
                       checked={options.saveToSmugMug}
                       onChange={(e) => setOptions({ ...options, saveToSmugMug: e.target.checked })}
-                      className="w-4 h-4 text-green-600 rounded"
+                      className="w-5 h-5 sm:w-4 sm:h-4 text-green-600 rounded flex-shrink-0"
                     />
-                    <span className="text-sm text-gray-700">Save to SmugMug automatically</span>
+                    <span className="text-base sm:text-sm text-gray-700">Save to SmugMug automatically</span>
                   </label>
                 </div>
               </div>
@@ -1020,9 +1057,9 @@ export default function MetaDataMonster() {
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="bg-white rounded-xl p-6 shadow mb-6">
-              <div className="flex items-center justify-between mb-4">
+            {/* Action Bar - Mobile Optimized */}
+            <div className="bg-white rounded-xl p-4 sm:p-6 shadow mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Bulk Actions</h3>
                   <p className="text-sm text-gray-600">
@@ -1031,23 +1068,25 @@ export default function MetaDataMonster() {
                       : 'Select photos to process'}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={selectAll}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    onClick={deselectAll}
-                    className="text-sm text-gray-600 hover:text-gray-700 font-medium"
-                  >
-                    Deselect All
-                  </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={selectAll}
+                      className="flex-1 sm:flex-none text-sm text-blue-600 hover:text-blue-700 active:text-blue-800 font-medium min-h-[44px] px-4 rounded-lg hover:bg-blue-50 transition-colors"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={deselectAll}
+                      className="flex-1 sm:flex-none text-sm text-gray-600 hover:text-gray-700 active:text-gray-800 font-medium min-h-[44px] px-4 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
                   <button
                     onClick={() => processPhotos()}
                     disabled={processing || selectedPhotos.size === 0}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition-colors font-semibold"
+                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition-colors font-semibold min-h-[48px]"
                   >
                     <Wand2 className="w-5 h-5" />
                     {processing ? 'Processing...' : `Process Selected (${selectedPhotos.size})`}
@@ -1076,7 +1115,7 @@ export default function MetaDataMonster() {
               </div>
             )}
 
-            {/* Photos List */}
+            {/* Photos List - Mobile Optimized */}
             <div className="space-y-4">
               {photos.map((photo, index) => (
                 <div
@@ -1089,24 +1128,27 @@ export default function MetaDataMonster() {
                     'border-gray-200'
                   }`}
                 >
-                  <div className="flex gap-6 p-6">
-                    {/* Selection Checkbox */}
-                    <div className="flex-shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={selectedPhotos.has(index)}
-                        onChange={() => togglePhotoSelection(index)}
-                        className="w-5 h-5 text-purple-600 rounded cursor-pointer"
-                      />
-                    </div>
+                  <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-4 sm:p-6">
+                    {/* Mobile: Checkbox and Thumbnail Row */}
+                    <div className="flex gap-4 sm:gap-6 items-start">
+                      {/* Selection Checkbox */}
+                      <div className="flex-shrink-0 pt-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedPhotos.has(index)}
+                          onChange={() => togglePhotoSelection(index)}
+                          className="w-6 h-6 sm:w-5 sm:h-5 text-purple-600 rounded cursor-pointer"
+                        />
+                      </div>
 
-                    {/* Thumbnail */}
-                    <div className="flex-shrink-0">
-                      <img
-                        src={photo.ThumbnailUrl}
-                        alt={photo.FileName}
-                        className="w-32 h-32 object-cover rounded-lg"
-                      />
+                      {/* Thumbnail */}
+                      <div className="flex-shrink-0">
+                        <img
+                          src={photo.ThumbnailUrl}
+                          alt={photo.FileName}
+                          className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg"
+                        />
+                      </div>
                     </div>
 
                     {/* Content */}
@@ -1183,43 +1225,46 @@ export default function MetaDataMonster() {
                         </div>
                       )}
 
-                      {/* Generated Metadata */}
+                      {/* Generated Metadata - Mobile Optimized Forms */}
                       {photo.generated && (
                         <div className="space-y-3">
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Title</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Title</label>
                             <input
                               type="text"
                               value={photo.generated.title}
                               onChange={(e) => updatePhotoMetadata(index, 'title', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                              className="w-full px-4 py-3 sm:px-3 sm:py-2 border-2 border-gray-300 rounded-lg text-base sm:text-sm text-gray-900 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all min-h-[48px]"
                               disabled={photo.status === 'saved'}
+                              placeholder="Photo title..."
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Caption</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Caption</label>
                             <textarea
                               value={photo.generated.caption}
                               onChange={(e) => updatePhotoMetadata(index, 'caption', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                              rows={2}
+                              className="w-full px-4 py-3 sm:px-3 sm:py-2 border-2 border-gray-300 rounded-lg text-base sm:text-sm text-gray-900 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all min-h-[80px]"
+                              rows={3}
                               disabled={photo.status === 'saved'}
+                              placeholder="Photo caption..."
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Keywords</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Keywords</label>
                             <input
                               type="text"
                               value={photo.generated.keywords}
                               onChange={(e) => updatePhotoMetadata(index, 'keywords', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                              className="w-full px-4 py-3 sm:px-3 sm:py-2 border-2 border-gray-300 rounded-lg text-base sm:text-sm text-gray-900 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all min-h-[48px]"
                               disabled={photo.status === 'saved'}
+                              placeholder="keywords, separated, by, commas"
                             />
                           </div>
 
-                          {/* Save to SmugMug Button */}
+                          {/* Action Buttons */}
                           {photo.status === 'generated' && (
-                            <div className="mt-4">
+                            <div className="mt-4 space-y-2">
                               <button
                                 onClick={async () => {
                                   try {
@@ -1243,6 +1288,24 @@ export default function MetaDataMonster() {
                               >
                                 <Upload className="w-4 h-4" />
                                 Save to SmugMug
+                              </button>
+                              <button
+                                onClick={() => retryPhoto(index)}
+                                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                                Rescan (Try Different Model)
+                              </button>
+                            </div>
+                          )}
+                          {(photo.status === 'saved' || photo.status === 'error') && (
+                            <div className="mt-4">
+                              <button
+                                onClick={() => retryPhoto(index)}
+                                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                                Rescan with AI
                               </button>
                             </div>
                           )}
@@ -1330,7 +1393,11 @@ export default function MetaDataMonster() {
         )}
 
       {/* System Prompt Viewer */}
-      <SystemPromptViewer toolName="MetaData Monster" apiEndpoint="/api/ai/generate-metadata" />
+      <SystemPromptViewer
+        toolName="MetaData Monster"
+        apiEndpoint="/api/ai/generate-metadata"
+        toolId="metadata-monster"
+      />
       </div>
     </div>
     </>

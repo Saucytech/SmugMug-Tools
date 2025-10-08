@@ -16,77 +16,91 @@ interface Photo {
   WebUri?: string;
 }
 
-// Theme color configurations
+// Theme color configurations with actual hex values for inline styles
 const themeConfig = {
   purple: {
-    gradient: 'from-purple-600 to-purple-700',
-    primary: 'purple-600',
-    primaryHover: 'purple-700',
-    primaryLight: 'purple-100',
-    primaryDark: 'purple-200',
-    ring: 'purple-300',
-    accent: 'pink-500',
-    accentFill: 'pink-400',
+    gradientClass: 'from-purple-600 to-purple-700',
+    gradientFrom: '#9333ea',
+    gradientTo: '#7e22ce',
+    primary: '#9333ea',
+    primaryHover: '#7e22ce',
+    primaryLight: '#f3e8ff',
+    primaryDark: '#e9d5ff',
+    ring: '#d8b4fe',
+    accent: '#ec4899',
+    accentFill: '#f472b6',
   },
   blue: {
-    gradient: 'from-blue-600 to-blue-700',
-    primary: 'blue-600',
-    primaryHover: 'blue-700',
-    primaryLight: 'blue-100',
-    primaryDark: 'blue-200',
-    ring: 'blue-300',
-    accent: 'cyan-500',
-    accentFill: 'cyan-400',
+    gradientClass: 'from-blue-600 to-blue-700',
+    gradientFrom: '#2563eb',
+    gradientTo: '#1d4ed8',
+    primary: '#2563eb',
+    primaryHover: '#1d4ed8',
+    primaryLight: '#dbeafe',
+    primaryDark: '#bfdbfe',
+    ring: '#93c5fd',
+    accent: '#06b6d4',
+    accentFill: '#22d3ee',
   },
   green: {
-    gradient: 'from-green-600 to-green-700',
-    primary: 'green-600',
-    primaryHover: 'green-700',
-    primaryLight: 'green-100',
-    primaryDark: 'green-200',
-    ring: 'green-300',
-    accent: 'emerald-500',
-    accentFill: 'emerald-400',
+    gradientClass: 'from-green-600 to-green-700',
+    gradientFrom: '#16a34a',
+    gradientTo: '#15803d',
+    primary: '#16a34a',
+    primaryHover: '#15803d',
+    primaryLight: '#dcfce7',
+    primaryDark: '#bbf7d0',
+    ring: '#86efac',
+    accent: '#10b981',
+    accentFill: '#34d399',
   },
   red: {
-    gradient: 'from-red-600 to-red-700',
-    primary: 'red-600',
-    primaryHover: 'red-700',
-    primaryLight: 'red-100',
-    primaryDark: 'red-200',
-    ring: 'red-300',
-    accent: 'rose-500',
-    accentFill: 'rose-400',
+    gradientClass: 'from-red-600 to-red-700',
+    gradientFrom: '#dc2626',
+    gradientTo: '#b91c1c',
+    primary: '#dc2626',
+    primaryHover: '#b91c1c',
+    primaryLight: '#fee2e2',
+    primaryDark: '#fecaca',
+    ring: '#fca5a5',
+    accent: '#f43f5e',
+    accentFill: '#fb7185',
   },
   orange: {
-    gradient: 'from-orange-600 to-orange-700',
-    primary: 'orange-600',
-    primaryHover: 'orange-700',
-    primaryLight: 'orange-100',
-    primaryDark: 'orange-200',
-    ring: 'orange-300',
-    accent: 'amber-500',
-    accentFill: 'amber-400',
+    gradientClass: 'from-orange-600 to-orange-700',
+    gradientFrom: '#ea580c',
+    gradientTo: '#c2410c',
+    primary: '#ea580c',
+    primaryHover: '#c2410c',
+    primaryLight: '#ffedd5',
+    primaryDark: '#fed7aa',
+    ring: '#fdba74',
+    accent: '#f59e0b',
+    accentFill: '#fbbf24',
   },
   pink: {
-    gradient: 'from-pink-600 to-pink-700',
-    primary: 'pink-600',
-    primaryHover: 'pink-700',
-    primaryLight: 'pink-100',
-    primaryDark: 'pink-200',
-    ring: 'pink-300',
-    accent: 'rose-500',
-    accentFill: 'rose-400',
+    gradientClass: 'from-pink-600 to-pink-700',
+    gradientFrom: '#db2777',
+    gradientTo: '#be185d',
+    primary: '#db2777',
+    primaryHover: '#be185d',
+    primaryLight: '#fce7f3',
+    primaryDark: '#fbcfe8',
+    ring: '#f9a8d4',
+    accent: '#f43f5e',
+    accentFill: '#fb7185',
   },
   dark: {
-    gradient: 'from-gray-900 to-gray-800',
-    primary: 'gray-900',
-    primaryHover: 'gray-800',
-    primaryLight: 'gray-100',
-    primaryDark: 'gray-200',
-    ring: 'gray-600',
-    accent: 'purple-500',
-    accentFill: 'purple-400',
+    gradientClass: 'from-gray-900 to-gray-800',
+    gradientFrom: '#111827',
+    gradientTo: '#1f2937',
+    primary: '#111827',
+    primaryHover: '#1f2937',
+    primaryLight: '#f3f4f6',
+    primaryDark: '#e5e7eb',
+    ring: '#4b5563',
+    accent: '#a855f7',
+    accentFill: '#c084fc',
   },
 };
 
@@ -218,13 +232,18 @@ export default function FavoritesSelectionPage() {
 
   if (submitted) {
     return (
-      <div className={`min-h-screen bg-gradient-to-b from-${theme.primaryLight} to-white flex items-center justify-center p-8`}>
+      <div
+        className="min-h-screen bg-gradient-to-b flex items-center justify-center p-4 sm:p-8"
+        style={{
+          backgroundImage: `linear-gradient(to bottom, ${theme.primaryLight}, white)`
+        }}
+      >
         <div className="text-center max-w-md">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check className="w-10 h-10 text-green-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Thank You!</h1>
-          <p className="text-lg text-gray-600 mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Thank You!</h1>
+          <p className="text-base sm:text-lg text-gray-600 mb-2">
             Your {favorites.size} favorite{favorites.size !== 1 ? 's have' : ' has'} been submitted.
           </p>
           <p className="text-sm text-gray-500">
@@ -238,107 +257,130 @@ export default function FavoritesSelectionPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className={`bg-gradient-to-r ${theme.gradient} text-white py-12 px-8`}>
+      <div
+        className={`bg-gradient-to-r ${theme.gradientClass} text-white py-8 sm:py-12 px-4 sm:px-8`}
+      >
         <div className="max-w-7xl mx-auto">
           {/* Logo */}
           {session.logoUrl ? (
             <img
               src={session.logoUrl}
               alt="Logo"
-              className="h-16 mb-6 max-w-xs object-contain"
+              className="h-12 sm:h-16 mb-4 sm:mb-6 max-w-xs object-contain"
             />
           ) : (
-            <Heart className="w-12 h-12 mb-4" />
+            <Heart className="w-10 h-10 sm:w-12 sm:h-12 mb-4" />
           )}
-          <h1 className="text-4xl font-bold mb-3">{session.name}</h1>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3">{session.name}</h1>
           {session.description && (
-            <p className={`text-xl text-${theme.primaryLight} mb-4`}>{session.description}</p>
+            <p className="text-lg sm:text-xl mb-4 opacity-90">{session.description}</p>
           )}
-          <p className={`text-${theme.primaryDark}`}>
+          <p className="text-sm sm:text-base opacity-80">
             Select your favorite photos • {photos.length} photos available
           </p>
         </div>
       </div>
 
-      {/* Floating Selection Bar */}
+      {/* Floating Selection Bar - Responsive */}
       {favorites.size > 0 && (
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-2xl px-6 py-4 flex items-center gap-6 z-50">
-          <div className="flex items-center gap-2">
-            <Heart className={`w-5 h-5 text-${theme.accentFill} fill-${theme.accentFill}`} />
-            <span className="font-semibold">{favorites.size} favorite{favorites.size !== 1 ? 's' : ''} selected</span>
+        <div className="fixed bottom-4 sm:bottom-8 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 bg-gray-900 text-white rounded-full shadow-2xl px-4 sm:px-6 py-3 sm:py-4 z-50 max-w-md sm:max-w-xl mx-auto">
+          <div className="flex items-center justify-between sm:justify-center gap-3 sm:gap-6">
+            <div className="flex items-center gap-2 min-w-0 flex-shrink">
+              <Heart
+                className="w-5 h-5 flex-shrink-0"
+                style={{ color: theme.accentFill, fill: theme.accentFill }}
+              />
+              <span className="font-semibold text-sm sm:text-base truncate">
+                {favorites.size} selected
+              </span>
+            </div>
+
+            <div className="h-6 w-px bg-gray-700 hidden sm:block flex-shrink-0" />
+
+            <button
+              onClick={() => setShowSubmitForm(true)}
+              className="px-4 sm:px-6 py-2 rounded-lg font-semibold transition-colors flex-shrink-0 text-sm sm:text-base"
+              style={{
+                backgroundColor: theme.primary
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.primaryHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.primary}
+            >
+              Submit
+            </button>
           </div>
-
-          <div className="h-6 w-px bg-gray-700" />
-
-          <button
-            onClick={() => setShowSubmitForm(true)}
-            className={`bg-${theme.primary} hover:bg-${theme.primaryHover} px-6 py-2 rounded-lg font-semibold transition-colors`}
-          >
-            Submit Selections
-          </button>
         </div>
       )}
 
       {/* Photos Grid */}
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-4 sm:p-8">
         {photos.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-500">
+            <p className="text-gray-500 text-sm sm:text-base">
               This is a customer-facing favorites selector.
               <br />
               Photos will be visible to customers via public sharing settings.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {photos.map((photo) => {
               const isFavorite = favorites.has(photo.ImageKey);
               return (
                 <div key={photo.ImageKey} className="relative">
                   <button
                     onClick={() => toggleFavorite(photo.ImageKey)}
-                    className={`group relative aspect-square overflow-hidden rounded-lg transition-all w-full ${
-                      isFavorite
-                        ? `ring-4 ring-${theme.accent}`
-                        : `hover:ring-4 hover:ring-${theme.ring}`
-                    }`}
+                    aria-label={`${isFavorite ? 'Remove from' : 'Add to'} favorites: ${photo.Title || photo.FileName}`}
+                    aria-pressed={isFavorite}
+                    className="group relative aspect-square overflow-hidden rounded-lg transition-all w-full ring-4"
+                    style={{
+                      ringColor: isFavorite ? theme.accent : 'transparent'
+                    }}
                   >
                     <img
                       src={photo.ThumbnailUrl}
                       alt={photo.Title || photo.FileName}
+                      loading="lazy"
                       className={`w-full h-full object-cover transition-all ${
                         isFavorite ? 'opacity-90' : 'group-hover:opacity-90'
                       }`}
                     />
 
-                    {/* Heart Overlay */}
-                    <div className={`absolute top-3 right-3 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                      isFavorite
-                        ? `bg-${theme.accent}`
-                        : 'bg-white/80 backdrop-blur-sm'
-                    }`}>
+                    {/* Heart Overlay - Larger touch target (48x48px) */}
+                    <div
+                      className="absolute top-2 right-2 z-10 w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                      style={{
+                        backgroundColor: isFavorite ? theme.accent : 'rgba(255, 255, 255, 0.8)',
+                        backdropFilter: isFavorite ? 'none' : 'blur(4px)'
+                      }}
+                    >
                       <Heart
-                        className={`w-6 h-6 ${
+                        className={`w-7 h-7 ${
                           isFavorite ? 'text-white fill-white' : 'text-gray-700'
                         }`}
                       />
                     </div>
 
                     {/* Title overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-                      <p className="text-white text-sm font-semibold truncate">
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 sm:p-3">
+                      <p className="text-white text-xs sm:text-sm font-semibold truncate">
                         {photo.Title || photo.Caption || photo.FileName}
                       </p>
                     </div>
                   </button>
 
-                  {/* Buy Button */}
+                  {/* Buy Button - Larger touch target */}
                   {session.showBuyButton && photo.WebUri && (
                     <a
                       href={photo.WebUri}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`mt-2 w-full flex items-center justify-center gap-2 bg-${theme.primary} hover:bg-${theme.primaryHover} text-white px-3 py-2 rounded-lg transition-colors text-sm font-semibold`}
+                      className="mt-2 w-full flex items-center justify-center gap-2 text-white px-3 py-3 rounded-lg transition-colors text-xs sm:text-sm font-semibold min-h-[44px]"
+                      style={{
+                        backgroundColor: theme.primary
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.primaryHover}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.primary}
                     >
                       <ShoppingCart className="w-4 h-4" />
                       Buy This Photo
@@ -351,54 +393,75 @@ export default function FavoritesSelectionPage() {
         )}
       </div>
 
-      {/* Submit Form Modal */}
+      {/* Submit Form Modal - Mobile Optimized */}
       {showSubmitForm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowSubmitForm(false)}>
-          <div className="bg-white rounded-2xl max-w-md w-full p-8" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Submit Your Favorites</h2>
-            <p className="text-gray-600 mb-6">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Submit Your Favorites</h2>
+            <p className="text-sm sm:text-base text-gray-600 mb-6">
               You've selected {favorites.size} photo{favorites.size !== 1 ? 's' : ''}
             </p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="customer-name">
                   Your Name (Optional)
                 </label>
                 <input
+                  id="customer-name"
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="John Doe"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  className="w-full px-4 py-4 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="customer-email">
                   Email Address *
                 </label>
                 <input
+                  id="customer-email"
                   type="email"
+                  inputMode="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
                   placeholder="your@email.com"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  required
+                  className="w-full px-4 py-4 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
               <button
                 onClick={() => setShowSubmitForm(false)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg transition-colors font-semibold"
+                className="w-full sm:flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg transition-colors font-semibold min-h-[44px]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={!customerEmail || favorites.size === 0}
-                className={`flex-1 bg-${theme.primary} hover:bg-${theme.primaryHover} disabled:bg-${theme.primaryLight} text-white px-6 py-3 rounded-lg transition-colors font-semibold flex items-center justify-center gap-2`}
+                className="w-full sm:flex-1 text-white px-6 py-3 rounded-lg transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                style={{
+                  backgroundColor: !customerEmail || favorites.size === 0 ? theme.primaryLight : theme.primary
+                }}
+                onMouseEnter={(e) => {
+                  if (customerEmail && favorites.size > 0) {
+                    e.currentTarget.style.backgroundColor = theme.primaryHover;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (customerEmail && favorites.size > 0) {
+                    e.currentTarget.style.backgroundColor = theme.primary;
+                  }
+                }}
               >
                 <Send className="w-5 h-5" />
                 Submit

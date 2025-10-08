@@ -162,28 +162,29 @@ export default function FavoritesResultsPage() {
   return (
     <>
       <ToolboxHeader currentTool="favorites" />
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
+          {/* Header - Mobile Optimized */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 mb-2">
                 <button
                   onClick={() => router.push('/favorites-manager')}
-                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  aria-label="Back to Favorites Manager"
                 >
-                  <ArrowLeft className="w-6 h-6" />
+                  <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
-                <h1 className="text-4xl font-bold text-gray-900">{session.name}</h1>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 truncate">{session.name}</h1>
               </div>
-              <p className="text-gray-600 ml-14">Favorites Results</p>
+              <p className="text-sm sm:text-base text-gray-600 ml-12 sm:ml-14">Favorites Results</p>
             </div>
           <button
             onClick={exportResults}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors min-h-[44px] font-semibold"
           >
             <Download className="w-5 h-5" />
-            Export CSV
+            <span>Export CSV</span>
           </button>
         </div>
 
@@ -249,35 +250,36 @@ export default function FavoritesResultsPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
               {sortedPhotos.map((photo, index) => (
                 <div key={photo.ImageKey} className="bg-white rounded-xl overflow-hidden shadow-lg border border-gray-200 hover:shadow-xl transition-all">
                   <div className="relative aspect-square">
                     <img
                       src={photo.ThumbnailUrl}
                       alt={photo.Title || photo.FileName}
+                      loading="lazy"
                       className="w-full h-full object-cover"
                     />
                     {index < 3 && (
-                      <div className="absolute top-3 left-3 bg-yellow-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg">
+                      <div className="absolute top-2 sm:top-3 left-2 sm:left-3 bg-yellow-500 text-white w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base shadow-lg">
                         #{index + 1}
                       </div>
                     )}
-                    <div className="absolute top-3 right-3 bg-pink-500 text-white px-3 py-1 rounded-full flex items-center gap-1 font-semibold shadow-lg">
-                      <Heart className="w-4 h-4 fill-white" />
+                    <div className="absolute top-2 sm:top-3 right-2 sm:right-3 bg-pink-500 text-white px-2 sm:px-3 py-1 rounded-full flex items-center gap-1 font-semibold text-xs sm:text-sm shadow-lg">
+                      <Heart className="w-3 h-3 sm:w-4 sm:h-4 fill-white" />
                       {photo.votes}
                     </div>
                   </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 mb-2 truncate">
+                  <div className="p-3 sm:p-4">
+                    <h3 className="font-semibold text-sm sm:text-base text-gray-900 mb-2 truncate">
                       {photo.Title || photo.FileName}
                     </h3>
                     <div className="text-xs text-gray-500">
                       <p className="font-semibold mb-1">Favorited by:</p>
-                      <div className="space-y-1 max-h-20 overflow-y-auto">
+                      <div className="space-y-1 max-h-20 overflow-y-auto touch-pan-y">
                         {photo.votedBy.map((customer, i) => (
                           <div key={i} className="flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
+                            <Mail className="w-3 h-3 flex-shrink-0" />
                             <span className="truncate">{customer.name || customer.email}</span>
                           </div>
                         ))}
@@ -290,12 +292,13 @@ export default function FavoritesResultsPage() {
           </>
         )}
 
-        {/* Customer List */}
+        {/* Customer List - Responsive Table/Cards */}
         {totalCustomers > 0 && (
-          <div className="mt-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Customer Submissions</h2>
+          <div className="mt-8 sm:mt-12">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Customer Submissions</h2>
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <table className="w-full">
+              {/* Desktop: Table */}
+              <table className="hidden md:table w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Customer</th>
@@ -307,7 +310,7 @@ export default function FavoritesResultsPage() {
                 <tbody className="divide-y divide-gray-200">
                   {Object.entries(session.customerFavorites).map(([email, customer]) => (
                     <tr key={email} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{customer.customerName || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{customer.customerName || 'Anonymous'}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{email}</td>
                       <td className="px-6 py-4">
                         <span className="px-3 py-1 bg-pink-100 text-pink-700 text-sm font-semibold rounded-full">
@@ -321,6 +324,29 @@ export default function FavoritesResultsPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Mobile: Card-based layout */}
+              <div className="md:hidden divide-y divide-gray-200">
+                {Object.entries(session.customerFavorites).map(([email, customer]) => (
+                  <div key={email} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 mb-1">
+                          {customer.customerName || 'Anonymous'}
+                        </div>
+                        <div className="text-sm text-gray-600 truncate">{email}</div>
+                      </div>
+                      <span className="px-3 py-1 bg-pink-100 text-pink-700 text-sm font-semibold rounded-full whitespace-nowrap flex-shrink-0">
+                        {customer.photoKeys.length} photos
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                      <span className="font-medium">Submitted:</span>
+                      <span>{new Date(customer.selectedAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

@@ -5,6 +5,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-sonnet-4-5-20250929';
+
 const SYSTEM_PROMPT = `SmugMug account optimization and sanity check expert.
 
 **YOUR ROLE:**
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
   // Return system prompt if requested
   const { searchParams } = new URL(request.url);
   if (searchParams.get('getSystemPrompt') === 'true') {
-    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT, model: MODEL });
   }
 
   return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { galleries } = await request.json();
+    const { galleries, model } = await request.json();
 
     if (!galleries || galleries.length === 0) {
       return NextResponse.json(
@@ -123,7 +125,7 @@ Return your analysis as a JSON object with this structure:
 IMPORTANT: Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: model || MODEL,
       max_tokens: 4000,
       messages: [
         {
@@ -177,7 +179,13 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanations, just the JSON o
       };
     }
 
-    return NextResponse.json(analysisResult);
+    return NextResponse.json({
+      ...analysisResult,
+      usage: {
+        input_tokens: message.usage.input_tokens,
+        output_tokens: message.usage.output_tokens,
+      },
+    });
 
   } catch (error: any) {
     console.error('Error in sanity analysis:', error);

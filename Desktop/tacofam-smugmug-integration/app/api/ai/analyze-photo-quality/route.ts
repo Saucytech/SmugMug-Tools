@@ -5,6 +5,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+const MODEL = 'claude-sonnet-4-5-20250929';
+
 const SYSTEM_PROMPT = `AI-powered photo culling assistant for professional photographers.
 
 **ANALYSIS CRITERIA:**
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
   // Return system prompt if requested
   const { searchParams } = new URL(request.url);
   if (searchParams.get('getSystemPrompt') === 'true') {
-    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT, model: MODEL });
   }
 
   return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -78,6 +80,7 @@ interface PhotoQualityAnalysis {
   keyMoment: string | null; // e.g., "first kiss", "ring exchange", etc.
   similarityHash?: string; // For grouping similar shots
   confidence: number; // 0-100
+  tokensUsed?: { input: number; output: number }; // Token usage for this analysis
 }
 
 interface BatchAnalysisRequest {
@@ -93,7 +96,7 @@ interface BatchAnalysisRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const { images, albumContext = '', autoRejectThreshold = 3, detectKeyMoments = true }: BatchAnalysisRequest = await request.json();
+    const { images, albumContext = '', autoRejectThreshold = 3, detectKeyMoments = true, model }: BatchAnalysisRequest & { model?: string } = await request.json();
 
     if (!images || images.length === 0) {
       return NextResponse.json({ error: 'No images provided' }, { status: 400 });
@@ -102,12 +105,14 @@ export async function POST(request: NextRequest) {
     // Process images in batches to avoid overwhelming the API
     const batchSize = 5;
     const results: PhotoQualityAnalysis[] = [];
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     for (let i = 0; i < images.length; i += batchSize) {
       const batch = images.slice(i, i + batchSize);
       const batchPromises = batch.map(async (image) => {
         try {
-          const analysis = await analyzePhoto(image.url, image.id, albumContext, detectKeyMoments);
+          const analysis = await analyzePhoto(image.url, image.id, albumContext, detectKeyMoments, model);
           return analysis;
         } catch (_error) {
           console.error(`Error analyzing photo ${image.id}:`, _error);
@@ -117,6 +122,14 @@ export async function POST(request: NextRequest) {
 
       const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
+
+      // Sum up token usage from batch
+      batchResults.forEach(result => {
+        if (result.tokensUsed) {
+          totalInputTokens += result.tokensUsed.input;
+          totalOutputTokens += result.tokensUsed.output;
+        }
+      });
 
       // Add a small delay between batches to respect rate limits
       if (i + batchSize < images.length) {
@@ -135,6 +148,10 @@ export async function POST(request: NextRequest) {
       analyses: groupedResults,
       statistics,
       totalProcessed: results.length,
+      usage: {
+        input_tokens: totalInputTokens,
+        output_tokens: totalOutputTokens,
+      },
     });
 
   } catch (_error) {
@@ -150,7 +167,8 @@ async function analyzePhoto(
   imageUrl: string,
   imageId: string,
   albumContext: string,
-  detectKeyMoments: boolean
+  detectKeyMoments: boolean,
+  model?: string
 ): Promise<PhotoQualityAnalysis> {
   const prompt = `Analyze this photograph for culling purposes. Provide a detailed quality assessment.
 
@@ -213,7 +231,7 @@ Be strict but fair. Only mark as "keep" if the photo truly adds value to the col
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: model || MODEL,
       max_tokens: 1000,
       messages: [
         {
@@ -250,6 +268,10 @@ Be strict but fair. Only mark as "keep" if the photo truly adds value to the col
           imageUrl,
           ...analysis,
           similarityHash,
+          tokensUsed: {
+            input: response.usage.input_tokens,
+            output: response.usage.output_tokens,
+          },
         };
       }
     }

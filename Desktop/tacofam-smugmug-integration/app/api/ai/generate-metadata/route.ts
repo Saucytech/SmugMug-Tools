@@ -5,6 +5,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
 });
 
+const MODEL = 'claude-sonnet-4-5-20250929';
+
 const SYSTEM_PROMPT = `Analyze photographs and generate professional metadata (titles, captions, keywords).
 
 **METADATA GENERATION RULES:**
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
   // Return system prompt if requested
   const { searchParams } = new URL(request.url);
   if (searchParams.get('getSystemPrompt') === 'true') {
-    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT, model: MODEL });
   }
 
   return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -63,7 +65,8 @@ export async function POST(request: NextRequest) {
       generateTitle,
       generateCaption,
       generateKeywords,
-      promptStyle
+      promptStyle,
+      model
     } = body;
 
     // Use Claude AI with vision to analyze the image
@@ -79,7 +82,8 @@ export async function POST(request: NextRequest) {
         generateTitle,
         generateCaption,
         generateKeywords,
-        promptStyle
+        promptStyle,
+        model
       );
     } else {
       // Fallback to filename-based generation if no API key
@@ -127,7 +131,8 @@ async function generateWithClaude(
   generateTitle?: boolean,
   generateCaption?: boolean,
   generateKeywords?: boolean,
-  _promptStyle?: string
+  _promptStyle?: string,
+  model?: string
 ) {
   // Fetch the image and convert to base64
   const imageResponse = await fetch(imageUrl);
@@ -166,7 +171,7 @@ Return ONLY valid JSON with these exact fields:
 }`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
+    model: model || MODEL,
     max_tokens: 1024,
     messages: [
       {
@@ -197,11 +202,16 @@ Return ONLY valid JSON with these exact fields:
   if (jsonMatch) {
     const generated = JSON.parse(jsonMatch[0]);
 
-    // Return only generated fields + existing fields for non-generated ones
+    // Return only generated fields + existing fields for non-generated ones + token usage
     return {
       title: generateTitle ? generated.title : existingTitle,
       caption: generateCaption ? generated.caption : existingCaption,
       keywords: generateKeywords ? generated.keywords : existingKeywords,
+      // Add token usage from Anthropic API response
+      usage: {
+        input_tokens: message.usage.input_tokens,
+        output_tokens: message.usage.output_tokens,
+      },
     };
   }
 
@@ -229,10 +239,9 @@ function generateFallbackMetadata(
   };
 }
 
-function generateTitleFromFilename(words: string[], existingTitle?: string): string {
-  if (existingTitle && existingTitle.trim()) {
-    return existingTitle; // Keep existing if present
-  }
+function generateTitleFromFilename(words: string[], _existingTitle?: string): string {
+  // ALWAYS generate new title from filename, don't keep existing
+  // This allows users to regenerate metadata even if it already exists
 
   // Capitalize and join words to create a title
   const titleWords = words.map(word => {
@@ -252,10 +261,9 @@ function generateTitleFromFilename(words: string[], existingTitle?: string): str
   return titleWords.join(' ') || 'Untitled Photo';
 }
 
-function generateCaptionFromFilename(words: string[], fileName: string, existingCaption?: string): string {
-  if (existingCaption && existingCaption.trim()) {
-    return existingCaption; // Keep existing if present
-  }
+function generateCaptionFromFilename(words: string[], fileName: string, _existingCaption?: string): string {
+  // ALWAYS generate new caption from filename, don't keep existing
+  // This allows users to regenerate metadata even if it already exists
 
   // Create a more descriptive caption
   const title = generateTitleFromFilename(words);
@@ -297,10 +305,9 @@ function generateCaptionFromFilename(words: string[], fileName: string, existing
   return title + (context || ' Professional photography.');
 }
 
-function generateKeywordsFromFilename(words: string[], fileName: string, existingKeywords?: string): string {
-  if (existingKeywords && existingKeywords.trim()) {
-    return existingKeywords; // Keep existing if present
-  }
+function generateKeywordsFromFilename(words: string[], fileName: string, _existingKeywords?: string): string {
+  // ALWAYS generate new keywords from filename, don't keep existing
+  // This allows users to regenerate metadata even if it already exists
 
   const keywords = new Set<string>();
 

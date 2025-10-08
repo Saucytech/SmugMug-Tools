@@ -158,106 +158,108 @@ export default function FavoritesManagerPage() {
   return (
     <>
       <ToolboxHeader currentTool="favorites" />
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
         <div className="max-w-7xl mx-auto">
 
           {/* Instructions Banner */}
-          <div className="mb-6 bg-pink-50 border border-pink-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="mb-4 sm:mb-6 bg-pink-50 border border-pink-200 rounded-lg p-3 sm:p-4">
+            <div className="flex items-start sm:items-center gap-2 sm:gap-3">
+              <svg className="w-5 h-5 text-pink-600 flex-shrink-0 mt-0.5 sm:mt-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm text-gray-800">
+              <p className="text-xs sm:text-sm text-gray-800">
                 <span className="font-semibold">How to use:</span> Create a session by selecting albums and customizing settings. Share the generated link with clients for photo selection. View and export their favorites anytime.
               </p>
             </div>
           </div>
 
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Favorites Manager</h1>
-              <p className="text-gray-600">Create sessions for customers to select their favorite photos</p>
+          {/* Header - Mobile Optimized */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">Favorites Manager</h1>
+              <p className="text-sm sm:text-base text-gray-600">Create sessions for customers to select their favorite photos</p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors min-h-[44px] font-semibold whitespace-nowrap"
             >
               <Plus className="w-5 h-5" />
-              New Favorites Session
+              <span>New Session</span>
             </button>
           </div>
 
         {/* Sessions List */}
         {sessions.length === 0 ? (
-          <div className="text-center py-20">
-            <Heart className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Favorites Sessions Yet</h3>
-            <p className="text-gray-500 mb-6">Create a session to let customers select their favorite photos</p>
+          <div className="text-center py-12 sm:py-20 px-4">
+            <Heart className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">No Favorites Sessions Yet</h3>
+            <p className="text-sm sm:text-base text-gray-500 mb-6">Create a session to let customers select their favorite photos</p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2"
+              className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors inline-flex items-center justify-center gap-2 min-h-[44px] font-semibold"
             >
               <Plus className="w-5 h-5" />
-              Create Your First Session
+              <span>Create Your First Session</span>
             </button>
           </div>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid gap-4 sm:gap-6">
             {sessions.map((session) => (
-              <div key={session.id} className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{session.name}</h2>
+              <div key={session.id} className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-gray-200">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 break-words">{session.name}</h2>
                     {session.description && (
-                      <p className="text-gray-600 mb-3">{session.description}</p>
+                      <p className="text-sm sm:text-base text-gray-600 mb-3 break-words">{session.description}</p>
                     )}
                     <div className="flex flex-wrap gap-2 mb-4">
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm font-semibold rounded-full">
+                      <span className="px-2 sm:px-3 py-1 bg-purple-100 text-purple-700 text-xs sm:text-sm font-semibold rounded-full">
                         {session.albumKeys.length} Album{session.albumKeys.length !== 1 ? 's' : ''}
                       </span>
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full flex items-center gap-1">
-                        <Users className="w-4 h-4" />
+                      <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 text-xs sm:text-sm font-semibold rounded-full flex items-center gap-1">
+                        <Users className="w-3 h-3 sm:w-4 sm:h-4" />
                         {getTotalCustomers(session)} Customer{getTotalCustomers(session) !== 1 ? 's' : ''}
                       </span>
-                      <span className="px-3 py-1 bg-pink-100 text-pink-700 text-sm font-semibold rounded-full flex items-center gap-1">
-                        <Heart className="w-4 h-4" />
+                      <span className="px-2 sm:px-3 py-1 bg-pink-100 text-pink-700 text-xs sm:text-sm font-semibold rounded-full flex items-center gap-1">
+                        <Heart className="w-3 h-3 sm:w-4 sm:h-4" />
                         {getTotalFavorites(session)} Favorite{getTotalFavorites(session) !== 1 ? 's' : ''}
                       </span>
                     </div>
                   </div>
                   <button
                     onClick={() => handleDeleteSession(session.id)}
-                    className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600"
+                    className="p-3 hover:bg-red-100 rounded-lg transition-colors text-red-600 flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
                     title="Delete session"
+                    aria-label="Delete session"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={() => copyLink(session.id)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                    className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg transition-colors font-semibold min-h-[44px] text-sm sm:text-base"
                   >
                     {copiedLink === session.id ? (
                       <>
                         <Check className="w-5 h-5" />
-                        Link Copied!
+                        <span>Link Copied!</span>
                       </>
                     ) : (
                       <>
                         <Link2 className="w-5 h-5" />
-                        Copy Share Link
+                        <span className="hidden sm:inline">Copy Share Link</span>
+                        <span className="sm:hidden">Copy Link</span>
                       </>
                     )}
                   </button>
                   <button
                     onClick={() => router.push(`/favorites-manager/${session.id}`)}
-                    className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors font-semibold"
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors font-semibold min-h-[44px] text-sm sm:text-base"
                   >
                     <Eye className="w-5 h-5" />
-                    View Results
+                    <span>View Results</span>
                   </button>
                 </div>
 
@@ -313,84 +315,105 @@ export default function FavoritesManagerPage() {
           </div>
         )}
 
-        {/* Create Session Modal */}
+        {/* Create Session Modal - Mobile Optimized */}
         {showCreateModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCreateModal(false)}>
-            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-8 py-6">
-                <h2 className="text-2xl font-bold text-gray-900">Create Favorites Session</h2>
-                <p className="text-gray-600 mt-1">Select albums for customers to choose their favorites from</p>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 overscroll-contain" onClick={() => setShowCreateModal(false)}>
+            <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-4xl w-full h-[95vh] sm:h-auto sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              {/* Modal Header - Sticky */}
+              <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 sm:px-8 py-4 sm:py-6">
+                {/* Mobile drag indicator */}
+                <div className="flex sm:hidden justify-center mb-3">
+                  <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Create Favorites Session</h2>
+                    <p className="text-sm sm:text-base text-gray-600 mt-1">Select albums for customers to choose their favorites from</p>
+                  </div>
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="sm:hidden flex-shrink-0 p-2 hover:bg-gray-100 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    aria-label="Close modal"
+                  >
+                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
-              {/* Modal Content */}
-              <div className="p-8">
+              {/* Modal Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-8 -webkit-overflow-scrolling-touch">
                 {/* Session Name */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <div className="mb-4 sm:mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="session-name">
                     Session Name *
                   </label>
                   <input
+                    id="session-name"
                     type="text"
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
                     placeholder="e.g., Wedding Photos Selection"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900"
+                    autoComplete="off"
+                    className="w-full px-4 py-3 text-base sm:text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 min-h-[48px] touch-manipulation"
                   />
                 </div>
 
                 {/* Description */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <div className="mb-4 sm:mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="session-description">
                     Description (Optional)
                   </label>
                   <textarea
+                    id="session-description"
                     value={sessionDescription}
                     onChange={(e) => setSessionDescription(e.target.value)}
                     placeholder="Instructions for your customers..."
                     rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900"
+                    className="w-full px-4 py-3 text-base sm:text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 resize-none min-h-[96px] touch-manipulation"
                   />
                 </div>
 
-                {/* Album Selection */}
-                <div className="mb-6">
+                {/* Album Selection - Single column on mobile */}
+                <div className="mb-4 sm:mb-6">
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     Select Albums * ({selectedAlbums.size} selected)
                   </label>
                   {loading ? (
-                    <div className="text-center py-8 text-gray-500">Loading albums...</div>
+                    <div className="text-center py-8 text-sm sm:text-base text-gray-500">Loading albums...</div>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 sm:max-h-96 overflow-y-auto touch-pan-y border-2 border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
                       {albums.map((album) => (
                         <button
                           key={album.AlbumKey}
                           onClick={() => toggleAlbum(album.AlbumKey)}
-                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                          className={`p-4 sm:p-5 rounded-lg border-2 text-left transition-all min-h-[80px] touch-manipulation active:scale-[0.98] ${
                             selectedAlbums.has(album.AlbumKey)
-                              ? 'border-purple-500 bg-purple-50'
+                              ? 'border-purple-500 bg-purple-50 shadow-md'
                               : 'border-gray-200 hover:border-purple-300 bg-white'
                           }`}
+                          aria-pressed={selectedAlbums.has(album.AlbumKey)}
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <h3 className="font-semibold text-sm text-gray-900">{album.Name}</h3>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="font-semibold text-sm sm:text-base text-gray-900 flex-1 break-words">{album.Name}</h3>
                             {selectedAlbums.has(album.AlbumKey) && (
-                              <Check className="w-5 h-5 text-purple-600" />
+                              <Check className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 flex-shrink-0" />
                             )}
                           </div>
-                          <p className="text-xs text-gray-600">{album.ImageCount} photos</p>
+                          <p className="text-xs sm:text-sm text-gray-600">{album.ImageCount} photos</p>
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Theme Selection */}
-                <div className="mb-6">
+                {/* Theme Selection - 3 columns on mobile */}
+                <div className="mb-4 sm:mb-6">
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     Gallery Theme
                   </label>
-                  <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
                     {[
                       { value: 'purple', color: 'bg-purple-600', name: 'Purple' },
                       { value: 'blue', color: 'bg-blue-600', name: 'Blue' },
@@ -403,14 +426,16 @@ export default function FavoritesManagerPage() {
                       <button
                         key={theme.value}
                         onClick={() => setSessionTheme(theme.value as any)}
-                        className={`p-4 rounded-lg border-2 text-center transition-all ${
+                        className={`p-3 sm:p-4 rounded-lg border-2 text-center transition-all min-h-[88px] sm:min-h-[96px] touch-manipulation active:scale-95 ${
                           sessionTheme === theme.value
-                            ? 'border-purple-500 ring-2 ring-purple-200'
+                            ? 'border-purple-500 ring-2 ring-purple-200 shadow-md'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
+                        aria-label={`Select ${theme.name} theme`}
+                        aria-pressed={sessionTheme === theme.value}
                       >
-                        <div className={`w-full h-12 ${theme.color} rounded-md mb-2`}></div>
-                        <p className="text-xs font-medium text-gray-700">{theme.name}</p>
+                        <div className={`w-full h-10 sm:h-12 ${theme.color} rounded-md mb-2`}></div>
+                        <p className="text-xs sm:text-sm font-medium text-gray-700">{theme.name}</p>
                       </button>
                     ))}
                   </div>
@@ -418,16 +443,17 @@ export default function FavoritesManagerPage() {
 
                 {/* Buy Button Option */}
                 <div className="mb-6">
-                  <label className="flex items-center gap-3 cursor-pointer p-4 border-2 border-gray-200 rounded-lg hover:border-purple-300 transition-all">
+                  <label className="flex items-center gap-3 cursor-pointer p-4 border-2 border-gray-200 rounded-lg hover:border-purple-300 transition-all min-h-[72px] touch-manipulation active:bg-gray-50">
                     <input
                       type="checkbox"
                       checked={showBuyButton}
                       onChange={(e) => setShowBuyButton(e.target.checked)}
-                      className="w-5 h-5 text-purple-600 rounded"
+                      className="w-6 h-6 text-purple-600 rounded touch-manipulation flex-shrink-0"
+                      aria-label="Enable buy button"
                     />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Enable "Buy" Button</p>
-                      <p className="text-xs text-gray-600">Allow customers to purchase photos directly from SmugMug</p>
+                    <div className="flex-1">
+                      <p className="text-sm sm:text-base font-semibold text-gray-900">Enable "Buy" Button</p>
+                      <p className="text-xs sm:text-sm text-gray-600">Allow customers to purchase photos directly from SmugMug</p>
                     </div>
                   </label>
                 </div>
@@ -437,60 +463,62 @@ export default function FavoritesManagerPage() {
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     Branding Logo (Optional)
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-all">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 text-center hover:border-purple-400 transition-all touch-manipulation min-h-[160px] flex items-center justify-center">
                     {logoPreview ? (
-                      <div className="space-y-3">
+                      <div className="space-y-3 w-full">
                         <div className="relative inline-block">
                           <img
                             src={logoPreview}
                             alt="Logo preview"
-                            className="max-h-24 mx-auto"
+                            className="max-h-24 sm:max-h-32 mx-auto"
                           />
                           <button
                             onClick={() => {
                               setLogoUrl('');
                               setLogoPreview('');
                             }}
-                            className="absolute -top-2 -right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1"
+                            className="absolute -top-2 -right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-2 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            aria-label="Remove logo"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
                         </div>
-                        <p className="text-xs text-gray-500">Logo uploaded</p>
+                        <p className="text-xs sm:text-sm text-gray-500">Logo uploaded</p>
                       </div>
                     ) : (
-                      <div>
-                        <Image className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                        <label className="cursor-pointer">
-                          <span className="text-purple-600 hover:text-purple-700 font-semibold">Upload a logo</span>
+                      <div className="w-full">
+                        <Image className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-400 mb-3" />
+                        <label className="cursor-pointer inline-block">
+                          <span className="text-purple-600 hover:text-purple-700 font-semibold text-sm sm:text-base px-4 py-2 border-2 border-purple-600 rounded-lg inline-block hover:bg-purple-50 transition-colors min-h-[44px] flex items-center">Upload a logo</span>
                           <input
                             type="file"
                             accept="image/png,image/jpeg,image/svg+xml"
                             onChange={handleLogoUpload}
                             className="hidden"
+                            aria-label="Upload logo file"
                           />
                         </label>
-                        <p className="text-xs text-gray-500 mt-2">PNG, JPG, or SVG (max 2MB)</p>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-3">PNG, JPG, or SVG (max 2MB)</p>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Modal Footer */}
-              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-8 py-6 flex gap-3">
+              {/* Modal Footer - Sticky */}
+              <div className="flex-shrink-0 bg-gray-50 border-t border-gray-200 px-4 sm:px-8 py-4 sm:py-6 flex flex-col-reverse sm:flex-row gap-3">
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg transition-colors font-semibold"
+                  className="w-full sm:flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg transition-colors font-semibold min-h-[44px]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreateSession}
                   disabled={!sessionName || selectedAlbums.size === 0}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white px-6 py-3 rounded-lg transition-colors font-semibold"
+                  className="w-full sm:flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg transition-colors font-semibold min-h-[44px]"
                 >
                   Create Session
                 </button>

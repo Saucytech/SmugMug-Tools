@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Send, Sparkles, FolderTree, Image as ImageIcon, CheckCircle, XCircle, Loader, Folder, Layers, Plus, Trash2, RefreshCw, Save, BookTemplate, X, Pencil, Check, Skull, Flame } from 'lucide-react';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import SystemPromptViewer from '@/components/SystemPromptViewer';
+import { useModelPreferences, AVAILABLE_MODELS } from '@/stores/modelPreferencesStore';
+import { useAIActivityStore } from '@/stores/aiActivityStore';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -217,6 +219,11 @@ export default function AIGalleryCreatorPage() {
   const [currentPlan, setCurrentPlan] = useState<CreationPlan | null>(null);
   const [_creationProgress, setCreationProgress] = useState<string[]>([]);
 
+  // AI Model & Activity Tracking
+  const { getModel } = useModelPreferences();
+  const { addJob, completeJob, failJob } = useAIActivityStore();
+  const selectedModel = getModel('ai-gallery-creator');
+
   // Manual creation state
   const [manualFolders, setManualFolders] = useState<FolderNode[]>([]);
   const [manualGalleries, setManualGalleries] = useState<GalleryNode[]>([]);
@@ -362,6 +369,21 @@ export default function AIGalleryCreatorPage() {
     setIsLoading(true);
     setStatus('planning');
 
+    // Create unique job ID and register AI activity
+    const jobId = `gallery-plan-${Date.now()}`;
+    const modelInfo = AVAILABLE_MODELS[selectedModel];
+
+    addJob({
+      id: jobId,
+      tool: 'AI Gallery Creator',
+      toolPath: '/ai-gallery-creator',
+      status: 'processing',
+      startTime: new Date(),
+      message: 'Generating gallery plan...',
+      model: selectedModel,
+      modelName: modelInfo.name,
+    });
+
     try {
       // Call Claude AI to generate plan
       const response = await fetch('/api/ai/generate-gallery-plan', {
@@ -373,10 +395,23 @@ export default function AIGalleryCreatorPage() {
           existingFolders: smugmugFolders, // Pass existing folders to AI
           existingGalleries: smugmugAlbums, // Pass existing galleries with photo counts to AI
           destructionMode: destructionMode, // Enable deletion if in destruction mode
+          model: selectedModel, // Pass selected model
         }),
       });
 
       const data = await response.json();
+
+      // Extract token usage from response
+      const inputTokens = data.usage?.input_tokens || 0;
+      const outputTokens = data.usage?.output_tokens || 0;
+      const totalTokens = inputTokens + outputTokens;
+
+      console.log('📊 AI Gallery Creator Token Usage:', {
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        fullResponse: data
+      });
 
       if (data.plan) {
         // AI generated a creation plan
@@ -390,6 +425,9 @@ export default function AIGalleryCreatorPage() {
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
+
+        // Complete the job with token usage
+        completeJob(jobId, totalTokens, inputTokens, outputTokens);
       } else {
         // AI needs more information or is clarifying
         const assistantMessage: Message = {
@@ -400,6 +438,9 @@ export default function AIGalleryCreatorPage() {
 
         setMessages((prev) => [...prev, assistantMessage]);
         setStatus('idle');
+
+        // Complete the job with token usage
+        completeJob(jobId, totalTokens, inputTokens, outputTokens);
       }
     } catch (_error) {
       console.error('Error generating plan:', _error);
@@ -412,6 +453,9 @@ export default function AIGalleryCreatorPage() {
         },
       ]);
       setStatus('error');
+
+      // Fail the job with error message
+      failJob(jobId, _error instanceof Error ? _error.message : 'Unknown error');
     } finally {
       setIsLoading(false);
     }
@@ -794,7 +838,7 @@ export default function AIGalleryCreatorPage() {
     };
 
     const renderTreeNode = (node: any, depth: number = 0, isLast: boolean = false) => {
-      const indent = depth * 20;
+      const indent = depth * 12;
       const Icon = node.type === 'folder' ? Folder : ImageIcon;
       const color = node.type === 'folder' ? 'text-teal-600' : 'text-cyan-600';
 
@@ -825,11 +869,11 @@ export default function AIGalleryCreatorPage() {
     const tree = buildTree();
 
     return (
-      <div className={`border-2 rounded-xl p-4 my-4 ${plan.deletions && plan.deletions.length > 0 ? 'bg-red-50 border-red-300' : 'bg-teal-50 border-teal-200'}`}>
+      <div className={`border-2 rounded-lg sm:rounded-xl p-3 sm:p-4 my-3 sm:my-4 ${plan.deletions && plan.deletions.length > 0 ? 'bg-red-50 border-red-300' : 'bg-teal-50 border-teal-200'}`}>
         {/* Deletions Section */}
         {plan.deletions && plan.deletions.length > 0 && (
-          <div className="mb-4 pb-4 border-b border-red-300">
-            <h4 className="font-bold text-red-900 mb-3 flex items-center gap-2">
+          <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-red-300">
+            <h4 className="font-bold text-red-900 mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
               <Trash2 className="w-5 h-5" />
               ⚠️ Items to Delete ({plan.deletions.length})
             </h4>
@@ -845,13 +889,13 @@ export default function AIGalleryCreatorPage() {
           </div>
         )}
 
-        <h4 className={`font-bold mb-3 flex items-center gap-2 ${plan.deletions && plan.deletions.length > 0 ? 'text-red-900' : 'text-teal-900'}`}>
-          <FolderTree className="w-5 h-5" />
+        <h4 className={`font-bold mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base ${plan.deletions && plan.deletions.length > 0 ? 'text-red-900' : 'text-teal-900'}`}>
+          <FolderTree className="w-4 h-4 sm:w-5 sm:h-5" />
           {plan.deletions && plan.deletions.length > 0 ? 'Items to Create' : 'Proposed Structure'}
         </h4>
 
         {tree.length > 0 ? (
-          <div className="space-y-1">
+          <div className="space-y-0.5 sm:space-y-1">
             {tree.map((node, idx) => renderTreeNode(node, 0, idx === tree.length - 1))}
           </div>
         ) : (
@@ -859,21 +903,21 @@ export default function AIGalleryCreatorPage() {
         )}
 
         {/* Actions */}
-        <div className={`flex gap-2 mt-3 pt-3 border-t ${plan.deletions && plan.deletions.length > 0 ? 'border-red-300' : 'border-teal-200'}`}>
+        <div className={`flex gap-2 mt-2 sm:mt-3 pt-2 sm:pt-3 border-t ${plan.deletions && plan.deletions.length > 0 ? 'border-red-300' : 'border-teal-200'}`}>
           <button
             onClick={handleConfirmPlan}
             disabled={status === 'creating'}
-            className={`flex-1 ${plan.deletions && plan.deletions.length > 0 ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-400' : 'bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400'} text-white px-2 py-1 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1`}
+            className={`flex-1 ${plan.deletions && plan.deletions.length > 0 ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:bg-red-400' : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:bg-teal-400'} text-white px-4 py-3 min-h-[44px] rounded text-sm font-medium transition-colors flex items-center justify-center gap-1`}
           >
-            <CheckCircle className="w-3 h-3" />
+            <CheckCircle className="w-4 h-4" />
             {status === 'creating' ? 'Executing...' : (plan.deletions && plan.deletions.length > 0 ? '🗑️ Delete' : 'Create')}
           </button>
           <button
             onClick={handleRejectPlan}
             disabled={status === 'creating'}
-            className="flex-1 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
+            className="flex-1 bg-gray-200 hover:bg-gray-300 active:bg-gray-400 disabled:bg-gray-100 text-gray-700 px-4 py-3 min-h-[44px] rounded text-sm font-medium transition-colors flex items-center justify-center gap-1"
           >
-            <XCircle className="w-3 h-3" />
+            <XCircle className="w-4 h-4" />
             Modify
           </button>
         </div>
@@ -887,9 +931,9 @@ export default function AIGalleryCreatorPage() {
       <div className={`min-h-screen transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-950 to-black' : 'bg-gradient-to-br from-teal-50 to-cyan-50'}`}>
 
         {/* Instructions */}
-        <div className="max-w-full mx-auto px-8 pt-6">
-          <div className={`border rounded-lg p-4 transition-all duration-500 ${destructionMode ? 'bg-red-950/50 border-red-600' : 'bg-teal-50 border-teal-200'}`}>
-            <div className="flex items-center gap-3">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <div className={`border rounded-lg p-3 sm:p-4 transition-all duration-500 ${destructionMode ? 'bg-red-950/50 border-red-600' : 'bg-teal-50 border-teal-200'}`}>
+            <div className="flex items-center gap-2 sm:gap-3">
               {destructionMode ? (
                 <Skull className="w-5 h-5 text-red-500 animate-pulse" />
               ) : (
@@ -906,10 +950,10 @@ export default function AIGalleryCreatorPage() {
 
         {/* Header */}
         <div className={`border-b backdrop-blur-sm mt-6 transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black/80' : 'border-gray-200 bg-white/80'}`}>
-          <div className="max-w-full mx-auto px-8 py-4">
+          <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-600 to-red-900' : 'bg-gradient-to-br from-teal-500 to-cyan-600'}`}>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-600 to-red-900' : 'bg-gradient-to-br from-teal-500 to-cyan-600'}`}>
                   {destructionMode ? (
                     <Flame className="w-5 h-5 text-white animate-pulse" />
                   ) : (
@@ -917,19 +961,19 @@ export default function AIGalleryCreatorPage() {
                   )}
                 </div>
                 <div>
-                  <h1 className={`text-2xl font-bold transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-gray-900'}`}>
+                  <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-gray-900'}`}>
                     AI Gallery Creator {destructionMode && '💀'}
                   </h1>
-                  <p className={`text-sm transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
+                  <p className={`text-xs sm:text-sm transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
                     {destructionMode ? 'DESTRUCTION MODE - CREATE & DESTROY' : 'Chat with AI or create manually'}
                   </p>
                 </div>
               </div>
 
               {/* Destruction Mode Toggle */}
-              <div className="flex items-center gap-3">
-                <label className={`flex items-center gap-2 cursor-pointer transition-all duration-500 ${destructionMode ? 'text-red-400' : 'text-gray-700'}`}>
-                  <span className={`text-sm font-medium ${destructionMode ? 'text-red-300' : 'text-gray-700'}`}>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <label className={`flex items-center gap-1.5 sm:gap-2 cursor-pointer transition-all duration-500 ${destructionMode ? 'text-red-400' : 'text-gray-700'}`}>
+                  <span className={`text-xs sm:text-sm font-medium ${destructionMode ? 'text-red-300' : 'text-gray-700'}`}>
                     Destruction Mode
                   </span>
                   <div className="relative">
@@ -939,8 +983,8 @@ export default function AIGalleryCreatorPage() {
                       onChange={(e) => setDestructionMode(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className={`w-11 h-6 rounded-full transition-all duration-500 peer peer-checked:bg-red-600 ${destructionMode ? 'bg-red-600' : 'bg-gray-300'}`}></div>
-                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 ${destructionMode ? 'translate-x-5' : ''}`}></div>
+                    <div className={`w-14 h-8 rounded-full transition-all duration-500 peer peer-checked:bg-red-600 ${destructionMode ? 'bg-red-600' : 'bg-gray-300'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-all duration-300 ${destructionMode ? 'translate-x-6' : ''}`}></div>
                   </div>
                   {destructionMode && <Skull className="w-4 h-4 text-red-500 animate-pulse" />}
                 </label>
@@ -950,18 +994,18 @@ export default function AIGalleryCreatorPage() {
         </div>
 
         {/* Split Layout: 40% Chat | 60% Manual Tools */}
-        <div className="flex" style={{ height: 'calc(100vh - 140px)' }}>
+        <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 140px)' }}>
           {/* LEFT: AI Chat Sidebar (40%) */}
-          <div className={`w-[40%] border-r flex flex-col transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black' : 'border-gray-200 bg-white'}`}>
+          <div className={`w-full lg:w-[40%] border-r flex flex-col transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black' : 'border-gray-200 bg-white'}`}>
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 sm:space-y-3">
               {messages.map((message, idx) => (
                 <div
                   key={idx}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[90%] rounded-xl px-3 py-2 text-sm transition-all duration-500 ${
+                    className={`max-w-[90%] sm:max-w-[80%] rounded-lg sm:rounded-xl px-3 py-2 text-sm sm:text-base transition-all duration-500 ${
                       message.role === 'user'
                         ? destructionMode ? 'bg-red-600 text-white' : 'bg-teal-600 text-white'
                         : destructionMode ? 'bg-red-950 text-red-100' : 'bg-gray-100 text-gray-900'
@@ -977,7 +1021,7 @@ export default function AIGalleryCreatorPage() {
 
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className={`rounded-xl px-3 py-2 flex items-center gap-2 text-sm transition-all duration-500 ${destructionMode ? 'bg-red-950' : 'bg-gray-100'}`}>
+                  <div className={`rounded-lg sm:rounded-xl px-3 py-2 flex items-center gap-2 text-sm transition-all duration-500 ${destructionMode ? 'bg-red-950' : 'bg-gray-100'}`}>
                     <Loader className={`w-4 h-4 animate-spin transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-teal-600'}`} />
                     <span className={`transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
                       {destructionMode ? 'Planning destruction...' : 'Thinking...'}
@@ -999,7 +1043,7 @@ export default function AIGalleryCreatorPage() {
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder={destructionMode ? "Ask AI to create or DESTROY..." : "Ask AI to create..."}
                   disabled={isLoading || status === 'creating'}
-                  className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all duration-500 ${
+                  className={`flex-1 px-3 py-3 text-base min-h-[44px] border rounded-lg focus:outline-none focus:ring-2 transition-all duration-500 ${
                     destructionMode
                       ? 'border-red-700 bg-red-950 text-red-100 placeholder-red-400 focus:ring-red-600 disabled:bg-red-950/50 disabled:text-red-500'
                       : 'border-gray-300 focus:ring-teal-500 disabled:bg-gray-100 disabled:text-gray-500'
@@ -1008,37 +1052,37 @@ export default function AIGalleryCreatorPage() {
                 <button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isLoading || status === 'creating'}
-                  className={`text-white px-3 py-2 rounded-lg font-medium transition-all duration-500 flex items-center gap-1 text-sm ${
+                  className={`text-white px-4 py-3 min-h-[44px] min-w-[44px] rounded-lg font-medium transition-all duration-500 flex items-center justify-center gap-1 text-sm ${
                     destructionMode
-                      ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-900'
-                      : 'bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400'
+                      ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:bg-red-900'
+                      : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:bg-teal-400'
                   }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-4 h-4" />
                 </button>
               </div>
             </div>
           </div>
 
           {/* RIGHT: Manual Creation Tools (60%) */}
-          <div className="w-[60%] bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto">
-            <div className="p-8">
+          <div className="w-full lg:w-[60%] bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto">
+            <div className="p-4 sm:p-6 lg:p-8">
               <div className="max-w-4xl mx-auto">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <FolderTree className="w-6 h-6 text-teal-600" />
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
+                  <FolderTree className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600" />
                   Manual Creation Tools
                 </h2>
 
                 {/* Template Management - Always Visible at Top */}
-                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-                  <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <BookTemplate className="w-5 h-5 text-purple-600" />
+                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
+                  <h3 className="font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 text-base sm:text-lg">
+                    <BookTemplate className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                     Template Management
                   </h3>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 sm:gap-3">
                     <button
                       onClick={() => setShowTemplateBrowser(true)}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:scale-95 text-white px-4 py-3 min-h-[44px] rounded-lg font-medium transition-all flex items-center justify-center gap-2"
                     >
                       <BookTemplate className="w-4 h-4" />
                       Load Template
@@ -1046,7 +1090,7 @@ export default function AIGalleryCreatorPage() {
                     <button
                       onClick={() => setShowTemplateModal(true)}
                       disabled={manualFolders.length === 0 && manualGalleries.length === 0}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 disabled:from-gray-300 disabled:to-gray-400 text-white px-4 py-3 min-h-[44px] rounded-lg font-medium transition-all flex items-center justify-center gap-2"
                     >
                       <Save className="w-4 h-4" />
                       Save as Template
@@ -1055,20 +1099,20 @@ export default function AIGalleryCreatorPage() {
                 </div>
 
                 {/* Preview Structure */}
-                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-                  <h3 className="font-bold text-gray-900 mb-4 flex items-center justify-between">
+                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
+                  <h3 className="font-bold text-gray-900 mb-3 sm:mb-4 flex items-center justify-between text-base sm:text-lg">
                     <span className="flex items-center gap-2">
-                      <Layers className="w-5 h-5 text-teal-600" />
+                      <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
                       Preview Structure
                     </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span className="text-xs sm:text-sm text-gray-500">
                         {manualFolders.length} folders, {manualGalleries.length} galleries
                       </span>
                       {(manualFolders.length > 0 || manualGalleries.length > 0) && (
                         <button
                           onClick={clearAll}
-                          className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded-lg transition-colors font-medium"
+                          className="text-xs sm:text-sm bg-red-100 hover:bg-red-200 active:bg-red-300 text-red-700 px-3 sm:px-4 py-2 min-h-[44px] rounded-lg transition-colors font-medium"
                         >
                           Clear All
                         </button>
@@ -1078,13 +1122,13 @@ export default function AIGalleryCreatorPage() {
 
                   {/* Folders List */}
                   {manualFolders.length > 0 && (
-                    <div className="mb-4">
+                    <div className="mb-3 sm:mb-4">
                       <p className="text-sm font-semibold text-gray-700 mb-2">📁 Folders</p>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5 sm:space-y-2">
                         {manualFolders.map((folder) => (
                           <div
                             key={folder.tempId}
-                            className="flex items-center justify-between bg-teal-50 px-4 py-2 rounded-lg"
+                            className="flex items-center justify-between bg-teal-50 px-3 sm:px-4 py-2 rounded-lg"
                           >
                             <div className="flex items-center gap-2 flex-1">
                               <Folder className="w-4 h-4 text-teal-600" />
@@ -1130,15 +1174,17 @@ export default function AIGalleryCreatorPage() {
                                 <>
                                   <button
                                     onClick={() => startEditingFolder(folder.tempId!, folder.name)}
-                                    className="text-teal-600 hover:text-teal-700 transition-colors"
+                                    className="p-2 text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                    aria-label="Edit folder name"
                                   >
-                                    <Pencil className="w-4 h-4" />
+                                    <Pencil className="w-5 h-5" />
                                   </button>
                                   <button
                                     onClick={() => removeManualFolder(folder.tempId!)}
-                                    className="text-red-600 hover:text-red-700 transition-colors"
+                                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                    aria-label="Delete folder"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-5 h-5" />
                                   </button>
                                 </>
                               )}
@@ -1151,13 +1197,13 @@ export default function AIGalleryCreatorPage() {
 
                   {/* Galleries List */}
                   {manualGalleries.length > 0 && (
-                    <div className="mb-4">
+                    <div className="mb-3 sm:mb-4">
                       <p className="text-sm font-semibold text-gray-700 mb-2">📷 Galleries</p>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5 sm:space-y-2">
                         {manualGalleries.map((gallery) => (
                           <div
                             key={gallery.tempId}
-                            className="flex items-center justify-between bg-cyan-50 px-4 py-2 rounded-lg"
+                            className="flex items-center justify-between bg-cyan-50 px-3 sm:px-4 py-2 rounded-lg"
                           >
                             <div className="flex items-center gap-2 flex-1">
                               <ImageIcon className="w-4 h-4 text-cyan-600" />
@@ -1203,15 +1249,17 @@ export default function AIGalleryCreatorPage() {
                                 <>
                                   <button
                                     onClick={() => startEditingGallery(gallery.tempId!, gallery.name)}
-                                    className="text-cyan-600 hover:text-cyan-700 transition-colors"
+                                    className="p-2 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                    aria-label="Edit gallery name"
                                   >
-                                    <Pencil className="w-4 h-4" />
+                                    <Pencil className="w-5 h-5" />
                                   </button>
                                   <button
                                     onClick={() => removeManualGallery(gallery.tempId!)}
-                                    className="text-red-600 hover:text-red-700 transition-colors"
+                                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                    aria-label="Delete gallery"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-5 h-5" />
                                   </button>
                                 </>
                               )}
@@ -1224,10 +1272,10 @@ export default function AIGalleryCreatorPage() {
 
                   {/* Empty State */}
                   {manualFolders.length === 0 && manualGalleries.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <FolderTree className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                      <p>No folders or galleries added yet.</p>
-                      <p className="text-sm">Use the form below to add items.</p>
+                    <div className="text-center py-6 sm:py-8 text-gray-500">
+                      <FolderTree className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 opacity-30" />
+                      <p className="text-sm sm:text-base">No folders or galleries added yet.</p>
+                      <p className="text-xs sm:text-sm">Use the form below to add items.</p>
                     </div>
                   )}
 
@@ -1235,24 +1283,24 @@ export default function AIGalleryCreatorPage() {
                   <button
                     onClick={executeManualCreation}
                     disabled={status === 'creating' || (manualFolders.length === 0 && manualGalleries.length === 0)}
-                    className="w-full mt-4 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 disabled:from-gray-300 disabled:to-gray-400 text-white px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg"
+                    className="w-full mt-3 sm:mt-4 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 disabled:from-gray-300 disabled:to-gray-400 text-white px-6 py-3 rounded-lg sm:rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg"
                   >
-                    <CheckCircle className="w-5 h-5" />
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                     {status === 'creating' ? 'Creating...' : 'Create All Now'}
                   </button>
                 </div>
 
                 {/* Add Folder/Gallery Form - Moved Down */}
-                <div className="bg-white rounded-2xl shadow-lg p-6">
-                  <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Plus className="w-5 h-5 text-teal-600" />
+                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
+                  <h3 className="font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 text-base sm:text-lg">
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
                     Add Folders & Galleries
                   </h3>
 
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     {/* Left Column: Add Folder */}
-                    <div className="space-y-4">
-                      <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <div className="space-y-3 sm:space-y-4">
+                      <h4 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
                         <Folder className="w-4 h-4 text-teal-600" />
                         Add Folder
                       </h4>
@@ -1261,7 +1309,7 @@ export default function AIGalleryCreatorPage() {
                         value={newFolderName}
                         onChange={(e) => setNewFolderName(e.target.value)}
                         placeholder="Folder name"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                       />
                       <button
                         onClick={addManualFolder}
@@ -1274,8 +1322,8 @@ export default function AIGalleryCreatorPage() {
                     </div>
 
                     {/* Right Column: Add Gallery */}
-                    <div className="space-y-4">
-                      <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <div className="space-y-3 sm:space-y-4">
+                      <h4 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
                         <ImageIcon className="w-4 h-4 text-teal-600" />
                         Add Gallery
                       </h4>
@@ -1284,7 +1332,7 @@ export default function AIGalleryCreatorPage() {
                         value={newGalleryName}
                         onChange={(e) => setNewGalleryName(e.target.value)}
                         placeholder="Gallery name"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                       />
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -1294,7 +1342,7 @@ export default function AIGalleryCreatorPage() {
                           value={selectedTemplate}
                           onChange={(e) => setSelectedTemplate(e.target.value)}
                           disabled={isLoadingTemplates}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                          className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
                         >
                           <option value="">Default</option>
                           {albumTemplates.map((template) => (
@@ -1305,14 +1353,14 @@ export default function AIGalleryCreatorPage() {
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <label className="flex items-center gap-2">
+                        <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                           <input
                             type="checkbox"
                             checked={enableGuestUpload}
                             onChange={(e) => setEnableGuestUpload(e.target.checked)}
-                            className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                            className="w-6 h-6 text-teal-600 border-gray-300 rounded focus:ring-teal-500 flex-shrink-0"
                           />
-                          <span className="text-sm font-semibold text-gray-700">
+                          <span className="text-sm sm:text-base font-semibold text-gray-700">
                             Enable Guest Uploads
                           </span>
                         </label>
@@ -1322,7 +1370,7 @@ export default function AIGalleryCreatorPage() {
                             value={guestUploadPassword}
                             onChange={(e) => setGuestUploadPassword(e.target.value)}
                             placeholder="Password (optional, auto-generated if empty)"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                            className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                           />
                         )}
                       </div>
@@ -1338,28 +1386,29 @@ export default function AIGalleryCreatorPage() {
                   </div>
 
                   {/* Shared Options */}
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-semibold text-gray-700">
+                          <label className="text-xs sm:text-sm font-semibold text-gray-700">
                             Parent Folder (optional)
                           </label>
                           <button
                             onClick={loadSmugmugFolders}
                             disabled={isLoadingFolders}
-                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1 px-2 sm:px-3 py-2 text-xs sm:text-sm min-h-[44px] font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 active:bg-teal-100 rounded transition-colors disabled:opacity-50"
                             title="Sync folder structure from SmugMug"
                           >
-                            <RefreshCw className={`w-3 h-3 ${isLoadingFolders ? 'animate-spin' : ''}`} />
-                            {isLoadingFolders ? 'Syncing...' : 'Manual Sync'}
+                            <RefreshCw className={`w-4 h-4 ${isLoadingFolders ? 'animate-spin' : ''}`} />
+                            <span className="hidden sm:inline">{isLoadingFolders ? 'Syncing...' : 'Manual Sync'}</span>
+                            <span className="sm:hidden">{isLoadingFolders ? 'Sync...' : 'Sync'}</span>
                           </button>
                         </div>
                         <select
                           value={selectedParentFolder}
                           onChange={(e) => setSelectedParentFolder(e.target.value)}
                           disabled={isLoadingFolders}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                          className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
                         >
                           <option value="">Root (No Parent)</option>
                           {isLoadingFolders && <option disabled>Loading folders...</option>}
@@ -1387,7 +1436,7 @@ export default function AIGalleryCreatorPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
                           Privacy (applies to all)
                         </label>
                         <select
@@ -1399,7 +1448,7 @@ export default function AIGalleryCreatorPage() {
                             setManualFolders(prev => prev.map(f => ({ ...f, privacy: newPrivacy })));
                             setManualGalleries(prev => prev.map(g => ({ ...g, privacy: newPrivacy })));
                           }}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                         >
                           <option value="Private">Private</option>
                           <option value="Public">Public</option>
@@ -1418,23 +1467,24 @@ export default function AIGalleryCreatorPage() {
       {/* Save Template Modal */}
       {showTemplateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Save className="w-5 h-5 text-blue-600" />
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Save className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 Save as Template
               </h3>
               <button
                 onClick={() => setShowTemplateModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
                   Template Name *
                 </label>
                 <input
@@ -1442,12 +1492,12 @@ export default function AIGalleryCreatorPage() {
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
                   placeholder="e.g., Wedding Photography 2024"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
                   Description (optional)
                 </label>
                 <textarea
@@ -1455,18 +1505,18 @@ export default function AIGalleryCreatorPage() {
                   onChange={(e) => setTemplateDescription(e.target.value)}
                   placeholder="Describe this template..."
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 text-base min-h-[88px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
                   Category
                 </label>
                 <select
                   value={templateCategory}
                   onChange={(e) => setTemplateCategory(e.target.value as Template['category'])}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 text-base min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="Custom">Custom</option>
                   <option value="Wedding">Wedding</option>
@@ -1478,13 +1528,13 @@ export default function AIGalleryCreatorPage() {
               </div>
 
               <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-sm text-blue-900">
+                <p className="text-xs sm:text-sm text-blue-900">
                   <strong>Structure to save:</strong><br />
                   {manualFolders.length} folder(s), {manualGalleries.length} gallery/ies
                 </p>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => setShowTemplateModal(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
@@ -1506,15 +1556,16 @@ export default function AIGalleryCreatorPage() {
       {/* Template Browser Modal */}
       {showTemplateBrowser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <BookTemplate className="w-5 h-5 text-purple-600" />
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                <BookTemplate className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                 Load Template
               </h3>
               <button
                 onClick={() => setShowTemplateBrowser(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1524,7 +1575,7 @@ export default function AIGalleryCreatorPage() {
             <div className="flex border-b border-gray-200">
               <button
                 onClick={() => setActiveTemplateTab('prebuilt')}
-                className={`flex-1 px-6 py-3 font-medium transition-colors ${
+                className={`flex-1 px-4 sm:px-6 py-3 text-sm sm:text-base font-medium transition-colors ${
                   activeTemplateTab === 'prebuilt'
                     ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -1534,7 +1585,7 @@ export default function AIGalleryCreatorPage() {
               </button>
               <button
                 onClick={() => setActiveTemplateTab('custom')}
-                className={`flex-1 px-6 py-3 font-medium transition-colors ${
+                className={`flex-1 px-4 sm:px-6 py-3 text-sm sm:text-base font-medium transition-colors ${
                   activeTemplateTab === 'custom'
                     ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -1545,23 +1596,23 @@ export default function AIGalleryCreatorPage() {
             </div>
 
             {/* Template List */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {activeTemplateTab === 'prebuilt' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   {PREBUILT_TEMPLATES.map((template) => (
                     <div
                       key={template.id}
-                      className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200 hover:border-purple-400 transition-all cursor-pointer"
+                      className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg sm:rounded-xl p-3 sm:p-4 border-2 border-purple-200 hover:border-purple-400 active:scale-[0.98] transition-all cursor-pointer min-h-[100px] sm:min-h-[120px]"
                       onClick={() => loadTemplate(template)}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-bold text-gray-900">{template.name}</h4>
-                        <span className="px-2 py-1 bg-purple-600 text-white text-xs font-semibold rounded-full">
+                      <div className="flex items-start justify-between mb-1 sm:mb-2">
+                        <h4 className="font-bold text-gray-900 text-sm sm:text-base line-clamp-1">{template.name}</h4>
+                        <span className="px-2 py-0.5 sm:py-1 bg-purple-600 text-white text-xs font-semibold rounded-full whitespace-nowrap ml-2">
                           {template.category}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mb-3">{template.description}</p>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3 line-clamp-2 leading-snug sm:leading-relaxed">{template.description}</p>
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
                           <Folder className="w-3 h-3" />
                           {template.folders.length} folders
@@ -1579,22 +1630,22 @@ export default function AIGalleryCreatorPage() {
               {activeTemplateTab === 'custom' && (
                 <>
                   {userTemplates.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      <BookTemplate className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                      <p className="font-semibold mb-2">No custom templates yet</p>
-                      <p className="text-sm">Create a structure and save it as a template to get started.</p>
+                    <div className="text-center py-8 sm:py-12 text-gray-500">
+                      <BookTemplate className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 opacity-30" />
+                      <p className="font-semibold mb-2 text-sm sm:text-base">No custom templates yet</p>
+                      <p className="text-xs sm:text-sm">Create a structure and save it as a template to get started.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       {userTemplates.map((template) => (
                         <div
                           key={template.id}
-                          className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200 hover:border-blue-400 transition-all"
+                          className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg sm:rounded-xl p-3 sm:p-4 border-2 border-blue-200 hover:border-blue-400 transition-all min-h-[100px] sm:min-h-[120px]"
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-bold text-gray-900">{template.name}</h4>
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                          <div className="flex items-start justify-between mb-1 sm:mb-2">
+                            <h4 className="font-bold text-gray-900 text-sm sm:text-base line-clamp-1">{template.name}</h4>
+                            <div className="flex items-center gap-1.5 sm:gap-2 ml-2">
+                              <span className="px-2 py-0.5 sm:py-1 bg-blue-600 text-white text-xs font-semibold rounded-full whitespace-nowrap">
                                 {template.category}
                               </span>
                               <button
@@ -1609,9 +1660,9 @@ export default function AIGalleryCreatorPage() {
                               </button>
                             </div>
                           </div>
-                          <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+                          <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3 line-clamp-2 leading-snug sm:leading-relaxed">{template.description}</p>
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <div className="flex items-center gap-3 sm:gap-4 text-xs text-gray-500">
                               <span className="flex items-center gap-1">
                                 <Folder className="w-3 h-3" />
                                 {template.folders.length} folders
@@ -1640,7 +1691,7 @@ export default function AIGalleryCreatorPage() {
       )}
 
       {/* System Prompt Viewer */}
-      <SystemPromptViewer toolName="AI Gallery Creator" apiEndpoint="/api/ai/generate-gallery-plan" />
+      <SystemPromptViewer toolName="AI Gallery Creator" apiEndpoint="/api/ai/generate-gallery-plan" toolId="ai-gallery-creator" />
     </div>
   );
 }

@@ -9,7 +9,11 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
-    "validate": "npm run type-check && npm run lint"
+    "validate": "npm run type-check && npm run lint",
+    "test": "playwright test",
+    "test:mobile": "playwright test --project='Mobile Chrome'",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",

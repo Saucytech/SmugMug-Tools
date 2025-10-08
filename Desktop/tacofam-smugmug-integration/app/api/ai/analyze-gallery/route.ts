@@ -5,6 +5,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-3-5-haiku-20241022';
+
 const SYSTEM_PROMPT = `Gallery metadata analyzer for SmugMug photo organization.
 
 **YOUR ROLE:**
@@ -37,14 +39,14 @@ Be thorough and accurate. Extract maximum insight from available metadata.`;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('getSystemPrompt') === 'true') {
-    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT, model: MODEL });
   }
   return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { images, galleryName, albumKey, customPrompt } = await request.json();
+    const { images, galleryName, albumKey, customPrompt, model } = await request.json();
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return NextResponse.json(
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Use AI to analyze metadata instead of images
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022', // Cheaper model for testing (~90% less cost than Sonnet)
+      model: model || MODEL, // Cheaper model for testing (~90% less cost than Sonnet)
       max_tokens: 1024,
       messages: [
         {
@@ -144,7 +146,10 @@ Provide your analysis in the exact JSON format specified above. Return ONLY the 
         lastIndexed: new Date().toISOString(),
         sampleImages: sampleImageUrls,
       },
-      tokensUsed: message.usage.input_tokens + message.usage.output_tokens,
+      usage: {
+        input_tokens: message.usage.input_tokens,
+        output_tokens: message.usage.output_tokens,
+      },
     });
 
   } catch (error: any) {

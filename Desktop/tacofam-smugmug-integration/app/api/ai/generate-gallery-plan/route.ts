@@ -5,6 +5,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+const MODEL = 'claude-3-haiku-20240307';
+
 const CREATION_ONLY_PROMPT = `You are an AI assistant that helps photographers and organizations create SmugMug folder and gallery structures.
 
 **MODE: CREATION ONLY** - You can ONLY create folders and galleries. You CANNOT delete anything.`;
@@ -163,7 +165,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('getSystemPrompt') === 'true') {
     const fullPrompt = `${CREATION_ONLY_PROMPT}\n\n${SYSTEM_PROMPT_BASE}\n\n--- DESTRUCTION MODE PROMPT ---\n\n${DESTRUCTION_MODE_PROMPT}`;
-    return NextResponse.json({ systemPrompt: fullPrompt });
+    return NextResponse.json({ systemPrompt: fullPrompt, model: MODEL });
   }
 
   return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -171,7 +173,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, conversationHistory, existingFolders, existingGalleries, destructionMode } = await request.json();
+    const { message, conversationHistory, existingFolders, existingGalleries, destructionMode, model } = await request.json();
 
     console.log(`📁 AI Gallery Creator - Folders available: ${existingFolders?.length || 0}`);
     if (existingFolders && existingFolders.length > 0) {
@@ -244,7 +246,7 @@ If user says "Delete my old 2020 weddings folder and create a new 2024 structure
 
     // Call Claude AI
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: model || MODEL,
       max_tokens: 4096,
       system: fullSystemPrompt,
       messages: messages,
@@ -272,6 +274,10 @@ If user says "Delete my old 2020 weddings folder and create a new 2024 structure
           return NextResponse.json({
             message: "❌ The proposed structure exceeds SmugMug's 6-level limit (with level 6 being galleries only). Let me revise the plan.",
             plan: null,
+            usage: {
+              input_tokens: response.usage.input_tokens,
+              output_tokens: response.usage.output_tokens,
+            },
           });
         }
 
@@ -281,12 +287,20 @@ If user says "Delete my old 2020 weddings folder and create a new 2024 structure
         return NextResponse.json({
           message: messageWithoutPlan || planJson.reasoning || "Here's what I propose:",
           plan: planJson,
+          usage: {
+            input_tokens: response.usage.input_tokens,
+            output_tokens: response.usage.output_tokens,
+          },
         });
       } catch (_parseError) {
         console.error('Error parsing plan JSON:', _parseError);
         return NextResponse.json({
           message: "I generated a plan but there was an error parsing it. Let me try again.",
           plan: null,
+          usage: {
+            input_tokens: response.usage.input_tokens,
+            output_tokens: response.usage.output_tokens,
+          },
         });
       }
     } else {
@@ -294,6 +308,10 @@ If user says "Delete my old 2020 weddings folder and create a new 2024 structure
       return NextResponse.json({
         message: assistantMessage,
         plan: null,
+        usage: {
+          input_tokens: response.usage.input_tokens,
+          output_tokens: response.usage.output_tokens,
+        },
       });
     }
   } catch (_error) {

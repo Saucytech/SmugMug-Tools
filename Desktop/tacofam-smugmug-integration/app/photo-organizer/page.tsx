@@ -35,6 +35,9 @@ import {
 } from "lucide-react";
 import ToolboxHeader from "@/components/ToolboxHeader";
 import SystemPromptViewer from "@/components/SystemPromptViewer";
+import { analysisStorage, AnalysisSession, AnalyzedPhoto } from "@/lib/analysis-storage";
+import { useModelPreferences, AVAILABLE_MODELS } from '@/stores/modelPreferencesStore';
+import { useAIActivityStore } from '@/stores/aiActivityStore';
 
 interface GalleryIndex {
   albumKey: string;
@@ -199,6 +202,11 @@ export default function PhotoOrganizer() {
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [showPhotoSelector, setShowPhotoSelector] = useState(false);
 
+  // Analysis session state
+  const [currentAnalysisSession, setCurrentAnalysisSession] = useState<string | null>(null);
+  const [selectedPhotoKeys, setSelectedPhotoKeys] = useState<Set<string>>(new Set());
+  const [refreshCounter, setRefreshCounter] = useState(0); // Force re-render when photo actions taken
+
   // Upload & Sort state
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isAnalyzingUploads, setIsAnalyzingUploads] = useState(false);
@@ -232,6 +240,13 @@ export default function PhotoOrganizer() {
   >("all");
   const [showKeyMomentsOnly, setShowKeyMomentsOnly] = useState(false);
   const [showPortfolioOnly, setShowPortfolioOnly] = useState(false);
+
+  // AI Model & Activity Tracking
+  const { getModel } = useModelPreferences();
+  const { addJob, completeJob, failJob } = useAIActivityStore();
+  const indexModel = getModel('photo-organizer-index');
+  const uploadModel = getModel('photo-organizer-upload');
+  const cullingModel = getModel('photo-organizer-culling');
 
   useEffect(() => {
     checkAuthAndInitialize();
@@ -598,6 +613,21 @@ export default function PhotoOrganizer() {
         );
         addLog(`   🤖 Sending to Claude AI Vision for analysis...`);
 
+        // Create unique job ID and register AI activity
+        const jobId = `upload-${uploadedFile.id}-${Date.now()}`;
+        const modelInfo = AVAILABLE_MODELS[uploadModel];
+
+        addJob({
+          id: jobId,
+          tool: 'Photo Organizer',
+          toolPath: '/photo-organizer',
+          status: 'processing',
+          startTime: new Date(),
+          message: `Analyzing "${uploadedFile.file.name}"`,
+          model: uploadModel,
+          modelName: modelInfo.name,
+        });
+
         try {
           const response = await fetch("/api/ai/analyze-uploaded-photo", {
             method: "POST",
@@ -615,15 +645,23 @@ export default function PhotoOrganizer() {
                   : null,
               },
               galleryIndex,
+              model: uploadModel, // Pass selected model
             }),
           });
 
           if (response.ok) {
             const analysis = await response.json();
 
+            const inputTokens = analysis.usage?.input_tokens || 0;
+            const outputTokens = analysis.usage?.output_tokens || 0;
+            const totalTokens = inputTokens + outputTokens;
+
             addLog(
-              `   ✨ AI Vision analysis complete (${analysis.tokensUsed || "N/A"} tokens used)`,
+              `   ✨ AI Vision analysis complete (${totalTokens} tokens used)`,
             );
+
+            // Complete the job with token usage
+            completeJob(jobId, totalTokens, inputTokens, outputTokens);
             addLog(
               `   👁️ Visual: ${analysis.visualAnalysis?.substring(0, 100)}...`,
             );
@@ -675,6 +713,7 @@ export default function PhotoOrganizer() {
             });
           } else {
             addLog(`   ❌ AI analysis failed for this photo`);
+            failJob(jobId, 'AI analysis failed');
             setUploadedFiles((prev) =>
               prev.map((f) =>
                 f.id === uploadedFile.id ? { ...f, status: "error" } : f,
@@ -683,7 +722,8 @@ export default function PhotoOrganizer() {
           }
         } catch (_error) {
           console.error("Error analyzing photo:", _error);
-          addLog(`   ❌ Error: ${error}`);
+          addLog(`   ❌ Error: ${_error}`);
+          failJob(jobId, _error instanceof Error ? _error.message : 'Unknown error');
           setUploadedFiles((prev) =>
             prev.map((f) =>
               f.id === uploadedFile.id ? { ...f, status: "error" } : f,
@@ -830,29 +870,62 @@ export default function PhotoOrganizer() {
         );
         addLog("   → Sending to Claude AI for analysis...");
 
-        // Call AI analysis endpoint
-        const analysisResponse = await fetch("/api/ai/analyze-gallery", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            images: images,
-            galleryName: gallery.Name,
-            albumKey: albumKey,
-          }),
+        // Create unique job ID and register AI activity
+        const jobId = `index-${albumKey}-${Date.now()}`;
+        const modelInfo = AVAILABLE_MODELS[indexModel];
+
+        addJob({
+          id: jobId,
+          tool: 'Photo Organizer',
+          toolPath: '/photo-organizer',
+          status: 'processing',
+          startTime: new Date(),
+          message: `Analyzing "${gallery.Name}"`,
+          model: indexModel,
+          modelName: modelInfo.name,
         });
 
-        if (!analysisResponse.ok) {
-          addLog("   ❌ AI analysis failed");
-          console.error(`Failed to analyze ${gallery.Name}`);
+        let analysisData;
+        try {
+          // Call AI analysis endpoint
+          const analysisResponse = await fetch("/api/ai/analyze-gallery", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              images: images,
+              galleryName: gallery.Name,
+              albumKey: albumKey,
+              model: indexModel, // Pass selected model
+            }),
+          });
+
+          if (!analysisResponse.ok) {
+            addLog("   ❌ AI analysis failed");
+            console.error(`Failed to analyze ${gallery.Name}`);
+            failJob(jobId, 'AI analysis failed');
+            continue;
+          }
+
+          analysisData = await analysisResponse.json();
+
+          const inputTokens = analysisData.usage?.input_tokens || 0;
+          const outputTokens = analysisData.usage?.output_tokens || 0;
+          const totalTokens = inputTokens + outputTokens;
+
+          addLog(
+            `   ✓ AI analysis complete (${totalTokens} tokens used)`,
+          );
+
+          // Complete the job with token usage
+          completeJob(jobId, totalTokens, inputTokens, outputTokens);
+        } catch (error) {
+          addLog("   ❌ AI analysis error");
+          console.error(`Error analyzing ${gallery.Name}:`, error);
+          failJob(jobId, error instanceof Error ? error.message : 'Unknown error');
           continue;
         }
-
-        const analysisData = await analysisResponse.json();
-        addLog(
-          `   ✓ AI analysis complete (${analysisData.tokensUsed || 0} tokens used)`,
-        );
 
         // Create index entry
         const indexEntry: GalleryIndex = {
@@ -926,6 +999,23 @@ export default function PhotoOrganizer() {
     if (galleryIndex.length === 0) {
       alert('Please build an index first! Go to "Build Index" tab.');
       return;
+    }
+
+    // Check for existing incomplete analysis for these galleries
+    const galleryKeys = Array.from(selectedSourceGalleries);
+    const existingSession = analysisStorage.getRecentIncompleteSession(galleryKeys);
+
+    if (existingSession) {
+      const resumeAnalysis = confirm(
+        `You have an incomplete analysis for these galleries from ${new Date(existingSession.analyzedAt).toLocaleString()}.\n\n` +
+        `Progress: ${existingSession.totalPhotos - existingSession.pendingCount}/${existingSession.totalPhotos} photos processed\n\n` +
+        `Would you like to resume that analysis instead of starting a new one?`
+      );
+
+      if (resumeAnalysis) {
+        setCurrentAnalysisSession(existingSession.id);
+        return;
+      }
     }
 
     // Clear previous logs
@@ -1119,9 +1209,59 @@ export default function PhotoOrganizer() {
         return;
       }
 
-      addLog("✅ Opening dry run review modal...");
-      setOrganizeTasks(tasks);
-      setShowDryRun(true);
+      // Convert tasks to analyzed photos format
+      const analyzedPhotos: AnalyzedPhoto[] = tasks.map((task) => {
+        const sourceImage = images.find((img) =>
+          (img.FileName || img.Title || `Image`) === task.imageName
+        );
+        const destGallery = galleryIndex.find(g => g.name === task.suggestedGallery);
+
+        return {
+          imageKey: sourceImage?.ImageKey || '',
+          fileName: task.imageName,
+          thumbnailUrl: task.imageUrl,
+          title: sourceImage?.Title,
+          caption: sourceImage?.Caption,
+          keywords: sourceImage?.Keywords ? sourceImage.Keywords.split(',').map((k: string) => k.trim()) : [],
+          sourceGallery: {
+            key: sourceImage?.sourceGalleryKey || '',
+            name: task.sourceGallery,
+          },
+          suggestedDestination: {
+            key: destGallery?.albumKey || '',
+            name: task.suggestedGallery,
+            path: destGallery?.name || task.suggestedGallery,
+          },
+          confidence: task.confidence,
+          reasoning: task.reasoning,
+          status: 'pending',
+        };
+      });
+
+      // Get source gallery keys and names
+      const sourceGalleryKeys = Array.from(selectedSourceGalleries);
+      const sourceGalleryNames = sourceGalleryKeys.map(key => {
+        const gallery = galleries.find(g => g.AlbumKey === key);
+        return gallery?.Name || 'Unknown';
+      });
+
+      // Save analysis session to localStorage
+      addLog("💾 Saving analysis to localStorage...");
+      const analysisSession = analysisStorage.createSession({
+        sourceGalleryKeys,
+        sourceGalleryNames,
+        analysisType: 'sort',
+        photos: analyzedPhotos,
+        totalPhotos: analyzedPhotos.length,
+      });
+
+      addLog(`✅ Analysis saved with ID: ${analysisSession.id}`);
+      addLog("🎨 Opening photo-by-photo review interface...");
+
+      // Set current session and show review interface
+      setCurrentAnalysisSession(analysisSession.id);
+      setOrganizeTasks(tasks); // Keep for backward compatibility with dry run modal
+      setShowDryRun(false); // Don't show old dry run modal
     } catch (_error) {
       console.error("Error sorting photos:", _error);
       alert("Failed to sort photos. Check console for details.");
@@ -1320,7 +1460,7 @@ export default function PhotoOrganizer() {
           }
 
           const data = await response.json();
-          const images = data.Response?.AlbumImage || [];
+          const images = data.images || [];
           console.log(`📷 Found ${images.length} images in album ${albumKey}`);
 
           // Add album info to each image for context
@@ -1373,39 +1513,67 @@ export default function PhotoOrganizer() {
           );
           setCullingProgress({ current: i, total: allImages.length });
 
-          const analysisResponse = await fetch(
-            "/api/ai/analyze-photo-quality",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
+          // Create unique job ID and register AI activity for this batch
+          const jobId = `culling-batch-${Math.floor(i / batchSize) + 1}-${Date.now()}`;
+          const modelInfo = AVAILABLE_MODELS[cullingModel];
+
+          addJob({
+            id: jobId,
+            tool: 'Photo Organizer',
+            toolPath: '/photo-organizer',
+            status: 'processing',
+            startTime: new Date(),
+            message: `Analyzing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(allImages.length / batchSize)} (${batch.length} photos)`,
+            model: cullingModel,
+            modelName: modelInfo.name,
+          });
+
+          try {
+            const analysisResponse = await fetch(
+              "/api/ai/analyze-photo-quality",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  images: batch.map((img: any) => ({
+                    url: img.ArchivedUri,
+                    id: img.ImageKey,
+                    name: img.FileName,
+                  })),
+                  albumContext: `Multiple albums: ${albumKeysArray.map((k) => galleries.find((g) => g.AlbumKey === k)?.Name || k).join(", ")}`,
+                  autoRejectThreshold,
+                  detectKeyMoments: true,
+                  model: cullingModel, // Pass selected model
+                }),
               },
-              body: JSON.stringify({
-                images: batch.map((img: any) => ({
-                  url: img.ArchivedUri,
-                  id: img.ImageKey,
-                  name: img.FileName,
-                })),
-                albumContext: `Multiple albums: ${albumKeysArray.map((k) => galleries.find((g) => g.AlbumKey === k)?.Name || k).join(", ")}`,
-                autoRejectThreshold,
-                detectKeyMoments: true,
-              }),
-            },
-          );
-
-          console.log(
-            `📡 Analysis API response status: ${analysisResponse.status}`,
-          );
-
-          if (analysisResponse.ok) {
-            const result = await analysisResponse.json();
-            console.log(
-              `✅ Received ${result.analyses?.length || 0} analyses from batch`,
             );
-            analyses.push(...(result.analyses || []));
-          } else {
-            const errorText = await analysisResponse.text();
-            console.error(`❌ Analysis failed for batch:`, errorText);
+
+            console.log(
+              `📡 Analysis API response status: ${analysisResponse.status}`,
+            );
+
+            if (analysisResponse.ok) {
+              const result = await analysisResponse.json();
+              console.log(
+                `✅ Received ${result.analyses?.length || 0} analyses from batch`,
+              );
+              analyses.push(...(result.analyses || []));
+
+              // Complete the job with token usage
+              const inputTokens = result.usage?.input_tokens || 0;
+              const outputTokens = result.usage?.output_tokens || 0;
+              const totalTokens = inputTokens + outputTokens;
+              completeJob(jobId, totalTokens, inputTokens, outputTokens);
+            } else {
+              const errorText = await analysisResponse.text();
+              console.error(`❌ Analysis failed for batch:`, errorText);
+              failJob(jobId, `Analysis failed: ${errorText.substring(0, 100)}`);
+            }
+          } catch (error) {
+            console.error(`❌ Error analyzing batch:`, error);
+            failJob(jobId, error instanceof Error ? error.message : 'Unknown error');
           }
         }
 
@@ -1728,14 +1896,298 @@ export default function PhotoOrganizer() {
     ? galleryIndex.find((idx) => idx.albumKey === viewingIndex)
     : null;
 
+  // Helper function to get gallery analysis status
+  const getGalleryAnalysisStatus = (albumKey: string) => {
+    const sessions = analysisStorage.getAllSessions();
+    const gallerySessions = sessions.filter(s =>
+      s.sourceGalleryKeys.includes(albumKey)
+    );
+
+    if (gallerySessions.length === 0) {
+      return null;
+    }
+
+    // Find most recent session
+    const mostRecentSession = gallerySessions.sort((a, b) =>
+      new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime()
+    )[0];
+
+    const stats = analysisStorage.getSessionStats(mostRecentSession.id);
+    if (!stats) return null;
+
+    return {
+      sessionId: mostRecentSession.id,
+      isComplete: !!mostRecentSession.completedAt,
+      percentComplete: stats.percentComplete,
+      totalPhotos: stats.total,
+      pendingPhotos: stats.pending,
+      analyzedAt: new Date(mostRecentSession.analyzedAt),
+    };
+  };
+
+  // Render photo review interface when analysis session exists
+  const renderPhotoReviewInterface = () => {
+    if (!currentAnalysisSession) return null;
+
+    const session = analysisStorage.getSession(currentAnalysisSession);
+    if (!session) {
+      setCurrentAnalysisSession(null);
+      return null;
+    }
+
+    const stats = analysisStorage.getSessionStats(currentAnalysisSession);
+
+    const handlePhotoAction = (imageKey: string, action: 'move' | 'copy' | 'ignore') => {
+      const status = action === 'ignore' ? 'ignored' : (action === 'copy' ? 'copied' : 'moved');
+      analysisStorage.updatePhotoStatus(currentAnalysisSession!, imageKey, status);
+      analysisStorage.touchSession(currentAnalysisSession!);
+      // Trigger re-render
+      setRefreshCounter(prev => prev + 1);
+    };
+
+    const handleBulkAction = (action: 'move' | 'copy' | 'ignore') => {
+      if (selectedPhotoKeys.size === 0) return;
+      const status = action === 'ignore' ? 'ignored' : (action === 'copy' ? 'copied' : 'moved');
+      analysisStorage.updatePhotoStatusBulk(
+        currentAnalysisSession!,
+        Array.from(selectedPhotoKeys),
+        status
+      );
+      setSelectedPhotoKeys(new Set());
+      // Trigger re-render
+      setRefreshCounter(prev => prev + 1);
+    };
+
+    const togglePhotoSelection = (imageKey: string) => {
+      const newSelection = new Set(selectedPhotoKeys);
+      if (newSelection.has(imageKey)) {
+        newSelection.delete(imageKey);
+      } else {
+        newSelection.add(imageKey);
+      }
+      setSelectedPhotoKeys(newSelection);
+    };
+
+    const selectAll = () => {
+      const pendingPhotos = session.photos.filter(p => p.status === 'pending');
+      setSelectedPhotoKeys(new Set(pendingPhotos.map(p => p.imageKey)));
+    };
+
+    const deselectAll = () => {
+      setSelectedPhotoKeys(new Set());
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              Review Analysis Results
+            </h2>
+            <p className="text-gray-600">
+              From: {session.sourceGalleryNames.join(', ')}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              if (session.pendingCount > 0) {
+                const confirmClose = confirm(
+                  `You still have ${session.pendingCount} pending photos.\n\nYour progress is saved and you can resume anytime.`
+                );
+                if (!confirmClose) return;
+              }
+              setCurrentAnalysisSession(null);
+            }}
+            className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            Close Review
+          </button>
+        </div>
+
+        {/* Stats */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="bg-white border border-gray-200 rounded-lg p-3">
+              <div className="text-xs text-gray-600 mb-1">Total Photos</div>
+              <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="text-xs text-blue-600 mb-1">Pending</div>
+              <div className="text-2xl font-bold text-blue-700">{stats.pending}</div>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="text-xs text-green-600 mb-1">Moved</div>
+              <div className="text-2xl font-bold text-green-700">{stats.moved}</div>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <div className="text-xs text-purple-600 mb-1">Copied</div>
+              <div className="text-2xl font-bold text-purple-700">{stats.copied}</div>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div className="text-xs text-gray-600 mb-1">Ignored</div>
+              <div className="text-2xl font-bold text-gray-700">{stats.ignored}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Progress Bar */}
+        {stats && (
+          <div className="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+            <div className="flex items-center justify-between mb-1 sm:mb-2">
+              <span className="text-sm font-medium text-gray-700">Progress</span>
+              <span className="text-sm font-bold text-indigo-600">{stats.percentComplete}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-indigo-600 h-2 rounded-full transition-all"
+                style={{ width: `${stats.percentComplete}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Actions */}
+        {session.pendingCount > 0 && (
+          <div className="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className="text-sm font-medium text-gray-700">
+                {selectedPhotoKeys.size} selected
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={selectAll}
+                  className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                >
+                  Select All Pending
+                </button>
+                <button
+                  onClick={deselectAll}
+                  className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                >
+                  Deselect All
+                </button>
+              </div>
+              {selectedPhotoKeys.size > 0 && (
+                <>
+                  <div className="h-6 w-px bg-gray-300" />
+                  <button
+                    onClick={() => handleBulkAction('move')}
+                    className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                  >
+                    Move Selected ({selectedPhotoKeys.size})
+                  </button>
+                  <button
+                    onClick={() => handleBulkAction('copy')}
+                    className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
+                  >
+                    Copy Selected ({selectedPhotoKeys.size})
+                  </button>
+                  <button
+                    onClick={() => handleBulkAction('ignore')}
+                    className="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors font-medium"
+                  >
+                    Ignore Selected ({selectedPhotoKeys.size})
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Photos Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {session.photos.filter(p => p.status === 'pending').map((photo) => (
+            <div
+              key={photo.imageKey}
+              className={`bg-white border rounded-lg overflow-hidden transition-all ${
+                selectedPhotoKeys.has(photo.imageKey)
+                  ? 'border-indigo-500 ring-2 ring-indigo-200'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="relative">
+                <img
+                  src={photo.thumbnailUrl}
+                  alt={photo.fileName}
+                  className="w-full aspect-square object-cover"
+                />
+                <input
+                  type="checkbox"
+                  checked={selectedPhotoKeys.has(photo.imageKey)}
+                  onChange={() => togglePhotoSelection(photo.imageKey)}
+                  className="absolute top-2 left-2 w-5 h-5 rounded"
+                />
+                <div className="absolute top-2 right-2 px-2 py-1 bg-black/70 text-white text-xs font-semibold rounded">
+                  {photo.confidence}%
+                </div>
+              </div>
+              <div className="p-3 space-y-2">
+                <div className="text-sm font-semibold text-gray-900 truncate">
+                  {photo.fileName}
+                </div>
+                <div className="text-xs text-gray-600">
+                  <div><span className="font-medium">From:</span> {photo.sourceGallery.name}</div>
+                  <div className="mt-1"><span className="font-medium">Suggested:</span> {photo.suggestedDestination.name}</div>
+                </div>
+                <div className="text-xs text-gray-500 line-clamp-2">
+                  {photo.reasoning}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => handlePhotoAction(photo.imageKey, 'move')}
+                    className="flex-1 px-2 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors font-medium"
+                  >
+                    Move
+                  </button>
+                  <button
+                    onClick={() => handlePhotoAction(photo.imageKey, 'copy')}
+                    className="flex-1 px-2 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors font-medium"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    onClick={() => handlePhotoAction(photo.imageKey, 'ignore')}
+                    className="px-2 py-1.5 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors font-medium"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Completion Message */}
+        {session.pendingCount === 0 && (
+          <div className="bg-green-50 border border-green-200 rounded-lg sm:rounded-xl p-4 sm:p-6 text-center">
+            <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 text-green-600 mx-auto mb-2 sm:mb-3" />
+            <h3 className="text-base sm:text-lg font-bold text-green-900 mb-1 sm:mb-2">
+              All Photos Reviewed!
+            </h3>
+            <p className="text-sm sm:text-base text-green-700 mb-3 sm:mb-4">
+              You've processed all {session.totalPhotos} photos in this analysis.
+            </p>
+            <button
+              onClick={() => setCurrentAnalysisSession(null)}
+              className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
+            >
+              Close Review
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <ToolboxHeader currentTool="photo-organizer" />
 
       {/* Instructions */}
       <div className="max-w-7xl mx-auto px-8 pt-6">
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
+        <div className="bg-orange-50 border border-orange-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             <svg
               className="w-5 h-5 text-orange-600"
               fill="none"
@@ -1762,10 +2214,10 @@ export default function PhotoOrganizer() {
 
       {/* View Index Modal */}
       {viewingIndex && viewingIndexData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-[95vw] sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex-1 min-w-0 truncate">
                 AI Gallery Analysis
               </h2>
               <button
@@ -1776,7 +2228,7 @@ export default function PhotoOrganizer() {
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Gallery Info */}
               <div>
                 <h3 className="font-bold text-lg text-gray-900">
@@ -1902,11 +2354,11 @@ export default function PhotoOrganizer() {
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
         {/* Header */}
         <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                  <Brain className="w-8 h-8 text-indigo-600" />
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
+                  <Brain className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-600" />
                   Photo Organizer
                 </h1>
                 <p className="text-gray-600 mt-2">
@@ -1915,14 +2367,14 @@ export default function PhotoOrganizer() {
               </div>
 
               {/* Settings */}
-              <div className="bg-white rounded-xl border-2 border-gray-200 p-4">
-                <div className="flex items-center gap-2 mb-3">
+              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 p-3 sm:p-4">
+                <div className="flex items-center gap-2 mb-2 sm:mb-3">
                   <Settings className="w-4 h-4 text-gray-600" />
                   <span className="font-semibold text-sm text-gray-900">
                     Settings
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5 sm:space-y-2">
                   <div>
                     <label className="text-xs text-gray-600">
                       Auto-approve threshold
@@ -1932,7 +2384,7 @@ export default function PhotoOrganizer() {
                       onChange={(e) =>
                         setConfidenceThreshold(Number(e.target.value))
                       }
-                      className="w-full px-3 py-1 border border-gray-300 rounded text-sm mt-1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-base min-h-[44px] mt-1"
                       disabled={manualReview}
                     >
                       <option value={95}>95%+ (Very Conservative)</option>
@@ -1941,12 +2393,12 @@ export default function PhotoOrganizer() {
                       <option value={80}>80%+ (Aggressive)</option>
                     </select>
                   </div>
-                  <label className="flex items-center gap-2 text-xs">
+                  <label className="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
                     <input
                       type="checkbox"
                       checked={manualReview}
                       onChange={(e) => setManualReview(e.target.checked)}
-                      className="rounded"
+                      className="w-5 h-5 min-w-[20px] min-h-[20px] rounded flex-shrink-0"
                     />
                     <span className="text-gray-700">
                       Review all moves manually
@@ -1959,20 +2411,20 @@ export default function PhotoOrganizer() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setCopyMode(true)}
-                        className={`flex-1 px-3 py-2 text-xs rounded font-medium transition-all ${
+                        className={`flex-1 px-4 py-2 text-sm min-h-[44px] rounded font-medium transition-all ${
                           copyMode
                             ? "bg-indigo-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
                         }`}
                       >
                         📋 Copy
                       </button>
                       <button
                         onClick={() => setCopyMode(false)}
-                        className={`flex-1 px-3 py-2 text-xs rounded font-medium transition-all ${
+                        className={`flex-1 px-4 py-2 text-sm min-h-[44px] rounded font-medium transition-all ${
                           !copyMode
                             ? "bg-indigo-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
                         }`}
                       >
                         ↔️ Move
@@ -1991,14 +2443,14 @@ export default function PhotoOrganizer() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="max-w-7xl mx-auto px-8 pt-6">
-          <div className="flex gap-2 border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-6">
+          <div className="flex gap-2 border-b border-gray-200 overflow-x-auto pb-px">
             <button
               onClick={() => setActiveTab("build-index")}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors whitespace-nowrap ${
                 activeTab === "build-index"
                   ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-gray-600 hover:text-gray-900 active:text-gray-900"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -2008,10 +2460,10 @@ export default function PhotoOrganizer() {
             </button>
             <button
               onClick={() => setActiveTab("sort-existing")}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors whitespace-nowrap ${
                 activeTab === "sort-existing"
                   ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-gray-600 hover:text-gray-900 active:text-gray-900"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -2021,10 +2473,10 @@ export default function PhotoOrganizer() {
             </button>
             <button
               onClick={() => setActiveTab("upload-sort")}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors whitespace-nowrap ${
                 activeTab === "upload-sort"
                   ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-gray-600 hover:text-gray-900 active:text-gray-900"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -2034,10 +2486,10 @@ export default function PhotoOrganizer() {
             </button>
             <button
               onClick={() => setActiveTab("intelligent-culling")}
-              className={`px-6 py-3 font-medium transition-colors ${
+              className={`px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors whitespace-nowrap ${
                 activeTab === "intelligent-culling"
                   ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-gray-600 hover:text-gray-900 active:text-gray-900"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -2049,10 +2501,10 @@ export default function PhotoOrganizer() {
         </div>
 
         {/* Content */}
-        <div className="max-w-7xl mx-auto px-8 py-8">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 sm:py-8">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-8">
             {activeTab === "build-index" && (
-              <div className="flex gap-6">
+              <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
                 {/* Left Sidebar - Indexed Galleries */}
                 {galleryIndex.length > 0 && (
                   <div className="w-80 flex-shrink-0">
@@ -2217,38 +2669,38 @@ export default function PhotoOrganizer() {
                     <Archive className="w-5 h-5 text-indigo-600" />
                     Build Gallery Index
                   </h2>
-                  <p className="text-gray-600 mb-6">
+                  <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
                     Index your existing galleries to build AI knowledge. This is
                     a one-time process that helps the AI understand your gallery
                     structure.
                   </p>
 
                   {/* Gallery Selection */}
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-gray-900">
+                  <div className="mb-4 sm:mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-gray-900 text-sm">
                         Select Galleries to Index
                       </h3>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-1">
                         <button
                           onClick={loadGalleries}
-                          className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition-colors flex items-center gap-1"
+                          className="px-1.5 py-1 text-[11px] bg-blue-100 hover:bg-blue-200 active:bg-blue-300 text-blue-700 rounded font-medium transition-colors flex items-center gap-0.5"
                         >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          Refresh
+                          <RefreshCw className="w-3 h-3" />
+                          <span className="hidden sm:inline">Refresh</span>
                         </button>
                         <button
                           onClick={() =>
                             setHideEmptyGalleries(!hideEmptyGalleries)
                           }
-                          className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors flex items-center gap-1 ${
+                          className={`px-1.5 py-1 text-[11px] rounded font-medium transition-colors flex items-center gap-0.5 ${
                             hideEmptyGalleries
-                              ? "bg-orange-100 text-orange-700 hover:bg-orange-200"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              ? "bg-orange-100 text-orange-700 hover:bg-orange-200 active:bg-orange-300"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
                           }`}
                         >
-                          <EyeOff className="w-3.5 h-3.5" />
-                          {hideEmptyGalleries ? "Show Empty" : "Hide Empty"}
+                          <EyeOff className="w-3 h-3" />
+                          <span className="hidden sm:inline">{hideEmptyGalleries ? "Show" : "Hide"}</span>
                         </button>
                         <button
                           onClick={() =>
@@ -2256,19 +2708,19 @@ export default function PhotoOrganizer() {
                               galleries.map((g) => g.AlbumKey),
                             )
                           }
-                          className="px-3 py-1 text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg font-medium transition-colors"
+                          className="px-1.5 py-1 text-[11px] bg-indigo-100 hover:bg-indigo-200 active:bg-indigo-300 text-indigo-700 rounded font-medium transition-colors whitespace-nowrap"
                         >
                           Select All
                         </button>
                         <button
                           onClick={() => setSelectedGalleries([])}
-                          className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+                          className="px-1.5 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 rounded font-medium transition-colors whitespace-nowrap"
                         >
                           Deselect All
                         </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 lg:grid-cols-5 gap-4 max-h-[600px] overflow-y-auto border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 max-h-[600px] overflow-y-auto border border-gray-200 rounded-lg p-2">
                       {galleries
                         .filter(
                           (gallery) =>
@@ -2312,42 +2764,40 @@ export default function PhotoOrganizer() {
                             }
                           }
 
+                          // Get analysis status for this gallery
+                          const analysisStatus = getGalleryAnalysisStatus(gallery.AlbumKey);
+
                           return (
                             <div
                               key={gallery.AlbumKey}
-                              className={`relative border-2 rounded-xl p-4 transition-all hover:shadow-lg ${
+                              className={`flex items-center gap-2 border rounded px-2 py-1.5 transition-all hover:shadow-md ${
                                 isIndexed
-                                  ? `border-${statusBorder} bg-gradient-to-br ${statusBg}`
+                                  ? `border-${statusBorder} bg-gradient-to-r ${statusBg}`
                                   : "border-gray-300 bg-white hover:border-indigo-400"
                               }`}
                             >
-                              <label className="cursor-pointer block">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedGalleries.includes(
+                              <input
+                                type="checkbox"
+                                checked={selectedGalleries.includes(
+                                  gallery.AlbumKey,
+                                )}
+                                onChange={() =>
+                                  toggleIndexGallerySelection(
                                     gallery.AlbumKey,
-                                  )}
-                                  onChange={() =>
-                                    toggleIndexGallerySelection(
-                                      gallery.AlbumKey,
-                                    )
-                                  }
-                                  className="absolute top-3 right-3 rounded w-5 h-5"
-                                />
+                                  )
+                                }
+                                className="rounded w-4 h-4 min-w-[16px] min-h-[16px] flex-shrink-0"
+                              />
 
-                                <div className="pr-8">
-                                  <div className="font-semibold text-gray-900 text-sm mb-2 line-clamp-2 min-h-[2.5rem]">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="font-semibold text-gray-900 text-sm truncate leading-tight">
                                     {gallery.Name}
                                   </div>
-
-                                  <div className="text-xs text-gray-600 mb-3">
-                                    {gallery.ImageCount || 0} images
-                                  </div>
-
-                                  {isIndexed ? (
-                                    <div className="space-y-2">
+                                  <div className="flex items-center gap-1">
+                                    {isIndexed && (
                                       <div
-                                        className={`flex items-center gap-1 text-xs font-semibold ${
+                                        className={`flex items-center gap-0.5 text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${
                                           statusColor === "green"
                                             ? "text-green-700"
                                             : statusColor === "yellow"
@@ -2357,60 +2807,34 @@ export default function PhotoOrganizer() {
                                                 : "text-gray-700"
                                         }`}
                                       >
-                                        <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                                        <span className="truncate">
-                                          {indexPercentage}% Indexed
-                                        </span>
+                                        <CheckCircle className="w-3 h-3 flex-shrink-0" />
+                                        <span>{indexPercentage}%</span>
                                       </div>
-                                      {indexPercentage < 100 && (
-                                        <div
-                                          className={`text-xs ${
-                                            statusColor === "yellow"
-                                              ? "text-yellow-600"
-                                              : statusColor === "red"
-                                                ? "text-red-600"
-                                                : "text-gray-600"
-                                          }`}
-                                        >
-                                          {indexedImageCount}/
-                                          {currentImageCount} images
-                                          {indexPercentage < 95 &&
-                                            " - Needs reindex"}
-                                        </div>
-                                      )}
+                                    )}
+                                    {analysisStatus && (
                                       <div
-                                        className={`text-xs ${
-                                          statusColor === "green"
-                                            ? "text-green-600"
-                                            : statusColor === "yellow"
-                                              ? "text-yellow-600"
-                                              : statusColor === "red"
-                                                ? "text-red-600"
-                                                : "text-gray-600"
+                                        className={`flex items-center gap-0.5 text-[10px] font-semibold whitespace-nowrap flex-shrink-0 px-1.5 py-0.5 rounded ${
+                                          analysisStatus.isComplete
+                                            ? "bg-purple-100 text-purple-700"
+                                            : "bg-blue-100 text-blue-700"
                                         }`}
+                                        title={`Analysis ${analysisStatus.isComplete ? 'completed' : 'in progress'}: ${analysisStatus.percentComplete}% (${analysisStatus.totalPhotos - analysisStatus.pendingPhotos}/${analysisStatus.totalPhotos} photos)`}
                                       >
-                                        {new Date(
-                                          indexEntry.lastIndexed,
-                                        ).toLocaleDateString()}
+                                        <Brain className="w-3 h-3 flex-shrink-0" />
+                                        <span>{analysisStatus.percentComplete}%</span>
                                       </div>
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          setViewingIndex(gallery.AlbumKey);
-                                        }}
-                                        className="text-xs text-blue-600 hover:text-blue-800 font-medium underline"
-                                      >
-                                        View Analysis →
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="text-xs text-gray-500 flex items-center gap-1">
-                                      <XCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                                      <span>Not indexed</span>
-                                    </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-[10px] text-gray-600 leading-tight">
+                                  {gallery.ImageCount || 0} images
+                                  {analysisStatus && (
+                                    <span className="ml-1 text-purple-600 font-medium">
+                                      • {analysisStatus.pendingPhotos} pending review
+                                    </span>
                                   )}
                                 </div>
-                              </label>
+                              </div>
                             </div>
                           );
                         })}
@@ -2419,8 +2843,8 @@ export default function PhotoOrganizer() {
 
                   {/* Progress Indicator */}
                   {indexingProgress && (
-                    <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                      <div className="flex items-center gap-3 mb-2">
+                    <div className="mb-4 sm:mb-6 bg-indigo-50 border border-indigo-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                      <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                         <Loader className="w-5 h-5 text-indigo-600 animate-spin" />
                         <div className="flex-1">
                           <div className="font-semibold text-indigo-900">
@@ -2453,7 +2877,7 @@ export default function PhotoOrganizer() {
 
                   {/* Terminal Log */}
                   {terminalLogs.length > 0 && (
-                    <div className="bg-gray-900 rounded-xl p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
+                    <div className="bg-gray-900 rounded-lg sm:rounded-xl p-3 sm:p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
                       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
                         <div className="flex gap-1.5">
                           <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -2498,15 +2922,234 @@ export default function PhotoOrganizer() {
 
             {activeTab === "sort-existing" && (
               <div className="space-y-6">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">
-                    Sort Existing Photos
-                  </h2>
-                  <p className="text-gray-600">
-                    Analyze photos in a gallery and AI will suggest which
-                    indexed gallery each photo belongs in.
-                  </p>
-                </div>
+                {/* Photo Review Interface - shown when analysis session exists */}
+                {renderPhotoReviewInterface()}
+
+                {/* Normal Sort Existing Photos UI - only show when no active session */}
+                {!currentAnalysisSession && (
+                  <>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 mb-2">
+                        Sort Existing Photos
+                      </h2>
+                      <p className="text-gray-600">
+                        Analyze photos in a gallery and AI will suggest which
+                        indexed gallery each photo belongs in.
+                      </p>
+                    </div>
+
+                {/* Analysis History */}
+                {(() => {
+                  const allSessions = analysisStorage.getAllSessions();
+                  const incompleteSessions = allSessions.filter(s => !s.completedAt);
+                  const completedSessions = allSessions.filter(s => s.completedAt);
+
+                  if (allSessions.length === 0) return null;
+
+                  return (
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-lg sm:rounded-xl p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Brain className="w-5 h-5 text-purple-600" />
+                          <h3 className="font-bold text-gray-900">Analysis History</h3>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {incompleteSessions.length > 0 && (
+                            <span className="text-blue-600 font-semibold">
+                              {incompleteSessions.length} in progress
+                            </span>
+                          )}
+                          {incompleteSessions.length > 0 && completedSessions.length > 0 && (
+                            <span className="mx-2">•</span>
+                          )}
+                          {completedSessions.length > 0 && (
+                            <span className="text-purple-600 font-semibold">
+                              {completedSessions.length} completed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Incomplete Sessions */}
+                      {incompleteSessions.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-sm font-semibold text-blue-700 mb-2">📋 In Progress</h4>
+                          <div className="space-y-2">
+                            {incompleteSessions
+                              .sort((a, b) => new Date(b.lastViewedAt).getTime() - new Date(a.lastViewedAt).getTime())
+                              .slice(0, 3)
+                              .map(session => {
+                                const stats = analysisStorage.getSessionStats(session.id);
+                                return (
+                                  <div
+                                    key={session.id}
+                                    className="bg-white border border-blue-200 rounded-lg p-3 hover:shadow-md transition-shadow"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-gray-900 text-sm mb-1">
+                                          {session.sourceGalleryNames.join(', ')}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mb-2">
+                                          Started {new Date(session.analyzedAt).toLocaleDateString()} at {new Date(session.analyzedAt).toLocaleTimeString()}
+                                        </div>
+                                        {stats && (
+                                          <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                                <div
+                                                  className="bg-blue-500 h-2 rounded-full transition-all"
+                                                  style={{ width: `${stats.percentComplete}%` }}
+                                                />
+                                              </div>
+                                              <span className="text-xs font-semibold text-blue-700">
+                                                {stats.percentComplete}%
+                                              </span>
+                                            </div>
+                                            <div className="text-xs text-gray-600">
+                                              {stats.total - stats.pending} of {stats.total} photos processed
+                                              {stats.pending > 0 && (
+                                                <span className="text-blue-600 font-medium ml-1">
+                                                  • {stats.pending} pending
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => {
+                                            setCurrentAnalysisSession(session.id);
+                                            analysisStorage.touchSession(session.id);
+                                          }}
+                                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors"
+                                        >
+                                          Resume
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            if (confirm(`Delete this analysis session?\n\nThis will remove all analysis data for:\n${session.sourceGalleryNames.join(', ')}\n\nThis action cannot be undone.`)) {
+                                              analysisStorage.deleteSession(session.id);
+                                              setCurrentAnalysisSession(null);
+                                            }
+                                          }}
+                                          className="px-2 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded transition-colors"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Completed Sessions */}
+                      {completedSessions.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-purple-700 mb-2">✅ Completed</h4>
+                          <div className="space-y-2">
+                            {completedSessions
+                              .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())
+                              .slice(0, 3)
+                              .map(session => {
+                                const stats = analysisStorage.getSessionStats(session.id);
+                                return (
+                                  <div
+                                    key={session.id}
+                                    className="bg-white border border-purple-200 rounded-lg p-3 hover:shadow-md transition-shadow"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-gray-900 text-sm mb-1">
+                                          {session.sourceGalleryNames.join(', ')}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mb-1">
+                                          Completed {new Date(session.completedAt!).toLocaleDateString()} at {new Date(session.completedAt!).toLocaleTimeString()}
+                                        </div>
+                                        {stats && (
+                                          <div className="text-xs text-gray-600">
+                                            {stats.total} photos analyzed
+                                            {stats.moved > 0 && (
+                                              <span className="text-green-600 font-medium ml-1">
+                                                • {stats.moved} moved
+                                              </span>
+                                            )}
+                                            {stats.copied > 0 && (
+                                              <span className="text-blue-600 font-medium ml-1">
+                                                • {stats.copied} copied
+                                              </span>
+                                            )}
+                                            {stats.ignored > 0 && (
+                                              <span className="text-gray-500 font-medium ml-1">
+                                                • {stats.ignored} skipped
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => {
+                                            setCurrentAnalysisSession(session.id);
+                                            analysisStorage.touchSession(session.id);
+                                          }}
+                                          className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded transition-colors"
+                                        >
+                                          View
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            if (confirm(`Delete this completed analysis?\n\nThis will remove all analysis data for:\n${session.sourceGalleryNames.join(', ')}\n\nThis action cannot be undone.`)) {
+                                              analysisStorage.deleteSession(session.id);
+                                              setCurrentAnalysisSession(null);
+                                            }
+                                          }}
+                                          className="px-2 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded transition-colors"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Show All Button */}
+                      {allSessions.length > 6 && (
+                        <button
+                          onClick={() => {
+                            alert('Full analysis history browser coming soon!');
+                          }}
+                          className="w-full mt-3 px-4 py-2 bg-white hover:bg-gray-50 border border-purple-300 text-purple-700 text-sm font-medium rounded-lg transition-colors"
+                        >
+                          View All {allSessions.length} Sessions
+                        </button>
+                      )}
+
+                      {/* Cleanup Button */}
+                      {completedSessions.length > 10 && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Clean up old completed sessions?\n\nThis will keep the 10 most recent completed sessions and delete ${completedSessions.length - 10} older ones.\n\nIncomplete sessions will not be affected.`)) {
+                              analysisStorage.cleanupOldSessions();
+                              setCurrentAnalysisSession(null);
+                            }
+                          }}
+                          className="w-full mt-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-300 text-orange-700 text-sm font-medium rounded-lg transition-colors"
+                        >
+                          Clean Up Old Sessions
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Status Check */}
                 {galleryIndex.length === 0 && (
@@ -2816,8 +3459,8 @@ export default function PhotoOrganizer() {
                         </div>
                       </div>
 
-                      <div className="bg-white border border-gray-300 rounded-xl p-4 max-h-96 overflow-y-auto">
-                        <div className="grid grid-cols-4 gap-3">
+                      <div className="bg-white border border-gray-300 rounded-lg sm:rounded-xl p-3 sm:p-4 max-h-96 overflow-y-auto">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
                           {loadedPhotos.map((photo) => (
                             <div
                               key={photo.ImageKey}
@@ -2858,7 +3501,7 @@ export default function PhotoOrganizer() {
 
                 {/* Progress */}
                 {sortingProgress && (
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg sm:rounded-xl p-3 sm:p-4 space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="font-semibold text-indigo-900">
@@ -2890,7 +3533,7 @@ export default function PhotoOrganizer() {
 
                 {/* Execution Progress */}
                 {executionProgress && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+                  <div className="bg-green-50 border border-green-200 rounded-lg sm:rounded-xl p-3 sm:p-4 space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="font-semibold text-green-900">
@@ -2924,7 +3567,7 @@ export default function PhotoOrganizer() {
 
                 {/* Terminal Log */}
                 {terminalLogs.length > 0 && (
-                  <div className="bg-gray-900 rounded-xl p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
+                  <div className="bg-gray-900 rounded-lg sm:rounded-xl p-3 sm:p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
                       <div className="flex gap-1.5">
                         <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -2972,13 +3615,15 @@ export default function PhotoOrganizer() {
                     </>
                   )}
                 </button>
+                  </>
+                )}
               </div>
             )}
 
             {activeTab === "upload-sort" && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
                     <Upload className="w-5 h-5 text-indigo-600" />
                     Upload & Sort
                   </h2>
@@ -3017,7 +3662,7 @@ export default function PhotoOrganizer() {
 
                 {/* Drag & Drop Zone */}
                 <div
-                  className={`relative border-2 border-dashed rounded-2xl p-8 transition-all ${
+                  className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-8 transition-all ${
                     isDragging
                       ? "border-indigo-600 bg-indigo-50"
                       : "border-gray-300 bg-gray-50 hover:border-gray-400"
@@ -3036,16 +3681,16 @@ export default function PhotoOrganizer() {
                 >
                   <div className="text-center">
                     <Cloud
-                      className={`w-12 h-12 mx-auto mb-4 ${
+                      className={`w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-4 ${
                         isDragging ? "text-indigo-600" : "text-gray-400"
                       }`}
                     />
-                    <p className="text-lg font-semibold text-gray-700 mb-2">
+                    <p className="text-base sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2">
                       {isDragging
                         ? "Drop photos here"
                         : "Drag & drop photos here"}
                     </p>
-                    <p className="text-sm text-gray-500 mb-4">or</p>
+                    <p className="text-sm text-gray-500 mb-3 sm:mb-4">or</p>
                     <label className="cursor-pointer">
                       <input
                         type="file"
@@ -3054,7 +3699,7 @@ export default function PhotoOrganizer() {
                         onChange={handleFileSelect}
                         className="hidden"
                       />
-                      <span className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium inline-block transition-colors">
+                      <span className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg font-medium inline-block transition-colors min-h-[44px] flex items-center">
                         Browse Files
                       </span>
                     </label>
@@ -3086,7 +3731,7 @@ export default function PhotoOrganizer() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-4 max-h-96 overflow-y-auto bg-white border border-gray-200 rounded-xl p-4">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-4 max-h-96 overflow-y-auto bg-white border border-gray-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
                       {uploadedFiles.map((file) => (
                         <div
                           key={file.id}
@@ -3155,7 +3800,7 @@ export default function PhotoOrganizer() {
 
                 {/* Progress Indicator */}
                 {uploadProgress && (
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg sm:rounded-xl p-3 sm:p-4 space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="font-semibold text-indigo-900">
@@ -3186,7 +3831,7 @@ export default function PhotoOrganizer() {
 
                 {/* Terminal Log */}
                 {terminalLogs.length > 0 && (
-                  <div className="bg-gray-900 rounded-xl p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
+                  <div className="bg-gray-900 rounded-lg sm:rounded-xl p-3 sm:p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
                       <div className="flex gap-1.5">
                         <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -3245,8 +3890,8 @@ export default function PhotoOrganizer() {
                 </div>
 
                 {/* Album Selection */}
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
-                  <div className="flex items-start gap-4 mb-4">
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-purple-200">
+                  <div className="flex items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
                     <Camera className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
                     <div className="flex-1">
                       <h3 className="font-bold text-gray-900 mb-1">
@@ -3308,7 +3953,7 @@ export default function PhotoOrganizer() {
                   </div>
 
                   {/* Load & Analyze Button */}
-                  <div className="flex items-center justify-between gap-4 pt-4 border-t border-purple-200">
+                  <div className="flex items-center justify-between gap-3 sm:gap-4 pt-3 sm:pt-4 border-t border-purple-200">
                     <div className="text-sm text-gray-600">
                       {selectedCullingAlbums.size === 0
                         ? "Select albums to analyze"
@@ -3375,9 +4020,9 @@ export default function PhotoOrganizer() {
 
                 {/* Statistics Panel */}
                 {cullingStatistics && (
-                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold flex items-center gap-2">
+                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg sm:rounded-xl p-4 sm:p-6 text-white">
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <h3 className="text-base sm:text-lg font-bold flex items-center gap-2">
                         <BarChart3 className="w-5 h-5" />
                         Culling Statistics
                       </h3>
@@ -3387,7 +4032,7 @@ export default function PhotoOrganizer() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
                       <div>
                         <div className="text-3xl font-bold">
                           {cullingStatistics.total}
@@ -3424,7 +4069,7 @@ export default function PhotoOrganizer() {
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-white/20">
+                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/20">
                       <div className="flex items-center justify-between text-sm">
                         <span>
                           {cullingStatistics.technicalIssuesCount} technical
@@ -3447,13 +4092,13 @@ export default function PhotoOrganizer() {
                       <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-300 p-1">
                         <button
                           onClick={() => setViewMode("grid")}
-                          className={`px-3 py-1.5 rounded ${viewMode === "grid" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                          className={`px-4 py-2 min-h-[44px] rounded text-sm ${viewMode === "grid" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-100 active:bg-gray-200"}`}
                         >
                           Grid
                         </button>
                         <button
                           onClick={() => setViewMode("single")}
-                          className={`px-3 py-1.5 rounded ${viewMode === "single" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                          className={`px-4 py-2 min-h-[44px] rounded text-sm ${viewMode === "single" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-100 active:bg-gray-200"}`}
                         >
                           Single
                         </button>
@@ -3549,7 +4194,7 @@ export default function PhotoOrganizer() {
 
                 {/* Photo Grid */}
                 {cullingPhotos.length > 0 && viewMode === "grid" && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                     {getFilteredPhotos().map((photo, index) => {
                       const getBorderColor = () => {
                         if (photo.cullingStatus === "pick")
@@ -3663,7 +4308,7 @@ export default function PhotoOrganizer() {
 
                 {/* Single Photo View */}
                 {cullingPhotos.length > 0 && viewMode === "single" && (
-                  <div className="bg-gray-900 rounded-xl p-6">
+                  <div className="bg-gray-900 rounded-lg sm:rounded-xl p-4 sm:p-6">
                     <div className="flex items-start gap-6">
                       {/* Main Photo */}
                       <div className="flex-1">
@@ -3796,7 +4441,7 @@ export default function PhotoOrganizer() {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="pt-4 border-t border-gray-200">
+                        <div className="pt-3 sm:pt-4 border-t border-gray-200">
                           <div className="grid grid-cols-3 gap-2">
                             <button
                               onClick={() =>
@@ -3882,9 +4527,9 @@ export default function PhotoOrganizer() {
 
                 {/* Empty State */}
                 {!isAnalyzingPhotos && cullingPhotos.length === 0 && (
-                  <div className="text-center py-12">
-                    <Camera className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">
+                  <div className="text-center py-8 sm:py-12">
+                    <Camera className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-2 sm:mb-4" />
+                    <p className="text-sm sm:text-base text-gray-500">
                       Select an album and click &quot;Load & Analyze&quot; to
                       start culling
                     </p>
@@ -3898,12 +4543,12 @@ export default function PhotoOrganizer() {
 
       {/* Dry Run Review Modal */}
       {showDryRun && organizeTasks.length > 0 && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-[95vw] sm:max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
                   Review Suggested {copyMode ? "Copies" : "Moves"}
                   <span className="text-sm font-normal px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full">
                     {copyMode ? "📋 Copy Mode" : "↔️ Move Mode"}
@@ -3937,7 +4582,7 @@ export default function PhotoOrganizer() {
               {organizeTasks.map((task, idx) => (
                 <div
                   key={idx}
-                  className={`border-2 rounded-xl p-4 ${
+                  className={`border-2 rounded-lg sm:rounded-xl p-3 sm:p-4 ${
                     task.status === "auto-approved"
                       ? "border-green-300 bg-green-50"
                       : task.status === "needs-review"
@@ -3945,7 +4590,7 @@ export default function PhotoOrganizer() {
                         : "border-gray-300 bg-gray-50"
                   }`}
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     {/* Thumbnail */}
                     {task.imageUrl && (
                       <img
@@ -4041,12 +4686,12 @@ export default function PhotoOrganizer() {
 
       {/* Upload Dry Run Review Modal */}
       {showUploadDryRun && uploadSortTasks.length > 0 && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-[95vw] sm:max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
                   Review Upload Suggestions
                   <span className="text-sm font-normal px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full">
                     🎨 AI Vision Analysis
@@ -4080,7 +4725,7 @@ export default function PhotoOrganizer() {
               {uploadSortTasks.map((task, idx) => (
                 <div
                   key={idx}
-                  className={`border-2 rounded-xl p-4 ${
+                  className={`border-2 rounded-lg sm:rounded-xl p-3 sm:p-4 ${
                     task.status === "auto-approved"
                       ? "border-green-300 bg-green-50"
                       : task.status === "needs-review"
@@ -4088,7 +4733,7 @@ export default function PhotoOrganizer() {
                         : "border-gray-300 bg-gray-50"
                   }`}
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     {/* Thumbnail */}
                     <img
                       src={task.preview}
@@ -4184,6 +4829,7 @@ export default function PhotoOrganizer() {
       <SystemPromptViewer
         toolName="Intelligent Culling Assistant"
         apiEndpoint="/api/ai/analyze-photo-quality"
+        toolId="photo-organizer-culling"
       />
     </div>
   );

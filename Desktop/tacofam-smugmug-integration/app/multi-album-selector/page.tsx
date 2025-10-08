@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart, Grid, LayoutGrid, Columns, X, Copy, Check, Play, Image as ImageIcon, Sparkles, Layout, Layers, Camera, Monitor, Tablet, Smartphone, Code2, Eye } from 'lucide-react';
+import { ArrowLeft, Heart, Grid, LayoutGrid, Columns, X, Copy, Check, Play, Image as ImageIcon, Sparkles, Layout, Layers, Camera, Monitor, Tablet, Smartphone, Code2, Eye, List } from 'lucide-react';
 import ToolboxHeader from '@/components/ToolboxHeader';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +23,7 @@ type DisplayStyle = 'grid' | 'carousel' | 'masonry' | 'slideshow' | 'lightbox' |
 type ExportFormat = 'html' | 'react' | 'wordpress' | 'json';
 type PreviewDevice = 'desktop' | 'tablet' | 'mobile';
 type SmugMugImageSize = 'Ti' | 'Th' | 'S' | 'M' | 'L' | 'XL' | 'X2' | 'X3' | 'X4' | 'X5' | '4k' | '5k' | 'O';
+type PhotoViewMode = 'grid' | 'list';
 
 interface CustomizationOptions {
   columns: number;
@@ -60,6 +61,7 @@ function MultiAlbumSelectorContent() {
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const [showPreview, _setShowPreview] = useState(true);
   const [showTestPlayground, setShowTestPlayground] = useState(false);
+  const [photoViewMode, setPhotoViewMode] = useState<PhotoViewMode>('grid');
 
   const [customization, setCustomization] = useState<CustomizationOptions>({
     columns: 3,
@@ -92,7 +94,8 @@ function MultiAlbumSelectorContent() {
 
   const loadPhotos = async () => {
     if (albumKeys.length === 0) {
-      router.push('/');
+      // Don't redirect - show album selection screen instead
+      setLoading(false);
       return;
     }
 
@@ -961,131 +964,274 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
     );
   }
 
+  // Show album selection screen when no albums are selected
+  if (albumKeys.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <ToolboxHeader currentTool="multi-album-selector" />
+        <div className="max-w-4xl mx-auto p-4 sm:p-8">
+          <div className="text-center py-12 sm:py-20">
+            <Grid className="w-16 h-16 sm:w-20 sm:h-20 text-cyan-600 mx-auto mb-6" />
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Multi-Album Selector</h1>
+            <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+              Select photos across multiple albums and create embeddable galleries with 8 different display styles.
+            </p>
+
+            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-xl border-2 border-gray-200 mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Getting Started</h2>
+              <ol className="text-left space-y-4 text-gray-700">
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-8 h-8 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center font-bold">1</span>
+                  <span className="pt-1">Go back to the homepage and use the album selector at the top</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-8 h-8 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center font-bold">2</span>
+                  <span className="pt-1">Select one or more albums you want to work with</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-8 h-8 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center font-bold">3</span>
+                  <span className="pt-1">Return to Multi-Album Selector with your albums pre-loaded</span>
+                </li>
+              </ol>
+            </div>
+
+            <button
+              onClick={() => router.push('/')}
+              className="bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-colors inline-flex items-center gap-2 min-h-[44px]"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Back to Homepage
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <ToolboxHeader currentTool="embed-sell" />
-      <div className="max-w-7xl mx-auto p-8">
+      <ToolboxHeader currentTool="multi-album-selector" />
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 md:p-8">
 
-        {/* Instructions */}
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Instructions - Mobile Optimized */}
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <svg className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-sm text-gray-800">
+            <p className="text-xs sm:text-sm text-gray-800 leading-relaxed">
               <span className="font-semibold">How to use:</span> Select one or more albums from your SmugMug account → Choose which photos to include → Pick a display layout (Grid, Carousel, or Masonry) → Generate embed code for your website or platform.
             </p>
           </div>
         </div>
 
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900">Multi-Album Selector</h1>
-            <p className="text-gray-600">
+        {/* Page Header - Mobile Optimized */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Multi-Album Selector</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
               {photos.length} photos from {albumKeys.length} album{albumKeys.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={() => router.push('/')}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
+              className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-4 sm:px-6 py-2.5 sm:py-2 rounded-lg transition-colors flex items-center justify-center gap-2 min-h-[44px] text-sm sm:text-base"
             >
               <ArrowLeft className="w-4 h-4" />
-              Select More Albums
+              <span className="hidden sm:inline">Select More Albums</span>
+              <span className="sm:hidden">More Albums</span>
             </button>
             <button
               onClick={selectAll}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors"
+              className="bg-gray-600 hover:bg-gray-700 active:bg-gray-800 text-white px-4 sm:px-6 py-2.5 sm:py-2 rounded-lg transition-colors min-h-[44px] text-sm sm:text-base"
             >
               Select All
             </button>
+            {/* View Mode Toggle */}
+            <div className="flex gap-2 border-2 border-gray-300 rounded-lg p-1">
+              <button
+                onClick={() => setPhotoViewMode('grid')}
+                className={`p-2 rounded transition-colors ${
+                  photoViewMode === 'grid'
+                    ? 'bg-purple-600 text-white'
+                    : 'hover:bg-gray-100 text-gray-600'
+                }`}
+                title="Grid View"
+              >
+                <LayoutGrid className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setPhotoViewMode('list')}
+                className={`p-2 rounded transition-colors ${
+                  photoViewMode === 'list'
+                    ? 'bg-purple-600 text-white'
+                    : 'hover:bg-gray-100 text-gray-600'
+                }`}
+                title="List View"
+              >
+                <List className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Floating Selection Bar */}
+        {/* Floating Selection Bar - Mobile Optimized */}
         {selectedPhotos.size > 0 && (
-          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-2xl px-6 py-4 flex items-center gap-6 z-50">
+          <div className="fixed bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-2xl px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center gap-3 sm:gap-6 z-50 max-w-[calc(100vw-2rem)]">
             <div className="flex items-center gap-2">
-              <Heart className="w-5 h-5 text-pink-400 fill-pink-400" />
-              <span className="font-semibold">{selectedPhotos.size} photo{selectedPhotos.size !== 1 ? 's' : ''} selected</span>
+              <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-pink-400 fill-pink-400" />
+              <span className="font-semibold text-sm sm:text-base">{selectedPhotos.size} photo{selectedPhotos.size !== 1 ? 's' : ''} selected</span>
             </div>
-            <div className="h-6 w-px bg-gray-700" />
+            <div className="h-px w-full sm:h-6 sm:w-px bg-gray-700" />
             <button
               onClick={() => setShowModal(true)}
-              className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-semibold transition-colors"
+              className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 px-6 py-2 rounded-lg font-semibold transition-colors min-w-[120px] w-full sm:w-auto min-h-[44px]"
             >
               Create Embed
             </button>
           </div>
         )}
 
-        {/* Photos Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {photos.map((photo) => {
-            const isSelected = selectedPhotos.has(photo.ImageKey);
-            return (
-              <button
-                key={photo.ImageKey}
-                onClick={() => togglePhoto(photo.ImageKey)}
-                className={`group relative aspect-square overflow-hidden rounded-lg transition-all ${
-                  isSelected ? 'ring-4 ring-purple-500' : 'hover:ring-4 hover:ring-purple-300'
-                }`}
-              >
-                <img
-                  src={photo.ThumbnailUrl}
-                  alt={photo.Title || photo.FileName}
-                  className={`w-full h-full object-cover transition-all ${
-                    isSelected ? 'opacity-90' : 'group-hover:opacity-90'
+        {/* Photos Grid View */}
+        {photoViewMode === 'grid' && (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+            {photos.map((photo) => {
+              const isSelected = selectedPhotos.has(photo.ImageKey);
+              return (
+                <button
+                  key={photo.ImageKey}
+                  onClick={() => togglePhoto(photo.ImageKey)}
+                  className={`group relative aspect-square overflow-hidden rounded-lg transition-all min-h-[88px] ${
+                    isSelected ? 'ring-4 ring-purple-500' : 'active:ring-4 active:ring-purple-300'
                   }`}
-                />
-                <div className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                  isSelected ? 'bg-purple-500' : 'bg-white/80 backdrop-blur-sm'
-                }`}>
-                  <Check className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`} />
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-                  <p className="text-white text-sm font-semibold truncate">
-                    {photo.Title || photo.Caption || photo.FileName}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                >
+                  <img
+                    src={photo.ThumbnailUrl}
+                    alt={photo.Title || photo.FileName}
+                    className={`w-full h-full object-cover transition-all ${
+                      isSelected ? 'opacity-90' : 'group-hover:opacity-90'
+                    }`}
+                  />
+                  <div className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                    isSelected ? 'bg-purple-500' : 'bg-white/80 backdrop-blur-sm'
+                  }`}>
+                    <Check className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`} />
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+                    <p className="text-white text-sm font-semibold truncate">
+                      {photo.Title || photo.Caption || photo.FileName}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Photos List View - Compact, 1 per line with all info */}
+        {photoViewMode === 'list' && (
+          <div className="space-y-2">
+            {photos.map((photo) => {
+              const isSelected = selectedPhotos.has(photo.ImageKey);
+              return (
+                <button
+                  key={photo.ImageKey}
+                  onClick={() => togglePhoto(photo.ImageKey)}
+                  className={`w-full bg-white rounded-lg shadow border-l-4 p-3 flex items-center gap-3 hover:shadow-md transition-all text-left ${
+                    isSelected ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:border-purple-300'
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                    isSelected ? 'bg-purple-500' : 'bg-gray-200'
+                  }`}>
+                    <Check className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-gray-400'}`} />
+                  </div>
+
+                  {/* Thumbnail */}
+                  <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                    <img
+                      src={photo.ThumbnailUrl}
+                      alt={photo.Title || photo.FileName}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {/* Photo Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 truncate">
+                      {photo.Title || 'Untitled'}
+                    </p>
+                    {photo.Caption && (
+                      <p className="text-sm text-gray-600 truncate mt-0.5">
+                        {photo.Caption}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      {photo.FileName}
+                    </p>
+                  </div>
+
+                  {/* Album Badge */}
+                  {photo.AlbumName && (
+                    <div className="flex-shrink-0 px-3 py-1 bg-indigo-100 rounded-full">
+                      <p className="text-xs font-medium text-indigo-700 truncate max-w-[150px]">
+                        {photo.AlbumName}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Image Key */}
+                  <div className="hidden lg:block flex-shrink-0 px-2 py-1 bg-gray-100 rounded text-xs text-gray-600 font-mono">
+                    {photo.ImageKey}
+                  </div>
+
+                  {/* Selection Indicator */}
+                  {isSelected && (
+                    <div className="flex-shrink-0 px-3 py-1 bg-purple-500 rounded-full">
+                      <p className="text-xs font-bold text-white">Selected</p>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Enhanced Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
             <div className="bg-white rounded-2xl w-full max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-              {/* Modal Header */}
-              <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+              {/* Modal Header - Mobile Optimized */}
+              <div className="p-4 sm:p-6 border-b flex justify-between items-center bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
                 <div>
-                  <h2 className="text-2xl font-bold">Create Embed Code</h2>
-                  <p className="text-purple-100 mt-1">{selectedPhotos.size} photos selected</p>
+                  <h2 className="text-xl sm:text-2xl font-bold">Create Embed Code</h2>
+                  <p className="text-purple-100 mt-1 text-sm sm:text-base">{selectedPhotos.size} photos selected</p>
                 </div>
                 <button
                   onClick={() => {
                     setShowModal(false);
                     setSelectedDisplay(null);
                   }}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  className="p-2.5 hover:bg-white/20 active:bg-white/30 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  aria-label="Close modal"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
-              {/* Modal Content */}
+              {/* Modal Content - Mobile Optimized */}
               <div className="flex-1 overflow-y-auto">
                 {!selectedDisplay ? (
-                  <div className="p-8">
-                    <h3 className="text-xl font-bold text-gray-900 mb-6">Choose Display Style</h3>
-                    <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="p-4 sm:p-6 md:p-8">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Choose Display Style</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {displayStyles.map((style) => (
                         <button
                           key={style.id}
                           onClick={() => setSelectedDisplay(style.id)}
-                          className="group border-2 border-gray-200 hover:border-purple-500 hover:shadow-lg rounded-xl p-6 transition-all text-left"
+                          className="group border-2 border-gray-200 active:border-purple-500 active:shadow-lg rounded-xl p-4 sm:p-6 transition-all text-left min-h-[110px]"
                         >
                           <style.icon className="w-12 h-12 text-purple-600 mb-3 group-hover:scale-110 transition-transform" />
                           <h4 className="font-bold text-lg mb-2">{style.title}</h4>
@@ -1095,9 +1241,9 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                     </div>
                   </div>
                 ) : (
-                  <div className="grid lg:grid-cols-2 h-full">
-                    {/* Left Panel: Controls */}
-                    <div className="p-6 space-y-6 overflow-y-auto border-r">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+                    {/* Left Panel: Controls - Mobile Optimized */}
+                    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto lg:border-r">
                       {/* Style Selected Indicator */}
                       <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 flex items-center gap-3">
                         {displayStyles.find(s => s.id === selectedDisplay)?.icon &&
@@ -1123,7 +1269,7 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                           Customize
                         </h3>
 
-                        {/* Columns */}
+                        {/* Columns - Mobile Optimized */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Columns: {customization.columns}
@@ -1134,11 +1280,12 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                             max="6"
                             value={customization.columns}
                             onChange={(e) => setCustomization({...customization, columns: parseInt(e.target.value)})}
-                            className="w-full"
+                            className="w-full h-6 sm:h-auto"
+                            style={{ minHeight: '44px' }}
                           />
                         </div>
 
-                        {/* Gap */}
+                        {/* Gap - Mobile Optimized */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Gap: {customization.gap}px
@@ -1149,11 +1296,12 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                             max="50"
                             value={customization.gap}
                             onChange={(e) => setCustomization({...customization, gap: parseInt(e.target.value)})}
-                            className="w-full"
+                            className="w-full h-6 sm:h-auto"
+                            style={{ minHeight: '44px' }}
                           />
                         </div>
 
-                        {/* Border Radius */}
+                        {/* Border Radius - Mobile Optimized */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Border Radius: {customization.borderRadius}px
@@ -1164,22 +1312,23 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                             max="30"
                             value={customization.borderRadius}
                             onChange={(e) => setCustomization({...customization, borderRadius: parseInt(e.target.value)})}
-                            className="w-full"
+                            className="w-full h-6 sm:h-auto"
+                            style={{ minHeight: '44px' }}
                           />
                         </div>
 
-                        {/* Shadow */}
+                        {/* Shadow - Mobile Optimized */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Shadow</label>
-                          <div className="grid grid-cols-4 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {(['none', 'sm', 'md', 'lg'] as const).map(size => (
                               <button
                                 key={size}
                                 onClick={() => setCustomization({...customization, shadow: size})}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
                                   customization.shadow === size
                                     ? 'bg-purple-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    : 'bg-gray-100 text-gray-700 active:bg-gray-200'
                                 }`}
                               >
                                 {size.toUpperCase()}
@@ -1188,7 +1337,7 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                           </div>
                         </div>
 
-                        {/* Hover Effect */}
+                        {/* Hover Effect - Mobile Optimized */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Hover Effect</label>
                           <div className="grid grid-cols-2 gap-2">
@@ -1196,10 +1345,10 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                               <button
                                 key={effect}
                                 onClick={() => setCustomization({...customization, hoverEffect: effect})}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
                                   customization.hoverEffect === effect
                                     ? 'bg-purple-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    : 'bg-gray-100 text-gray-700 active:bg-gray-200'
                                 }`}
                               >
                                 {effect.charAt(0).toUpperCase() + effect.slice(1)}
@@ -1208,18 +1357,18 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                           </div>
                         </div>
 
-                        {/* Aspect Ratio */}
+                        {/* Aspect Ratio - Mobile Optimized */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Aspect Ratio</label>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {(['square', 'native', '16:9', '4:3', '3:2'] as const).map(ratio => (
                               <button
                                 key={ratio}
                                 onClick={() => setCustomization({...customization, aspectRatio: ratio})}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                className={`px-3 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-colors min-h-[44px] ${
                                   customization.aspectRatio === ratio
                                     ? 'bg-purple-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    : 'bg-gray-100 text-gray-700 active:bg-gray-200'
                                 }`}
                               >
                                 {ratio === 'native' ? 'Native' : ratio.charAt(0).toUpperCase() + ratio.slice(1)}
@@ -1228,56 +1377,56 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                           </div>
                         </div>
 
-                        {/* Content Toggles */}
+                        {/* Content Toggles - Mobile Optimized */}
                         <div className="space-y-3 pt-4 border-t">
-                          <label className="flex items-center gap-3 cursor-pointer">
+                          <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                             <input
                               type="checkbox"
                               checked={customization.showTitles}
                               onChange={(e) => setCustomization({...customization, showTitles: e.target.checked})}
-                              className="w-5 h-5 text-purple-600 rounded"
+                              className="w-6 h-6 text-purple-600 rounded flex-shrink-0"
                             />
-                            <span className="text-sm font-medium text-gray-700">Show Titles</span>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">Show Titles</span>
                           </label>
-                          <label className="flex items-center gap-3 cursor-pointer">
+                          <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                             <input
                               type="checkbox"
                               checked={customization.showCaptions}
                               onChange={(e) => setCustomization({...customization, showCaptions: e.target.checked})}
-                              className="w-5 h-5 text-purple-600 rounded"
+                              className="w-6 h-6 text-purple-600 rounded flex-shrink-0"
                             />
-                            <span className="text-sm font-medium text-gray-700">Show Captions</span>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">Show Captions</span>
                           </label>
-                          <label className="flex items-center gap-3 cursor-pointer">
+                          <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                             <input
                               type="checkbox"
                               checked={customization.showKeywords}
                               onChange={(e) => setCustomization({...customization, showKeywords: e.target.checked})}
-                              className="w-5 h-5 text-purple-600 rounded"
+                              className="w-6 h-6 text-purple-600 rounded flex-shrink-0"
                             />
-                            <span className="text-sm font-medium text-gray-700">Show Keywords</span>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">Show Keywords</span>
                           </label>
-                          <label className="flex items-center gap-3 cursor-pointer">
+                          <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                             <input
                               type="checkbox"
                               checked={customization.showFilename}
                               onChange={(e) => setCustomization({...customization, showFilename: e.target.checked})}
-                              className="w-5 h-5 text-purple-600 rounded"
+                              className="w-6 h-6 text-purple-600 rounded flex-shrink-0"
                             />
-                            <span className="text-sm font-medium text-gray-700">Show Filename</span>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">Show Filename</span>
                           </label>
-                          <label className="flex items-center gap-3 cursor-pointer">
+                          <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                             <input
                               type="checkbox"
                               checked={customization.showBuyButtons}
                               onChange={(e) => setCustomization({...customization, showBuyButtons: e.target.checked})}
-                              className="w-5 h-5 text-purple-600 rounded"
+                              className="w-6 h-6 text-purple-600 rounded flex-shrink-0"
                             />
                             <span className="text-sm font-medium text-gray-700">Show Buy Buttons</span>
                           </label>
                         </div>
 
-                        {/* Buy Button Settings */}
+                        {/* Buy Button Settings - Mobile Optimized */}
                         {customization.showBuyButtons && (
                           <div className="space-y-3">
                             <div>
@@ -1286,23 +1435,23 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                                 type="text"
                                 value={customization.buyButtonText}
                                 onChange={(e) => setCustomization({...customization, buyButtonText: e.target.value})}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base min-h-[44px]"
                                 placeholder="Buy"
                               />
                             </div>
-                            <label className="flex items-center gap-3 cursor-pointer">
+                            <label className="flex items-center gap-3 cursor-pointer min-h-[44px]">
                               <input
                                 type="checkbox"
                                 checked={customization.buyButtonNewTab}
                                 onChange={(e) => setCustomization({...customization, buyButtonNewTab: e.target.checked})}
-                                className="w-5 h-5 text-purple-600 rounded"
+                                className="w-6 h-6 text-purple-600 rounded flex-shrink-0"
                               />
-                              <span className="text-sm font-medium text-gray-700">Open in New Tab</span>
+                              <span className="text-sm sm:text-base font-medium text-gray-700">Open in New Tab</span>
                             </label>
                           </div>
                         )}
 
-                        {/* Background Color */}
+                        {/* Background Color - Mobile Optimized */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Background Color</label>
                           <div className="flex gap-2">
@@ -1310,23 +1459,24 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                               type="text"
                               value={customization.backgroundColor}
                               onChange={(e) => setCustomization({...customization, backgroundColor: e.target.value})}
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm sm:text-base min-h-[44px]"
                               placeholder="#ffffff"
                             />
                             <input
                               type="color"
                               value={customization.backgroundColor}
                               onChange={(e) => setCustomization({...customization, backgroundColor: e.target.value})}
-                              className="w-12 h-10 rounded-lg cursor-pointer border border-gray-300"
+                              className="w-12 min-h-[44px] rounded-lg cursor-pointer border border-gray-300"
+                              aria-label="Pick background color"
                             />
                           </div>
                         </div>
 
-                        {/* Image Sizes */}
+                        {/* Image Sizes - Mobile Optimized */}
                         <div className="space-y-4 pt-4 border-t">
                           <h4 className="text-sm font-semibold text-gray-900">SmugMug Image Sizes</h4>
 
-                          {/* Thumbnail Size */}
+                          {/* Thumbnail Size - Mobile Optimized */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Thumbnail Size (Grid Display)
@@ -1334,7 +1484,7 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                             <select
                               value={customization.thumbnailSize}
                               onChange={(e) => setCustomization({...customization, thumbnailSize: e.target.value as SmugMugImageSize})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                              className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-white text-base min-h-[44px]"
                             >
                               <option value="Ti">Tiny (100px) - Ti</option>
                               <option value="Th">Thumbnail (150px) - Th</option>
@@ -1352,7 +1502,7 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                             </select>
                           </div>
 
-                          {/* Full Image Size */}
+                          {/* Full Image Size - Mobile Optimized */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Full Image Size (Lightbox/Slideshow)
@@ -1360,7 +1510,7 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                             <select
                               value={customization.fullImageSize}
                               onChange={(e) => setCustomization({...customization, fullImageSize: e.target.value as SmugMugImageSize})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                              className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-white text-base min-h-[44px]"
                             >
                               <option value="Ti">Tiny (100px) - Ti</option>
                               <option value="Th">Thumbnail (150px) - Th</option>
@@ -1380,21 +1530,21 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                         </div>
                       </div>
 
-                      {/* Export Format */}
+                      {/* Export Format - Mobile Optimized */}
                       <div className="space-y-3">
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                           <Code2 className="w-5 h-5 text-purple-600" />
                           Export Format
                         </h3>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {(['html', 'react', 'wordpress', 'json'] as const).map(format => (
                             <button
                               key={format}
                               onClick={() => setExportFormat(format)}
-                              className={`px-4 py-3 rounded-lg font-medium transition-colors ${
+                              className={`px-4 py-2.5 rounded-lg font-medium transition-colors min-h-[44px] ${
                                 exportFormat === format
                                   ? 'bg-purple-600 text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  : 'bg-gray-100 text-gray-700 active:bg-gray-200'
                               }`}
                             >
                               {format === 'html' ? 'HTML & CSS' : format.toUpperCase()}
@@ -1403,18 +1553,18 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 pt-4">
+                      {/* Action Buttons - Mobile Optimized */}
+                      <div className="flex flex-col sm:flex-row gap-2 pt-4">
                         <button
                           onClick={copyToClipboard}
-                          className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold transition-colors"
+                          className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 py-3 rounded-lg font-semibold transition-colors min-h-[44px]"
                         >
                           {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                           {copied ? 'Copied!' : 'Copy Code'}
                         </button>
                         <button
                           onClick={downloadCode}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-semibold transition-colors"
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 rounded-lg font-semibold transition-colors min-h-[44px]"
                         >
                           Download
                         </button>
@@ -1429,32 +1579,36 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
                       </button>
                     </div>
 
-                    {/* Right Panel: Live Preview */}
-                    <div className="p-6 bg-gray-50 flex flex-col overflow-hidden">
+                    {/* Right Panel: Live Preview - Mobile Optimized */}
+                    <div className="p-4 sm:p-6 bg-gray-50 flex flex-col overflow-hidden">
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
                           <Eye className="w-5 h-5 text-purple-600" />
-                          Live Preview
+                          <span className="hidden sm:inline">Live Preview</span>
+                          <span className="sm:hidden">Preview</span>
                         </h3>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setPreviewDevice('desktop')}
-                            className={`p-2 rounded-lg transition-colors ${previewDevice === 'desktop' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                            className={`p-2.5 sm:p-2 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${previewDevice === 'desktop' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 active:bg-gray-100'}`}
                             title="Desktop"
+                            aria-label="Desktop preview"
                           >
                             <Monitor className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => setPreviewDevice('tablet')}
-                            className={`p-2 rounded-lg transition-colors ${previewDevice === 'tablet' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                            className={`p-2.5 sm:p-2 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${previewDevice === 'tablet' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 active:bg-gray-100'}`}
                             title="Tablet"
+                            aria-label="Tablet preview"
                           >
                             <Tablet className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => setPreviewDevice('mobile')}
-                            className={`p-2 rounded-lg transition-colors ${previewDevice === 'mobile' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+                            className={`p-2.5 sm:p-2 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${previewDevice === 'mobile' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 active:bg-gray-100'}`}
                             title="Mobile"
+                            aria-label="Mobile preview"
                           >
                             <Smartphone className="w-5 h-5" />
                           </button>
@@ -1486,38 +1640,39 @@ add_shortcode('smugmug_gallery', 'smugmug_gallery_shortcode');
           </div>
         )}
 
-        {/* Test Playground Modal */}
+        {/* Test Playground Modal - Mobile Optimized */}
         {showTestPlayground && selectedDisplay && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={() => setShowTestPlayground(false)}>
             <div className="bg-white rounded-2xl w-full max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Code2 className="w-6 h-6" />
+              <div className="p-4 sm:p-6 border-b flex justify-between items-center bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                  <Code2 className="w-5 h-5 sm:w-6 sm:h-6" />
                   Test Playground
                 </h2>
                 <button
                   onClick={() => setShowTestPlayground(false)}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  className="p-2.5 hover:bg-white/20 active:bg-white/30 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  aria-label="Close playground"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-hidden grid lg:grid-cols-2">
-                {/* Code Editor */}
-                <div className="p-6 border-r overflow-y-auto bg-gray-900">
+              <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2">
+                {/* Code Editor - Mobile Optimized */}
+                <div className="p-4 sm:p-6 lg:border-r overflow-y-auto bg-gray-900">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-white font-bold">Code</h3>
+                    <h3 className="text-white font-bold text-sm sm:text-base">Code</h3>
                     <button
                       onClick={copyToClipboard}
-                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors min-h-[44px]"
                     >
                       {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       {copied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                  <pre className="text-green-400 text-sm overflow-x-auto">
-                    <code>{getCodeToExport()}</code>
+                  <pre className="text-green-400 text-xs sm:text-sm overflow-x-auto whitespace-pre-wrap break-words">
+                    <code className="block">{getCodeToExport()}</code>
                   </pre>
                 </div>
 

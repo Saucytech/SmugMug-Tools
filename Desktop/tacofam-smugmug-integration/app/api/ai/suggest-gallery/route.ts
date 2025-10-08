@@ -5,6 +5,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MODEL = 'claude-3-5-haiku-20241022';
+
 const SYSTEM_PROMPT = `Photo-to-gallery matcher for SmugMug photo organization.
 
 **YOUR ROLE:**
@@ -36,14 +38,14 @@ Be accurate and thorough in matching. Explain your reasoning clearly.`;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   if (searchParams.get('getSystemPrompt') === 'true') {
-    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT, model: MODEL });
   }
   return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { metadata, galleryIndex, customPrompt } = await request.json();
+    const { metadata, galleryIndex, customPrompt, model } = await request.json();
 
     if (!metadata || !galleryIndex || galleryIndex.length === 0) {
       return NextResponse.json(
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
     const promptToUse = customPrompt || SYSTEM_PROMPT;
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022', // Cheaper model for testing (~90% less cost than Sonnet)
+      model: model || MODEL, // Cheaper model for testing (~90% less cost than Sonnet)
       max_tokens: 512,
       messages: [
         {
@@ -115,7 +117,10 @@ Provide your analysis in the exact JSON format specified above. Return ONLY the 
     return NextResponse.json({
       success: true,
       ...suggestion,
-      tokensUsed: message.usage.input_tokens + message.usage.output_tokens,
+      usage: {
+        input_tokens: message.usage.input_tokens,
+        output_tokens: message.usage.output_tokens,
+      },
     });
 
   } catch (error: any) {
