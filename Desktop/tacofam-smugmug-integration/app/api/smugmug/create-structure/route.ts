@@ -34,9 +34,16 @@ interface GalleryNode {
   guestUploadPassword?: string;
 }
 
+interface DeletionNode {
+  nodeId: string;
+  name: string;
+  type: 'folder' | 'gallery';
+}
+
 interface CreationPlan {
   folders: FolderNode[];
   galleries: GalleryNode[];
+  deletions?: DeletionNode[];
   summary: string;
 }
 
@@ -76,6 +83,47 @@ export async function POST(request: NextRequest) {
     const folderMap = new Map<string, string>(); // name -> nodeUri (e.g., /api/v2/node/abc123)
     const errors: string[] = [];
     const uploadUrls: { galleryName: string; uploadUrl: string }[] = [];
+    let deletedCount = 0;
+
+    // Step 0: Handle deletions FIRST (if any)
+    if (plan.deletions && plan.deletions.length > 0) {
+      console.log(`\n🗑️  Processing ${plan.deletions.length} deletion(s)...`);
+
+      for (const deletion of plan.deletions) {
+        try {
+          const deleteUrl = `https://api.smugmug.com/api/v2/node/${deletion.nodeId}`;
+          const deleteRequestData = { url: deleteUrl, method: 'DELETE' };
+          const deleteAuthHeader = oauth.toHeader(
+            oauth.authorize(deleteRequestData, {
+              key: accessToken,
+              secret: accessTokenSecret,
+            })
+          );
+
+          const deleteResponse = await fetch(deleteUrl, {
+            method: 'DELETE',
+            headers: {
+              ...deleteAuthHeader,
+              Accept: 'application/json',
+            },
+          });
+
+          if (deleteResponse.ok) {
+            deletedCount++;
+            console.log(`✅ Deleted ${deletion.type}: "${deletion.name}" (${deletion.nodeId})`);
+          } else {
+            const errorText = await deleteResponse.text();
+            const errorMsg = `Failed to delete ${deletion.type} "${deletion.name}": ${errorText}`;
+            console.error(`❌ ${errorMsg}`);
+            errors.push(errorMsg);
+          }
+        } catch (error) {
+          const errorMsg = `Error deleting ${deletion.type} "${deletion.name}": ${error instanceof Error ? error.message : 'Unknown error'}`;
+          console.error(`❌ ${errorMsg}`);
+          errors.push(errorMsg);
+        }
+      }
+    }
 
     // Step 1: Create folders (in order of hierarchy) and VERIFY each one
     const sortedFolders = sortFoldersByHierarchy(plan.folders);
@@ -178,11 +226,12 @@ export async function POST(request: NextRequest) {
       success: errors.length === 0,
       foldersCreated: folderMap.size,
       galleriesCreated,
+      deletedCount: deletedCount > 0 ? deletedCount : undefined,
       uploadUrls: uploadUrls.length > 0 ? uploadUrls : undefined,
       errors: errors.length > 0 ? errors : undefined,
     });
-  } catch (error) {
-    console.error('Error creating structure:', error);
+  } catch (_error) {
+    console.error('Error creating structure:', _error);
     return NextResponse.json(
       { error: 'Failed to create structure', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -280,9 +329,10 @@ async function createFolder(
     }
 
     const data = await response.json();
-    console.log(`  → Response data:`, JSON.stringify(data, null, 2));
 
+    // Extract the actual node data (SmugMug returns Response.Node when successful)
     const createdFolderNodeUri = data.Response?.Node?.Uri;
+    console.log(`  → Folder node created: ${createdFolderNodeUri}`);
 
     if (!createdFolderNodeUri) {
       console.error(`  ✗ No node URI returned for "${folder.name}"`);
@@ -318,8 +368,8 @@ async function createFolder(
 
     console.log(`  ✓ Folder verified: "${folder.name}" (URI: ${verifiedNodeUri})`);
     return verifiedNodeUri;
-  } catch (error) {
-    console.error(`  ✗ Error creating folder "${folder.name}":`, error);
+  } catch (_error) {
+    console.error(`  ✗ Error creating folder "${folder.name}":`, _error);
     return null;
   }
 }
@@ -393,11 +443,11 @@ async function createGallery(
     }
 
     const data = await response.json();
-    console.log(`  → Response data:`, JSON.stringify(data, null, 2));
 
     // When creating via !children endpoint, SmugMug returns a Node, not Album
     const createdNodeUri = data.Response?.Node?.Uri;
     const createdNodeId = data.Response?.Node?.NodeID;
+    console.log(`  → Gallery node created: ${createdNodeUri} (NodeID: ${createdNodeId})`);
 
     if (!createdNodeUri || !createdNodeId) {
       console.error(`  ✗ No node data returned for "${gallery.name}"`);
@@ -482,8 +532,8 @@ async function createGallery(
     }
 
     return { success: true, uploadUrl };
-  } catch (error) {
-    console.error(`  ✗ Error creating gallery "${gallery.name}":`, error);
+  } catch (_error) {
+    console.error(`  ✗ Error creating gallery "${gallery.name}":`, _error);
     return { success: false };
   }
 }

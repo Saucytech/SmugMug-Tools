@@ -43,8 +43,8 @@ export default function FavoritesResultsPage() {
       }
 
       loadSessionResults();
-    } catch (error) {
-      console.error('Favorites Manager: Auth check failed:', error);
+    } catch (_error) {
+      console.error('Favorites Manager: Auth check failed:', _error);
       router.push('/');
     }
   };
@@ -80,8 +80,8 @@ export default function FavoritesResultsPage() {
             });
           });
         }
-      } catch (err) {
-        console.error(`Error loading album ${albumKey}:`, err);
+      } catch (_err) {
+        console.error(`Error loading album ${albumKey}:`, _err);
       }
     }
 

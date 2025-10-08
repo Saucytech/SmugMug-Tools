@@ -96,8 +96,8 @@ export async function GET(request: NextRequest) {
     redirectResponse.cookies.delete('oauth_token_secret');
 
     return redirectResponse;
-  } catch (error) {
-    console.error('SmugMug callback error:', error);
+  } catch (_error) {
+    console.error('SmugMug callback error:', _error);
     return NextResponse.redirect(
       new URL('/?error=auth_failed', process.env.NEXT_PUBLIC_APP_URL!)
     );

@@ -75,13 +75,36 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('SmugMug folders API error:', response.status, errorText);
+      return NextResponse.json({
+        folders: [],
+        error: `SmugMug API returned ${response.status}`,
+      });
+    }
+
     const data = await response.json();
 
+    // Check if the response has the expected structure
+    if (!data.Response) {
+      console.error('Unexpected SmugMug response structure:', data);
+      return NextResponse.json({
+        folders: [],
+        error: 'Unexpected response format from SmugMug',
+      });
+    }
+
+    // SmugMug returns folders in data.Response.Folder (note: singular "Folder" not "Folders")
+    const folders = data.Response.Folder || [];
+
+    console.log(`Loaded ${folders.length} folders for user ${nickname}`);
+
     return NextResponse.json({
-      folders: data.Response.Folder || [],
+      folders: folders,
     });
-  } catch (error) {
-    console.error('Error fetching folders:', error);
+  } catch (_error) {
+    console.error('Error fetching folders:', _error);
     return NextResponse.json(
       { error: 'Failed to fetch folders' },
       { status: 500 }

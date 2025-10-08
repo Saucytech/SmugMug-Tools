@@ -133,7 +133,7 @@ export default function FavoritesSelectionPage() {
         credentials: 'include'
       });
       isAuthenticated = authCheck.ok;
-    } catch (err) {
+    } catch (_err) {
       isAuthenticated = false;
     }
 
@@ -155,8 +155,8 @@ export default function FavoritesSelectionPage() {
               AlbumName: `Album ${albumKey}`,
             })));
           }
-        } catch (err) {
-          console.error(`Error loading album ${albumKey}:`, err);
+        } catch (_err) {
+          console.error(`Error loading album ${albumKey}:`, _err);
         }
       }
 

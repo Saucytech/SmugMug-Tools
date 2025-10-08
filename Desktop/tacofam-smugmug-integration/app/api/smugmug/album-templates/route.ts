@@ -86,8 +86,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       templates: data.Response?.AlbumTemplate || [],
     });
-  } catch (error) {
-    console.error('Error fetching album templates:', error);
+  } catch (_error) {
+    console.error('Error fetching album templates:', _error);
     return NextResponse.json(
       { error: 'Failed to fetch album templates', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

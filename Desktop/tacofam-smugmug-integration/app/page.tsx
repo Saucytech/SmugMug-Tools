@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ImageIcon, FolderIcon, LogOut, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
+import { FolderIcon, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
 import { smugmugApi } from '@/lib/smugmug-client';
 import { useRouter } from 'next/navigation';
 import ToolboxHeader from '@/components/ToolboxHeader';
@@ -39,7 +39,7 @@ export default function Home() {
         if (response.ok) {
           setIsAuthenticated(true);
         }
-      } catch (error) {
+      } catch (_error) {
         console.log('Not authenticated');
       }
     };
@@ -50,14 +50,14 @@ export default function Home() {
     window.location.href = '/api/auth/smugmug';
   };
 
-  const handleLogout = async () => {
+  const _handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (_error) {
+      console.error('Logout error:', _error);
     }
     // Clear photo organizer index when logging out
     localStorage.removeItem('photo-organizer-index');
@@ -71,9 +71,9 @@ export default function Home() {
     try {
       const data = await smugmugApi.getAlbums();
       setAlbums(data.albums || []);
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to load albums. Please try reconnecting.');
-      console.error('Error fetching albums:', err);
+      console.error('Error fetching albums:', _err);
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ export default function Home() {
             Connect SmugMug Account
           </button>
           <p className="mt-6 text-sm text-gray-400">
-            Don't have an API key yet?{' '}
+            Don&apos;t have an API key yet?{' '}
             <a
               href="https://api.smugmug.com/api/developer/apply"
               target="_blank"
@@ -400,7 +400,7 @@ export default function Home() {
           {albums.length === 0 && !loading && (
             <div className="text-center py-20 text-gray-500">
               <FolderIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-              <p>Click "Load Albums" to see your SmugMug albums</p>
+              <p>Click &quot;Load Albums&quot; to see your SmugMug albums</p>
             </div>
           )}
 

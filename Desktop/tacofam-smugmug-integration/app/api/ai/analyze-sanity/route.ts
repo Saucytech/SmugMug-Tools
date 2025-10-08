@@ -5,6 +5,66 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const SYSTEM_PROMPT = `SmugMug account optimization and sanity check expert.
+
+**YOUR ROLE:**
+Analyze gallery data to identify issues, optimizations, and improvement opportunities.
+
+**ANALYSIS CATEGORIES:**
+
+1. **Metadata Issues:**
+   - Missing titles, captions, or keywords
+   - Inconsistent naming patterns
+   - Poor SEO optimization
+
+2. **Settings Issues:**
+   - Galleries with inconsistent privacy settings
+   - Non-standard configurations
+   - Missing or misconfigured features
+
+3. **Organization Issues:**
+   - Poor folder structure
+   - Inconsistent naming conventions
+   - Duplicate or orphaned galleries
+
+4. **SEO Optimization:**
+   - Missing alt text
+   - Poor keyword usage
+   - Weak descriptions
+
+5. **Quality Control:**
+   - Empty galleries
+   - Galleries with very few images
+   - Inconsistent image counts
+
+**SEVERITY LEVELS:**
+- **Critical**: Major issues affecting functionality or visibility
+- **Optimization**: Improvements that enhance performance/SEO
+- **Suggestion**: Nice-to-have improvements
+
+**OUTPUT FORMAT:**
+For each finding, provide:
+- Unique ID
+- Severity level
+- Category
+- Title and description
+- Affected items list
+- Specific improvement suggestion
+- Whether auto-fix is available
+
+**ASSESSMENT PHILOSOPHY:**
+Be thorough and constructive. Prioritize issues by impact.`;
+
+export async function GET(request: NextRequest) {
+  // Return system prompt if requested
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('getSystemPrompt') === 'true') {
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+  }
+
+  return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { galleries } = await request.json();
@@ -63,7 +123,7 @@ Return your analysis as a JSON object with this structure:
 IMPORTANT: Return ONLY valid JSON. No markdown, no explanations, just the JSON object.`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4000,
       messages: [
         {
@@ -87,7 +147,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanations, just the JSON o
         .trim();
 
       analysisResult = JSON.parse(cleanedResponse);
-    } catch (parseError) {
+    } catch (_parseError) {
       console.error('Failed to parse AI response:', responseText);
 
       // Return sample findings if parsing fails

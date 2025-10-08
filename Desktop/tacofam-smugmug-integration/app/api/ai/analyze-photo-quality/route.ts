@@ -5,6 +5,52 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+const SYSTEM_PROMPT = `AI-powered photo culling assistant for professional photographers.
+
+**ANALYSIS CRITERIA:**
+
+1. **TECHNICAL QUALITY (40% weight):**
+   - Sharpness/Blur: Is the main subject in focus?
+   - Exposure: Under/Over/Correctly exposed?
+   - Noise/Grain: Excessive or acceptable?
+   - Motion blur: Any unwanted motion blur?
+
+2. **COMPOSITION (30% weight):**
+   - Horizon: Straight or tilted?
+   - Framing: Well-composed or cropping issues?
+   - Rule of thirds: Applied effectively?
+   - Leading lines, symmetry, balance
+
+3. **SUBJECT QUALITY (30% weight):**
+   - Eyes: Open and sharp? (for portraits)
+   - Expression: Natural or awkward?
+   - Positioning: Everyone visible and well-placed?
+   - Interaction: Genuine moments or staged/stiff?
+
+4. **KEY MOMENTS DETECTION:**
+   - Critical moments (first kiss, ring exchange, etc.)
+   - Portfolio-worthy shots
+   - Story-telling impact
+
+**SCORING:**
+- Quality Score: 1-10 (be strict but fair)
+- Keep Recommendation: keep / reject / review
+- Portfolio Worthy: true / false
+- Confidence: 0-100
+
+**ASSESSMENT PHILOSOPHY:**
+Only mark as "keep" if the photo truly adds value to the collection. Be professional and objective.`;
+
+export async function GET(request: NextRequest) {
+  // Return system prompt if requested
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('getSystemPrompt') === 'true') {
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+  }
+
+  return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+}
+
 // Types for analysis results
 interface PhotoQualityAnalysis {
   imageUrl: string;
@@ -63,8 +109,8 @@ export async function POST(request: NextRequest) {
         try {
           const analysis = await analyzePhoto(image.url, image.id, albumContext, detectKeyMoments);
           return analysis;
-        } catch (error) {
-          console.error(`Error analyzing photo ${image.id}:`, error);
+        } catch (_error) {
+          console.error(`Error analyzing photo ${image.id}:`, _error);
           return createErrorAnalysis(image.url, image.id);
         }
       });
@@ -91,8 +137,8 @@ export async function POST(request: NextRequest) {
       totalProcessed: results.length,
     });
 
-  } catch (error) {
-    console.error('Error in photo quality analysis:', error);
+  } catch (_error) {
+    console.error('Error in photo quality analysis:', _error);
     return NextResponse.json(
       { error: 'Failed to analyze photos', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -167,7 +213,7 @@ Be strict but fair. Only mark as "keep" if the photo truly adds value to the col
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1000,
       messages: [
         {
@@ -209,8 +255,8 @@ Be strict but fair. Only mark as "keep" if the photo truly adds value to the col
     }
 
     throw new Error('Invalid response format from AI');
-  } catch (error) {
-    console.error('Error analyzing photo:', error);
+  } catch (_error) {
+    console.error('Error analyzing photo:', _error);
     throw error;
   }
 }
@@ -221,8 +267,8 @@ async function fetchImageAsBase64(imageUrl: string): Promise<string> {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     return buffer.toString('base64');
-  } catch (error) {
-    console.error('Error fetching image:', error);
+  } catch (_error) {
+    console.error('Error fetching image:', _error);
     throw new Error('Failed to fetch image');
   }
 }

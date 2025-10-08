@@ -11,7 +11,7 @@ const requiredEnvVars = [
 ] as const;
 
 // Define optional environment variables
-const optionalEnvVars = [
+const _optionalEnvVars = [
   'ANTHROPIC_API_KEY', // Required for AI features but optional for base functionality
   'NODE_ENV',
 ] as const;

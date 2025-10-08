@@ -5,9 +5,45 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const SYSTEM_PROMPT = `Photo-to-gallery matcher for SmugMug photo organization.
+
+**YOUR ROLE:**
+Analyze photo metadata to determine which existing gallery it best belongs in.
+
+**MATCHING CRITERIA:**
+
+1. **Themes** - Match photo themes with gallery themes
+2. **Subjects** - Match subjects (people, places, objects)
+3. **Date/Time** - Match date ranges when available
+4. **Location** - Match geographic locations
+5. **Content** - Overall content alignment with gallery summary
+
+**CONFIDENCE SCORING:**
+- **90-100**: Perfect match - auto-approve safe
+- **70-89**: Good match - needs review
+- **<70**: Poor match - skip
+
+**OUTPUT FORMAT:**
+Return ONLY a JSON object:
+{
+  "suggestedGallery": "exact gallery name",
+  "confidence": 85,
+  "reasoning": "brief explanation why this gallery is the best match"
+}
+
+Be accurate and thorough in matching. Explain your reasoning clearly.`;
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('getSystemPrompt') === 'true') {
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+  }
+  return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { metadata, galleryIndex } = await request.json();
+    const { metadata, galleryIndex, customPrompt } = await request.json();
 
     if (!metadata || !galleryIndex || galleryIndex.length === 0) {
       return NextResponse.json(
@@ -31,13 +67,16 @@ export async function POST(request: NextRequest) {
       .map(([key, value]) => `${key}: ${value}`)
       .join('\n');
 
+    // Use custom prompt if provided, otherwise use default SYSTEM_PROMPT
+    const promptToUse = customPrompt || SYSTEM_PROMPT;
+
     const message = await anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022', // Cheaper model for testing (~90% less cost than Sonnet)
       max_tokens: 512,
       messages: [
         {
           role: 'user',
-          content: `You are analyzing a photo to determine which gallery it belongs in.
+          content: `${promptToUse}
 
 **Photo Metadata:**
 ${metadataText}
@@ -45,22 +84,7 @@ ${metadataText}
 **Available Galleries:**
 ${galleryContext}
 
-**Your task**: Determine which gallery this photo best fits into. Return a confidence score (0-100) and reasoning.
-
-**Provide your response in this exact JSON format**:
-{
-  "suggestedGallery": "exact gallery name",
-  "confidence": 85,
-  "reasoning": "brief explanation why this gallery is the best match"
-}
-
-Guidelines:
-- Match based on themes, subjects, dates, and location
-- Confidence 90-100: Perfect match (auto-approve)
-- Confidence 70-89: Good match but needs review
-- Confidence <70: Poor match (skip)
-
-Return ONLY the JSON object, no other text.`,
+Provide your analysis in the exact JSON format specified above. Return ONLY the JSON object, no other text.`,
         },
       ],
     });
@@ -80,7 +104,7 @@ Return ONLY the JSON object, no other text.`,
       }
 
       suggestion = JSON.parse(cleanedText);
-    } catch (parseError) {
+    } catch (_parseError) {
       console.error('Failed to parse AI response:', responseText);
       return NextResponse.json(
         { error: 'Failed to parse AI suggestion' },

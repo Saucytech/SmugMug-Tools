@@ -105,8 +105,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       albums: allAlbums,
     });
-  } catch (error) {
-    console.error('Error fetching albums:', error);
+  } catch (_error) {
+    console.error('Error fetching albums:', _error);
     return NextResponse.json(
       { error: 'Failed to fetch albums' },
       { status: 500 }

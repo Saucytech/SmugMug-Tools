@@ -185,7 +185,7 @@ export default function APIReferencePage() {
         info: 'Direct SmugMug API testing requires authentication tokens. Use the main app to test authenticated endpoints.',
         url: testUrl,
       });
-    } catch (error) {
+    } catch (_error) {
       setTestResponse({ error: 'Failed to test endpoint' });
     } finally {
       setLoading(false);

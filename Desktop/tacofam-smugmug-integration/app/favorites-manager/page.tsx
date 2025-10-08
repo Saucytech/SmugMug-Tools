@@ -51,8 +51,8 @@ export default function FavoritesManagerPage() {
 
         // Load albums
         loadAlbums();
-      } catch (error) {
-        console.error('[Favorites Manager] Auth check failed:', error);
+      } catch (_error) {
+        console.error('[Favorites Manager] Auth check failed:', _error);
         router.push('/');
       }
     };
@@ -70,8 +70,8 @@ export default function FavoritesManagerPage() {
     try {
       const data = await smugmugApi.getAlbums();
       setAlbums(data.albums || []);
-    } catch (err) {
-      console.error('Error loading albums:', err);
+    } catch (_err) {
+      console.error('Error loading albums:', _err);
     } finally {
       setLoading(false);
     }

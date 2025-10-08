@@ -69,8 +69,8 @@ export default function GuestUploadManager() {
       }
 
       await initialize();
-    } catch (error) {
-      console.error('Guest Upload Manager: Auth check failed:', error);
+    } catch (_error) {
+      console.error('Guest Upload Manager: Auth check failed:', _error);
       router.push('/');
     }
   };
@@ -100,8 +100,8 @@ export default function GuestUploadManager() {
       // Load projects and people library from localStorage
       loadProjects();
       loadPeopleLibrary();
-    } catch (error) {
-      console.error('Error initializing:', error);
+    } catch (_error) {
+      console.error('Error initializing:', _error);
     } finally {
       setLoading(false);
     }
@@ -203,8 +203,8 @@ export default function GuestUploadManager() {
       );
       saveProjects(updatedProjects);
 
-    } catch (error) {
-      console.error('Error creating project:', error);
+    } catch (_error) {
+      console.error('Error creating project:', _error);
 
       // Update project with error status
       const errorProject: Project = {
@@ -356,8 +356,8 @@ export default function GuestUploadManager() {
       setSaveToLibrary(true); // Reset to default
 
       alert(`Gallery created successfully!\nUpload URL: ${newPerson.uploadUrl}`);
-    } catch (error) {
-      console.error('Error adding person:', error);
+    } catch (_error) {
+      console.error('Error adding person:', _error);
       alert('Failed to add person. Please try again.');
     } finally {
       setCreating(false);
@@ -546,8 +546,8 @@ export default function GuestUploadManager() {
           } else {
             failedPeople.push(person);
           }
-        } catch (error) {
-          console.error(`Failed to create gallery for ${person.name}:`, error);
+        } catch (_error) {
+          console.error(`Failed to create gallery for ${person.name}:`, _error);
           failedPeople.push(person);
         }
       }
@@ -573,8 +573,8 @@ export default function GuestUploadManager() {
       } else {
         alert('Failed to create galleries. Please try again.');
       }
-    } catch (error) {
-      console.error('Error executing project:', error);
+    } catch (_error) {
+      console.error('Error executing project:', _error);
       alert('Failed to execute project. Please try again.');
     } finally {
       setCreating(false);

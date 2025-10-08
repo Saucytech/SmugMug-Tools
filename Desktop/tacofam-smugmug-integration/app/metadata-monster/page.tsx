@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Wand2, Check, X, RefreshCw, AlertCircle, Download, Upload, Coins, Settings, CreditCard } from 'lucide-react';
+import { ArrowLeft, Wand2, Check, X, RefreshCw, AlertCircle, Download, Upload, Coins, Settings, CreditCard, Search, Target } from 'lucide-react';
 import { tokenStorage } from '@/lib/smugmug-client';
 import { creditsStorage } from '@/lib/credits-storage';
 import ToolboxHeader from '@/components/ToolboxHeader';
+import SystemPromptViewer from '@/components/SystemPromptViewer';
 
 interface Album {
   AlbumKey: string;
@@ -51,6 +52,14 @@ interface ProcessingOptions {
   saveToSmugMug: boolean;
 }
 
+type Mode = 'normal' | 'seek-and-capture';
+
+interface MissingMetadataGroup {
+  type: 'title' | 'caption' | 'keywords' | 'all';
+  label: string;
+  photos: PhotoWithMetadata[];
+}
+
 export default function MetaDataMonster() {
   const router = useRouter();
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -59,6 +68,12 @@ export default function MetaDataMonster() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
+  // Seek and Capture Mode
+  const [mode, setMode] = useState<Mode>('normal');
+  const [selectedGalleries, setSelectedGalleries] = useState<Set<string>>(new Set());
+  const [scanning, setScanning] = useState(false);
+  const [missingMetadataGroups, setMissingMetadataGroups] = useState<MissingMetadataGroup[]>([]);
 
   // Credits
   const [credits, setCredits] = useState<{ total: number; used: number; remaining: number; lastUpdated: string }>({
@@ -108,8 +123,8 @@ export default function MetaDataMonster() {
         router.push('/');
         return;
       }
-    } catch (error) {
-      console.error('[MetaData Monster] Auth check failed:', error);
+    } catch (_error) {
+      console.error('[MetaData Monster] Auth check failed:', _error);
       router.push('/');
       return;
     }
@@ -140,8 +155,8 @@ export default function MetaDataMonster() {
                   imageUrl: imageData.Response?.AlbumImage?.Uris?.ImageSizes?.SmallImageUrl,
                 };
               }
-            } catch (err) {
-              console.error('Error loading album image:', err);
+            } catch (_err) {
+              console.error('Error loading album image:', _err);
             }
             return null;
           });
@@ -155,8 +170,8 @@ export default function MetaDataMonster() {
         });
         setAlbumImages(imageMap);
       }
-    } catch (err) {
-      console.error('Error loading albums:', err);
+    } catch (_err) {
+      console.error('Error loading albums:', _err);
     } finally {
       setLoading(false);
     }
@@ -178,8 +193,8 @@ export default function MetaDataMonster() {
         setPhotos(photosWithStatus);
         setSelectedAlbum(albumKey);
       }
-    } catch (err) {
-      console.error('Error loading photos:', err);
+    } catch (_err) {
+      console.error('Error loading photos:', _err);
     } finally {
       setLoading(false);
     }
@@ -366,8 +381,8 @@ export default function MetaDataMonster() {
 
         // Small delay between photos to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (err) {
-        console.error(`Error processing photo ${photoIndex}:`, err);
+      } catch (_err) {
+        console.error(`Error processing photo ${photoIndex}:`, _err);
         setPhotos(prev => prev.map((p, idx) =>
           idx === photoIndex ? { ...p, status: 'error', error: err instanceof Error ? err.message : 'Unknown error' } : p
         ));
@@ -402,8 +417,8 @@ export default function MetaDataMonster() {
           idx === index ? { ...p, status: 'saved' } : p
         ));
       }
-    } catch (err) {
-      console.error('Retry error:', err);
+    } catch (_err) {
+      console.error('Retry error:', _err);
       setPhotos(prev => prev.map((p, idx) =>
         idx === index ? {
           ...p,
@@ -450,6 +465,126 @@ export default function MetaDataMonster() {
     a.click();
   };
 
+  // Seek and Capture Functions
+  const toggleGallerySelection = (albumKey: string) => {
+    const newSelection = new Set(selectedGalleries);
+    if (newSelection.has(albumKey)) {
+      newSelection.delete(albumKey);
+    } else {
+      newSelection.add(albumKey);
+    }
+    setSelectedGalleries(newSelection);
+  };
+
+  const selectAllGalleries = () => {
+    setSelectedGalleries(new Set(albums.map(a => a.AlbumKey)));
+  };
+
+  const deselectAllGalleries = () => {
+    setSelectedGalleries(new Set());
+  };
+
+  const scanForMissingMetadata = async () => {
+    if (selectedGalleries.size === 0) {
+      alert('Please select at least one gallery to scan');
+      return;
+    }
+
+    setScanning(true);
+    const allPhotosWithMissingData: PhotoWithMetadata[] = [];
+
+    try {
+      // Fetch photos from each selected gallery
+      for (const albumKey of Array.from(selectedGalleries)) {
+        const album = albums.find(a => a.AlbumKey === albumKey);
+        console.log(`Scanning ${album?.Name}...`);
+
+        const response = await fetch(`/api/smugmug/albums/${albumKey}/images`, {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const galleryPhotos = (data.images || []).map((photo: Photo) => ({
+            ...photo,
+            status: 'pending' as const,
+            galleryName: album?.Name || 'Unknown',
+            albumKey: albumKey,
+          }));
+
+          // Filter photos missing metadata
+          const photosWithMissingData = galleryPhotos.filter((photo: Photo) => {
+            const missingTitle = !photo.Title || photo.Title.trim() === '';
+            const missingCaption = !photo.Caption || photo.Caption.trim() === '';
+            const missingKeywords = !photo.Keywords || photo.Keywords.trim() === '';
+            return missingTitle || missingCaption || missingKeywords;
+          });
+
+          allPhotosWithMissingData.push(...photosWithMissingData);
+        }
+
+        // Small delay between galleries to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Group photos by what's missing
+      const groups: MissingMetadataGroup[] = [
+        {
+          type: 'all',
+          label: 'Missing All Metadata (Title, Caption, Keywords)',
+          photos: allPhotosWithMissingData.filter(p =>
+            (!p.Title || p.Title.trim() === '') &&
+            (!p.Caption || p.Caption.trim() === '') &&
+            (!p.Keywords || p.Keywords.trim() === '')
+          ),
+        },
+        {
+          type: 'title',
+          label: 'Missing Title Only',
+          photos: allPhotosWithMissingData.filter(p =>
+            (!p.Title || p.Title.trim() === '') &&
+            (p.Caption && p.Caption.trim() !== '') &&
+            (p.Keywords && p.Keywords.trim() !== '')
+          ),
+        },
+        {
+          type: 'caption',
+          label: 'Missing Caption Only',
+          photos: allPhotosWithMissingData.filter(p =>
+            (p.Title && p.Title.trim() !== '') &&
+            (!p.Caption || p.Caption.trim() === '') &&
+            (p.Keywords && p.Keywords.trim() !== '')
+          ),
+        },
+        {
+          type: 'keywords',
+          label: 'Missing Keywords Only',
+          photos: allPhotosWithMissingData.filter(p =>
+            (p.Title && p.Title.trim() !== '') &&
+            (p.Caption && p.Caption.trim() !== '') &&
+            (!p.Keywords || p.Keywords.trim() === '')
+          ),
+        },
+      ].filter(g => g.photos.length > 0); // Only show groups with photos
+
+      setMissingMetadataGroups(groups);
+      console.log(`Found ${allPhotosWithMissingData.length} photos with missing metadata`);
+    } catch (err) {
+      console.error('Error scanning for missing metadata:', err);
+      alert('Failed to scan galleries. Please try again.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const loadGroupPhotos = (group: MissingMetadataGroup) => {
+    // Set the photos from this group and switch to normal processing mode
+    setPhotos(group.photos);
+    setMode('normal');
+    setSelectedAlbum('mixed'); // Special indicator for mixed galleries
+    setMissingMetadataGroups([]); // Clear the groups
+  };
+
   const stats = {
     total: photos.length,
     pending: photos.filter(p => p.status === 'pending').length,
@@ -464,6 +599,48 @@ export default function MetaDataMonster() {
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
 
+          {/* Mode Toggle */}
+          <div className="mb-6 flex items-center gap-4 bg-white border border-gray-200 rounded-lg p-4">
+            <button
+              onClick={() => {
+                setMode('normal');
+                setMissingMetadataGroups([]);
+                setSelectedGalleries(new Set());
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+                mode === 'normal'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Wand2 className="w-4 h-4" />
+              Normal Mode
+            </button>
+            <button
+              onClick={() => {
+                setMode('seek-and-capture');
+                setSelectedAlbum(null);
+                setPhotos([]);
+                setSelectedPhotos(new Set());
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+                mode === 'seek-and-capture'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Target className="w-4 h-4" />
+              Seek & Capture
+            </button>
+            <div className="flex-1 text-sm text-gray-600">
+              {mode === 'normal' ? (
+                'Select an album and process photos individually'
+              ) : (
+                'Scan multiple galleries to find photos missing metadata'
+              )}
+            </div>
+          </div>
+
           {/* Instructions Banner */}
           <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-center gap-3">
@@ -471,7 +648,11 @@ export default function MetaDataMonster() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-sm text-gray-800">
-                <span className="font-semibold">How to use:</span> Select an album and photos that need metadata. Choose a prompt style (Professional, Creative, SEO, etc.) and generate AI-powered titles, captions, and keywords. Review and edit before saving to SmugMug.
+                <span className="font-semibold">How to use:</span> {
+                  mode === 'normal'
+                    ? 'Select an album and photos that need metadata. Choose a prompt style (Professional, Creative, SEO, etc.) and generate AI-powered titles, captions, and keywords. Review and edit before saving to SmugMug.'
+                    : 'Select galleries to scan (use "Select All" for all galleries). Click "Scan for Missing Metadata" to find photos without titles, captions, or keywords. Then process the grouped results with AI.'
+                }
               </p>
             </div>
           </div>
@@ -518,8 +699,167 @@ export default function MetaDataMonster() {
             </div>
           </div>
 
-        {/* Album Selection */}
-        {!selectedAlbum ? (
+        {/* Seek and Capture Mode */}
+        {mode === 'seek-and-capture' && missingMetadataGroups.length === 0 ? (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold text-gray-800">Scan Galleries for Missing Metadata</h2>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={selectAllGalleries}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={deselectAllGalleries}
+                  className="text-sm text-gray-600 hover:text-gray-700 font-medium"
+                >
+                  Deselect All
+                </button>
+                <button
+                  onClick={scanForMissingMetadata}
+                  disabled={scanning || selectedGalleries.size === 0}
+                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition-colors font-semibold"
+                >
+                  {scanning ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Scanning...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-5 h-5" />
+                      Scan for Missing Metadata ({selectedGalleries.size})
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {scanning && (
+              <div className="mb-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="w-5 h-5 text-purple-600 animate-spin" />
+                  <p className="text-sm text-purple-800">
+                    Scanning {selectedGalleries.size} galleries for photos missing metadata...
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="text-center py-20 text-gray-600">Loading galleries...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {albums.map(album => (
+                  <div
+                    key={album.AlbumKey}
+                    onClick={() => toggleGallerySelection(album.AlbumKey)}
+                    className={`bg-white border-2 rounded-lg p-6 cursor-pointer transition-all ${
+                      selectedGalleries.has(album.AlbumKey)
+                        ? 'border-purple-500 ring-2 ring-purple-200 shadow-lg'
+                        : 'border-gray-200 hover:shadow-xl hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedGalleries.has(album.AlbumKey)}
+                        onChange={() => {}}
+                        className="w-5 h-5 text-purple-600 rounded"
+                      />
+                      {albumImages[album.AlbumKey] ? (
+                        <img
+                          src={albumImages[album.AlbumKey]}
+                          alt={album.Name}
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="bg-purple-100 p-3 rounded-lg w-16 h-16 flex items-center justify-center">
+                          <Target className="w-6 h-6 text-purple-600" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg text-gray-900">{album.Name}</h3>
+                        <p className="text-sm text-gray-600">{album.ImageCount} photos</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : mode === 'seek-and-capture' && missingMetadataGroups.length > 0 ? (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-800">Scan Results</h2>
+                <p className="text-sm text-gray-600">
+                  Found {missingMetadataGroups.reduce((sum, g) => sum + g.photos.length, 0)} photos with missing metadata
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setMissingMetadataGroups([]);
+                  setSelectedGalleries(new Set());
+                }}
+                className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                New Scan
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {missingMetadataGroups.map((group, idx) => (
+                <div key={idx} className="bg-white rounded-xl shadow-lg border-2 border-purple-200 overflow-hidden">
+                  <div className="bg-purple-50 p-6 border-b border-purple-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">{group.label}</h3>
+                        <p className="text-sm text-gray-600 mt-1">{group.photos.length} photos found</p>
+                      </div>
+                      <button
+                        onClick={() => loadGroupPhotos(group)}
+                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors font-semibold"
+                      >
+                        <Wand2 className="w-5 h-5" />
+                        Process These Photos
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {group.photos.slice(0, 12).map((photo, photoIdx) => (
+                        <div key={photoIdx} className="relative group">
+                          <img
+                            src={photo.ThumbnailUrl}
+                            alt={photo.FileName}
+                            className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 group-hover:border-purple-500 transition-all"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all rounded-lg flex items-center justify-center">
+                            <p className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-all text-center px-2">
+                              {photo.FileName}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      {group.photos.length > 12 && (
+                        <div className="w-full h-32 bg-purple-100 rounded-lg border-2 border-dashed border-purple-300 flex items-center justify-center">
+                          <p className="text-purple-600 font-semibold text-center">
+                            +{group.photos.length - 12} more
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : mode === 'normal' && !selectedAlbum ? (
           <div>
             <h2 className="text-2xl font-semibold text-gray-800 mb-6">Select an Album</h2>
             {loading ? (
@@ -571,7 +911,9 @@ export default function MetaDataMonster() {
               </button>
               <div className="text-right">
                 <h2 className="text-xl font-bold text-gray-900">
-                  {albums.find(a => a.AlbumKey === selectedAlbum)?.Name || 'Album'}
+                  {selectedAlbum === 'mixed'
+                    ? 'Photos with Missing Metadata'
+                    : albums.find(a => a.AlbumKey === selectedAlbum)?.Name || 'Album'}
                 </h2>
                 <p className="text-sm text-gray-600">{photos.length} photos</p>
               </div>
@@ -890,8 +1232,8 @@ export default function MetaDataMonster() {
                                     setPhotos(prev => prev.map((p, idx) =>
                                       idx === index ? { ...p, status: 'saved' } : p
                                     ));
-                                  } catch (err) {
-                                    console.error('Error saving:', err);
+                                  } catch (_err) {
+                                    console.error('Error saving:', _err);
                                     setPhotos(prev => prev.map((p, idx) =>
                                       idx === index ? { ...p, status: 'error', error: 'Failed to save to SmugMug' } : p
                                     ));
@@ -986,6 +1328,9 @@ export default function MetaDataMonster() {
             </div>
           </div>
         )}
+
+      {/* System Prompt Viewer */}
+      <SystemPromptViewer toolName="MetaData Monster" apiEndpoint="/api/ai/generate-metadata" />
       </div>
     </div>
     </>

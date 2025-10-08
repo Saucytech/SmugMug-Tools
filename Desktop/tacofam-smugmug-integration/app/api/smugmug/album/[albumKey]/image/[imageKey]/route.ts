@@ -161,8 +161,8 @@ export async function PATCH(
         endpoint: 'AlbumImage'
       });
 
-    } catch (error) {
-      console.error(`❌ Error on attempt ${attempt}:`, error);
+    } catch (_error) {
+      console.error(`❌ Error on attempt ${attempt}:`, _error);
       lastError = error;
 
       if (attempt === maxRetries) {

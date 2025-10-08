@@ -5,9 +5,46 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+const SYSTEM_PROMPT = `Uploaded photo analyzer for SmugMug gallery placement.
+
+**YOUR ROLE:**
+Analyze uploaded photos visually and match them to the best existing gallery based on content, style, and themes.
+
+**ANALYSIS CRITERIA:**
+
+1. **Visual Style** - Photography style, quality, composition
+2. **Subject Matter** - What's in the photo (people, places, objects)
+3. **Setting/Location** - Indoor/outdoor, specific locations
+4. **Photo Type** - Portrait, landscape, event, product, etc.
+5. **Theme/Mood** - Overall feeling and theme
+
+**CONFIDENCE SCORING:**
+- **90-100%**: Perfect match with clear visual and thematic alignment
+- **70-89%**: Good match with some uncertainty
+- **<70%**: Weak match, needs manual review
+
+**OUTPUT FORMAT:**
+Return ONLY a JSON object:
+{
+  "suggestedGallery": "exact gallery name",
+  "confidence": 85,
+  "reasoning": "brief explanation why this gallery matches",
+  "visualAnalysis": "description of what you see in the photo"
+}
+
+Be conservative with confidence scores. Accuracy matters more than speed.`;
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('getSystemPrompt') === 'true') {
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+  }
+  return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { imageBase64, metadata, galleryIndex } = await request.json();
+    const { imageBase64, metadata, galleryIndex, customPrompt } = await request.json();
 
     if (!imageBase64 || !galleryIndex || galleryIndex.length === 0) {
       return NextResponse.json(
@@ -16,8 +53,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Use custom prompt if provided, otherwise use default SYSTEM_PROMPT
+    const promptToUse = customPrompt || SYSTEM_PROMPT;
+
     // Build prompt for analyzing uploaded photo
-    const prompt = `Analyze this uploaded photo and suggest the best matching gallery from the indexed galleries.
+    const prompt = `${promptToUse}
 
 Photo metadata:
 - Filename: ${metadata.filename || 'Unknown'}
@@ -35,28 +75,10 @@ Gallery: "${gallery.name}"
 - Summary: ${gallery.summary || 'No summary'}
 `).join('\n---\n')}
 
-Based on the visual content, style, and characteristics of this uploaded photo, which gallery would be the BEST match?
-
-Return a JSON object with:
-- suggestedGallery: the exact gallery name that best matches
-- confidence: a percentage (0-100) of how confident you are
-- reasoning: a brief explanation of why this gallery is the best match
-- visualAnalysis: what you see in the photo (subjects, style, setting, etc.)
-
-Consider:
-1. Visual style and quality
-2. Subject matter and content
-3. Setting and location
-4. Photo type (portrait, landscape, event, etc.)
-5. Overall theme and mood
-
-Be conservative with confidence scores:
-- 90-100%: Perfect match with clear visual and thematic alignment
-- 70-89%: Good match with some uncertainty
-- Below 70%: Weak match, may need manual review`;
+Provide your analysis in the exact JSON format specified above.`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-latest',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1000,
       messages: [
         {
@@ -98,8 +120,8 @@ Be conservative with confidence scores:
           visualAnalysis: responseText,
         };
       }
-    } catch (parseError) {
-      console.error('Error parsing AI response:', parseError);
+    } catch (_parseError) {
+      console.error('Error parsing AI response:', _parseError);
       analysis = {
         suggestedGallery: 'Unknown',
         confidence: 0,
@@ -113,8 +135,8 @@ Be conservative with confidence scores:
       tokensUsed: message.usage?.input_tokens || 0 + message.usage?.output_tokens || 0,
     });
 
-  } catch (error) {
-    console.error('Error analyzing uploaded photo:', error);
+  } catch (_error) {
+    console.error('Error analyzing uploaded photo:', _error);
     return NextResponse.json(
       { error: 'Failed to analyze photo' },
       { status: 500 }

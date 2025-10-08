@@ -68,8 +68,8 @@ export async function GET(
     return NextResponse.json({
       images: data.Response.AlbumImage || [],
     });
-  } catch (error) {
-    console.error('Error fetching images:', error);
+  } catch (_error) {
+    console.error('Error fetching images:', _error);
     return NextResponse.json(
       { error: 'Failed to fetch images' },
       { status: 500 }

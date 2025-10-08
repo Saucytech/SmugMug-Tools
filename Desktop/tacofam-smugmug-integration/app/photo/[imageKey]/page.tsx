@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Download, Copy, Check, Edit2, Save, X, Code } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Edit2, Save, X, Code } from 'lucide-react';
 
 interface ImageMetadata {
   Response?: {
@@ -82,8 +82,8 @@ export default function PhotoDetailPage() {
             sessionStorage.setItem('currentPhoto', JSON.stringify(image));
           }
         }
-      } catch (err) {
-        console.error('Error fetching metadata:', err);
+      } catch (_err) {
+        console.error('Error fetching metadata:', _err);
         setError('Failed to load photo metadata. Please try again.');
       } finally {
         setLoading(false);
@@ -128,7 +128,7 @@ export default function PhotoDetailPage() {
         throw new Error(errorData.error || 'Failed to save metadata');
       }
 
-      const data = await response.json();
+      const _data = await response.json();
 
       // Update local metadata state with saved values
       if (metadata?.Response?.Image) {
@@ -160,8 +160,8 @@ export default function PhotoDetailPage() {
       }
 
       console.log('Metadata saved successfully to SmugMug');
-    } catch (err) {
-      console.error('Error saving metadata:', err);
+    } catch (_err) {
+      console.error('Error saving metadata:', _err);
       setError(err instanceof Error ? err.message : 'Failed to save metadata. Please try again.');
     } finally {
       setSaving(false);

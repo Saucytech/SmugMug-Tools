@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       user: data.Response?.User || null,
     });
-  } catch (error) {
-    console.error('Error fetching user:', error);
+  } catch (_error) {
+    console.error('Error fetching user:', _error);
     return NextResponse.json(
       { error: 'Failed to fetch user information' },
       { status: 500 }

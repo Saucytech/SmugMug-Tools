@@ -15,7 +15,7 @@ const oauth = new OAuth({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { albumKey: string } }
+  { params: _params }: { params: { albumKey: string } }
 ) {
   try {
     const accessToken = request.cookies.get('smugmug_access_token')?.value;
@@ -72,8 +72,8 @@ export async function PATCH(
 
     const data = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error updating album:', error);
+  } catch (_error) {
+    console.error('Error updating album:', _error);
     return NextResponse.json(
       { error: 'Failed to update album', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

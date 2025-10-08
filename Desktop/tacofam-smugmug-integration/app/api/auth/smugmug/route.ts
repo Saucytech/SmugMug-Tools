@@ -20,7 +20,7 @@ const oauth = new OAuth({
 const REQUEST_TOKEN_URL = 'https://secure.smugmug.com/services/oauth/1.0a/getRequestToken';
 const AUTHORIZE_URL = 'https://secure.smugmug.com/services/oauth/1.0a/authorize';
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   try {
     const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/smugmug/callback`;
 
@@ -63,8 +63,8 @@ export async function GET(request: Request) {
     });
 
     return response;
-  } catch (error) {
-    console.error('SmugMug OAuth error:', error);
+  } catch (_error) {
+    console.error('SmugMug OAuth error:', _error);
     return NextResponse.json(
       { error: 'Authentication failed' },
       { status: 500 }

@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import ToolboxHeader from '@/components/ToolboxHeader';
+import SystemPromptViewer from '@/components/SystemPromptViewer';
+import { tokenStorage } from '@/lib/smugmug-client';
 import {
   ClipboardCheck,
   AlertTriangle,
@@ -10,10 +13,8 @@ import {
   XCircle,
   Loader,
   Play,
-  ThumbsUp,
   ThumbsDown,
   Zap,
-  Settings,
   Image as ImageIcon,
   FolderTree,
   Info,
@@ -80,6 +81,8 @@ export default function SanityChecker() {
 
   const [selectedSeverity, setSelectedSeverity] = useState<'all' | 'critical' | 'optimization' | 'suggestion'>('all');
   const [ignoredFindings, setIgnoredFindings] = useState<Set<string>>(new Set());
+  const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
+  const [cachedGalleries, setCachedGalleries] = useState<GalleryIndexEntry[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -98,8 +101,8 @@ export default function SanityChecker() {
       }
 
       setIsAuthenticated(true);
-    } catch (error) {
-      console.error('Sanity Checker: Auth check failed:', error);
+    } catch (_error) {
+      console.error('Sanity Checker: Auth check failed:', _error);
       router.push('/');
     }
   };
@@ -120,10 +123,15 @@ export default function SanityChecker() {
 
       // Fallback if data structure changes
       return indexData.galleries || [];
-    } catch (error) {
-      console.error('Error loading cached index:', error);
+    } catch (_error) {
+      console.error('Error loading cached index:', _error);
       return [];
     }
+  };
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setTerminalLogs(prev => [...prev, `[${timestamp}] ${message}`]);
   };
 
   // Start comprehensive scan
@@ -132,30 +140,39 @@ export default function SanityChecker() {
     setScanProgress(0);
     setCurrentTask('Loading cached gallery data...');
     setFindings([]);
+    setTerminalLogs([]);
 
     try {
+      addLog('🔍 Starting Sanity Checker scan...');
       // Load cached data
-      const cachedGalleries = loadCachedIndexData();
+      const loadedGalleries = loadCachedIndexData();
 
-      if (cachedGalleries.length === 0) {
+      if (loadedGalleries.length === 0) {
+        addLog('❌ No cached gallery data found');
         alert('No cached gallery data found. Please index galleries in the Photo Organizer tool first.');
         setScanning(false);
         return;
       }
 
-      const totalImages = cachedGalleries.reduce((sum, g) => sum + g.imageCount, 0);
+      // Store galleries in state for creating links later
+      setCachedGalleries(loadedGalleries);
+
+      const totalImages = loadedGalleries.reduce((sum, g) => sum + g.imageCount, 0);
+      addLog(`✓ Loaded ${loadedGalleries.length} galleries with ${totalImages} total images`);
+
       setStats(prev => ({
         ...prev,
-        totalGalleries: cachedGalleries.length,
+        totalGalleries: loadedGalleries.length,
         totalImages: totalImages,
       }));
 
       // Collect all data for analysis
       setCurrentTask('Analyzing gallery structure...');
       setScanProgress(20);
+      addLog('📊 Preparing data for AI analysis...');
 
       const analysisData = {
-        galleries: cachedGalleries.map(g => ({
+        galleries: loadedGalleries.map(g => ({
           albumKey: g.albumKey,
           albumName: g.albumName,
           imageCount: g.imageCount,
@@ -166,6 +183,7 @@ export default function SanityChecker() {
       // Send to AI for analysis
       setCurrentTask('Running AI analysis...');
       setScanProgress(50);
+      addLog('🤖 Sending data to Claude AI for deep analysis...');
 
       const tokens = tokenStorage.getTokens();
       if (!tokens) {
@@ -183,31 +201,41 @@ export default function SanityChecker() {
       });
 
       if (!response.ok) {
+        addLog('❌ AI analysis request failed');
         throw new Error('Analysis failed');
       }
 
       const result = await response.json();
+      addLog('✓ AI analysis completed successfully');
 
       setCurrentTask('Processing findings...');
       setScanProgress(90);
+      addLog('📋 Processing and categorizing findings...');
 
       // Process findings
       const processedFindings: Finding[] = result.findings || [];
       setFindings(processedFindings);
 
       // Update stats
+      const criticalCount = processedFindings.filter(f => f.severity === 'critical').length;
+      const optimizationCount = processedFindings.filter(f => f.severity === 'optimization').length;
+      const suggestionCount = processedFindings.filter(f => f.severity === 'suggestion').length;
+
       setStats({
-        totalGalleries: cachedGalleries.length,
+        totalGalleries: loadedGalleries.length,
         totalImages: totalImages,
-        galleriesScanned: cachedGalleries.length,
+        galleriesScanned: loadedGalleries.length,
         imagesScanned: totalImages,
-        criticalIssues: processedFindings.filter(f => f.severity === 'critical').length,
-        optimizations: processedFindings.filter(f => f.severity === 'optimization').length,
-        suggestions: processedFindings.filter(f => f.severity === 'suggestion').length,
+        criticalIssues: criticalCount,
+        optimizations: optimizationCount,
+        suggestions: suggestionCount,
       });
+
+      addLog(`✓ Found ${criticalCount} critical issues, ${optimizationCount} optimizations, ${suggestionCount} suggestions`);
 
       setScanProgress(100);
       setCurrentTask('Analysis complete!');
+      addLog('✅ Scan complete!');
 
     } catch (error: any) {
       console.error('Scan error:', error);
@@ -374,6 +402,27 @@ export default function SanityChecker() {
                 </div>
                 <p className="text-center text-gray-600">{currentTask}</p>
               </div>
+
+              {/* Terminal Log */}
+              {terminalLogs.length > 0 && (
+                <div className="mt-8">
+                  <div className="bg-gray-900 rounded-xl p-4 font-mono text-xs text-green-400 max-h-[400px] overflow-y-auto">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                      <div className="flex gap-1.5">
+                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      </div>
+                      <span className="text-gray-400">sanity-checker.log</span>
+                    </div>
+                    {terminalLogs.map((log, idx) => (
+                      <div key={idx} className="whitespace-pre-wrap leading-relaxed">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -450,7 +499,39 @@ export default function SanityChecker() {
                           </div>
                           {finding.affectedItems.length > 0 && (
                             <div className="text-sm text-gray-600">
-                              <span className="font-medium">Affected:</span> {finding.affectedItems.slice(0, 3).join(', ')}
+                              <span className="font-medium">Affected:</span>{' '}
+                              {finding.affectedItems.slice(0, 3).map((item, idx) => {
+                                // Try to find matching gallery to create link
+                                const matchingGallery = cachedGalleries.find(g =>
+                                  g?.albumName && item && (
+                                    g.albumName === item ||
+                                    g.albumName.includes(item) ||
+                                    item.includes(g.albumName)
+                                  )
+                                );
+
+                                // Convert album name to URL-friendly slug
+                                const albumSlug = matchingGallery?.albumName
+                                  .toLowerCase()
+                                  .replace(/\s+/g, '-')
+                                  .replace(/[^a-z0-9-]/g, '');
+
+                                return (
+                                  <span key={idx}>
+                                    {matchingGallery ? (
+                                      <Link
+                                        href={`/albums/${matchingGallery.albumKey}`}
+                                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                      >
+                                        /{albumSlug}
+                                      </Link>
+                                    ) : (
+                                      <span>{item}</span>
+                                    )}
+                                    {idx < Math.min(2, finding.affectedItems.length - 1) && ', '}
+                                  </span>
+                                );
+                              })}
                               {finding.affectedItems.length > 3 && ` +${finding.affectedItems.length - 3} more`}
                             </div>
                           )}
@@ -493,6 +574,9 @@ export default function SanityChecker() {
 
         </div>
       </main>
+
+      {/* System Prompt Viewer */}
+      <SystemPromptViewer toolName="Sanity Checker" apiEndpoint="/api/ai/analyze-sanity" />
     </>
   );
 }

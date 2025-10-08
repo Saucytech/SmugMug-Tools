@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Sparkles, FolderTree, Image as ImageIcon, CheckCircle, XCircle, Loader, AlertCircle, Folder, Layers, Plus, Trash2, RefreshCw, Save, Download, BookTemplate, X, Pencil, Check } from 'lucide-react';
+import { Send, Sparkles, FolderTree, Image as ImageIcon, CheckCircle, XCircle, Loader, Folder, Layers, Plus, Trash2, RefreshCw, Save, BookTemplate, X, Pencil, Check, Skull, Flame } from 'lucide-react';
 import ToolboxHeader from '@/components/ToolboxHeader';
+import SystemPromptViewer from '@/components/SystemPromptViewer';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -45,9 +46,25 @@ interface SmugMugFolder {
   UrlName: string;
 }
 
+interface SmugMugAlbum {
+  AlbumKey: string;
+  Name: string;
+  UrlName: string;
+  ImageCount: number;
+  NodeID?: string;
+  Uri?: string;
+}
+
+interface DeletionNode {
+  nodeId: string;
+  name: string;
+  type: 'folder' | 'gallery';
+}
+
 interface CreationPlan {
   folders: FolderNode[];
   galleries: GalleryNode[];
+  deletions?: DeletionNode[];
   summary: string;
   reasoning?: string;
 }
@@ -198,7 +215,7 @@ export default function AIGalleryCreatorPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<CreationStatus>('idle');
   const [currentPlan, setCurrentPlan] = useState<CreationPlan | null>(null);
-  const [creationProgress, setCreationProgress] = useState<string[]>([]);
+  const [_creationProgress, setCreationProgress] = useState<string[]>([]);
 
   // Manual creation state
   const [manualFolders, setManualFolders] = useState<FolderNode[]>([]);
@@ -211,6 +228,7 @@ export default function AIGalleryCreatorPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [smugmugFolders, setSmugmugFolders] = useState<SmugMugFolder[]>([]);
+  const [smugmugAlbums, setSmugmugAlbums] = useState<SmugMugAlbum[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const [enableGuestUpload, setEnableGuestUpload] = useState(false);
   const [guestUploadPassword, setGuestUploadPassword] = useState('');
@@ -228,6 +246,9 @@ export default function AIGalleryCreatorPage() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  // Destruction Mode state
+  const [destructionMode, setDestructionMode] = useState(false);
 
   useEffect(() => {
     checkAuthAndInitialize();
@@ -254,11 +275,12 @@ export default function AIGalleryCreatorPage() {
         },
       ]);
 
-      // Load album templates and folders
+      // Load album templates, folders, and galleries
       loadAlbumTemplates();
       loadSmugmugFolders();
-    } catch (error) {
-      console.error('AI Gallery Creator: Auth check failed:', error);
+      loadSmugmugAlbums();
+    } catch (_error) {
+      console.error('AI Gallery Creator: Auth check failed:', _error);
       router.push('/');
     }
   };
@@ -275,10 +297,27 @@ export default function AIGalleryCreatorPage() {
         const folders = data.folders || [];
         setSmugmugFolders(folders);
       }
-    } catch (error) {
-      console.error('Error loading folders:', error);
+    } catch (_error) {
+      console.error('Error loading folders:', _error);
     } finally {
       setIsLoadingFolders(false);
+    }
+  };
+
+  const loadSmugmugAlbums = async () => {
+    try {
+      const response = await fetch('/api/smugmug/albums', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const albums = data.albums || [];
+        setSmugmugAlbums(albums);
+        console.log(`Loaded ${albums.length} galleries for AI context`);
+      }
+    } catch (_error) {
+      console.error('Error loading albums:', _error);
     }
   };
 
@@ -294,8 +333,8 @@ export default function AIGalleryCreatorPage() {
         const templates = data.Response?.AlbumTemplate || [];
         setAlbumTemplates(templates);
       }
-    } catch (error) {
-      console.error('Error loading album templates:', error);
+    } catch (_error) {
+      console.error('Error loading album templates:', _error);
     } finally {
       setIsLoadingTemplates(false);
     }
@@ -332,6 +371,8 @@ export default function AIGalleryCreatorPage() {
           message: inputMessage,
           conversationHistory: messages,
           existingFolders: smugmugFolders, // Pass existing folders to AI
+          existingGalleries: smugmugAlbums, // Pass existing galleries with photo counts to AI
+          destructionMode: destructionMode, // Enable deletion if in destruction mode
         }),
       });
 
@@ -360,8 +401,8 @@ export default function AIGalleryCreatorPage() {
         setMessages((prev) => [...prev, assistantMessage]);
         setStatus('idle');
       }
-    } catch (error) {
-      console.error('Error generating plan:', error);
+    } catch (_error) {
+      console.error('Error generating plan:', _error);
       setMessages((prev) => [
         ...prev,
         {
@@ -397,7 +438,19 @@ export default function AIGalleryCreatorPage() {
 
       if (result.success) {
         setStatus('success');
-        let successMessage = `✅ Successfully created ${result.foldersCreated} folder(s) and ${result.galleriesCreated} gallery/galleries!`;
+        let successMessage = '';
+
+        // Add deletion summary if any were deleted
+        if (result.deletedCount && result.deletedCount > 0) {
+          successMessage += `🗑️ Deleted ${result.deletedCount} item(s)\n`;
+        }
+
+        // Add creation summary
+        if (result.foldersCreated > 0 || result.galleriesCreated > 0) {
+          successMessage += `✅ Successfully created ${result.foldersCreated} folder(s) and ${result.galleriesCreated} gallery/galleries!`;
+        } else if (result.deletedCount > 0) {
+          successMessage += '✅ Deletion completed successfully!';
+        }
 
         // Add upload URLs if any were created
         if (result.uploadUrls && result.uploadUrls.length > 0) {
@@ -417,23 +470,38 @@ export default function AIGalleryCreatorPage() {
           },
         ]);
         setCurrentPlan(null);
+
+        // Reload galleries and folders to show updated state
+        loadSmugmugFolders();
+        loadSmugmugAlbums();
       } else if (result.errors && result.errors.length > 0) {
         // Partial success - some items created, some failed
         setStatus('error');
+        let partialMessage = '⚠️ Partial success: ';
+
+        if (result.deletedCount > 0) {
+          partialMessage += `Deleted ${result.deletedCount} item(s). `;
+        }
+        partialMessage += `Created ${result.foldersCreated} folder(s) and ${result.galleriesCreated} gallery/galleries.\n\nErrors:\n${result.errors.map((e: string) => `• ${e}`).join('\n')}`;
+
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            content: `⚠️ Partial success: Created ${result.foldersCreated} folder(s) and ${result.galleriesCreated} gallery/galleries.\n\nErrors:\n${result.errors.map((e: string) => `• ${e}`).join('\n')}`,
+            content: partialMessage,
             timestamp: new Date(),
           },
         ]);
         setCurrentPlan(null);
+
+        // Reload galleries and folders even after partial success
+        loadSmugmugFolders();
+        loadSmugmugAlbums();
       } else {
         throw new Error(result.error || 'Creation failed');
       }
-    } catch (error) {
-      console.error('Error creating structure:', error);
+    } catch (_error) {
+      console.error('Error creating structure:', _error);
       setStatus('error');
       setMessages((prev) => [
         ...prev,
@@ -599,8 +667,8 @@ export default function AIGalleryCreatorPage() {
       } else {
         throw new Error(result.error || 'Creation failed');
       }
-    } catch (error) {
-      console.error('Error creating structure:', error);
+    } catch (_error) {
+      console.error('Error creating structure:', _error);
       setStatus('error');
       alert(`❌ Error: ${error instanceof Error ? error.message : 'Failed to create structure'}`);
     } finally {
@@ -660,8 +728,8 @@ export default function AIGalleryCreatorPage() {
     if (saved) {
       try {
         setUserTemplates(JSON.parse(saved));
-      } catch (error) {
-        console.error('Error loading templates:', error);
+      } catch (_error) {
+        console.error('Error loading templates:', _error);
       }
     }
   }, []);
@@ -708,7 +776,7 @@ export default function AIGalleryCreatorPage() {
       });
 
       // Organize folders into tree
-      itemsMap.forEach((item, name) => {
+      itemsMap.forEach((item, _name) => {
         if (item.type === 'folder') {
           if (item.parentName) {
             const parent = itemsMap.get(item.parentName);
@@ -757,10 +825,29 @@ export default function AIGalleryCreatorPage() {
     const tree = buildTree();
 
     return (
-      <div className="bg-teal-50 border-2 border-teal-200 rounded-xl p-4 my-4">
-        <h4 className="font-bold text-teal-900 mb-3 flex items-center gap-2">
+      <div className={`border-2 rounded-xl p-4 my-4 ${plan.deletions && plan.deletions.length > 0 ? 'bg-red-50 border-red-300' : 'bg-teal-50 border-teal-200'}`}>
+        {/* Deletions Section */}
+        {plan.deletions && plan.deletions.length > 0 && (
+          <div className="mb-4 pb-4 border-b border-red-300">
+            <h4 className="font-bold text-red-900 mb-3 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" />
+              ⚠️ Items to Delete ({plan.deletions.length})
+            </h4>
+            <div className="space-y-1">
+              {plan.deletions.map((deletion, idx) => (
+                <div key={idx} className="text-sm text-red-700 flex items-center gap-2 py-1">
+                  <XCircle className="w-4 h-4 text-red-600" />
+                  <span className="font-medium">{deletion.name}</span>
+                  <span className="text-xs text-red-600">({deletion.type})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <h4 className={`font-bold mb-3 flex items-center gap-2 ${plan.deletions && plan.deletions.length > 0 ? 'text-red-900' : 'text-teal-900'}`}>
           <FolderTree className="w-5 h-5" />
-          Proposed Structure
+          {plan.deletions && plan.deletions.length > 0 ? 'Items to Create' : 'Proposed Structure'}
         </h4>
 
         {tree.length > 0 ? (
@@ -772,14 +859,14 @@ export default function AIGalleryCreatorPage() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 mt-3 pt-3 border-t border-teal-200">
+        <div className={`flex gap-2 mt-3 pt-3 border-t ${plan.deletions && plan.deletions.length > 0 ? 'border-red-300' : 'border-teal-200'}`}>
           <button
             onClick={handleConfirmPlan}
             disabled={status === 'creating'}
-            className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white px-2 py-1 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
+            className={`flex-1 ${plan.deletions && plan.deletions.length > 0 ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-400' : 'bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400'} text-white px-2 py-1 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1`}
           >
             <CheckCircle className="w-3 h-3" />
-            {status === 'creating' ? 'Creating...' : 'Create'}
+            {status === 'creating' ? 'Executing...' : (plan.deletions && plan.deletions.length > 0 ? '🗑️ Delete' : 'Create')}
           </button>
           <button
             onClick={handleRejectPlan}
@@ -797,32 +884,66 @@ export default function AIGalleryCreatorPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <ToolboxHeader currentTool="ai-gallery-creator" />
-      <div className="min-h-screen bg-gradient-to-br from-teal-50 to-cyan-50">
+      <div className={`min-h-screen transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-950 to-black' : 'bg-gradient-to-br from-teal-50 to-cyan-50'}`}>
 
         {/* Instructions */}
         <div className="max-w-full mx-auto px-8 pt-6">
-          <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+          <div className={`border rounded-lg p-4 transition-all duration-500 ${destructionMode ? 'bg-red-950/50 border-red-600' : 'bg-teal-50 border-teal-200'}`}>
             <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm text-gray-800">
-                <span className="font-semibold">How to use:</span> Describe what galleries and folders you want to create (AI understands natural language) → Review the visual hierarchy of your structure → Execute to create all folders and galleries on SmugMug with real-time progress tracking.
+              {destructionMode ? (
+                <Skull className="w-5 h-5 text-red-500 animate-pulse" />
+              ) : (
+                <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+              <p className={`text-sm ${destructionMode ? 'text-red-200' : 'text-gray-800'}`}>
+                <span className="font-semibold">{destructionMode ? '⚠️ DESTRUCTION MODE ACTIVE:' : 'How to use:'}</span> {destructionMode ? 'AI can DELETE folders and galleries. Use with EXTREME caution!' : 'Describe what galleries and folders you want to create (AI understands natural language) → Review the visual hierarchy of your structure → Execute to create all folders and galleries on SmugMug with real-time progress tracking.'}
               </p>
             </div>
           </div>
         </div>
 
         {/* Header */}
-        <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm mt-6">
+        <div className={`border-b backdrop-blur-sm mt-6 transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black/80' : 'border-gray-200 bg-white/80'}`}>
           <div className="max-w-full mx-auto px-8 py-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-teal-500 to-cyan-600 w-10 h-10 rounded-xl flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-600 to-red-900' : 'bg-gradient-to-br from-teal-500 to-cyan-600'}`}>
+                  {destructionMode ? (
+                    <Flame className="w-5 h-5 text-white animate-pulse" />
+                  ) : (
+                    <Sparkles className="w-5 h-5 text-white" />
+                  )}
+                </div>
+                <div>
+                  <h1 className={`text-2xl font-bold transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-gray-900'}`}>
+                    AI Gallery Creator {destructionMode && '💀'}
+                  </h1>
+                  <p className={`text-sm transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
+                    {destructionMode ? 'DESTRUCTION MODE - CREATE & DESTROY' : 'Chat with AI or create manually'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">AI Gallery Creator</h1>
-                <p className="text-sm text-gray-600">Chat with AI or create manually</p>
+
+              {/* Destruction Mode Toggle */}
+              <div className="flex items-center gap-3">
+                <label className={`flex items-center gap-2 cursor-pointer transition-all duration-500 ${destructionMode ? 'text-red-400' : 'text-gray-700'}`}>
+                  <span className={`text-sm font-medium ${destructionMode ? 'text-red-300' : 'text-gray-700'}`}>
+                    Destruction Mode
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={destructionMode}
+                      onChange={(e) => setDestructionMode(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-11 h-6 rounded-full transition-all duration-500 peer peer-checked:bg-red-600 ${destructionMode ? 'bg-red-600' : 'bg-gray-300'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-300 ${destructionMode ? 'translate-x-5' : ''}`}></div>
+                  </div>
+                  {destructionMode && <Skull className="w-4 h-4 text-red-500 animate-pulse" />}
+                </label>
               </div>
             </div>
           </div>
@@ -831,7 +952,7 @@ export default function AIGalleryCreatorPage() {
         {/* Split Layout: 40% Chat | 60% Manual Tools */}
         <div className="flex" style={{ height: 'calc(100vh - 140px)' }}>
           {/* LEFT: AI Chat Sidebar (40%) */}
-          <div className="w-[40%] border-r border-gray-200 bg-white flex flex-col">
+          <div className={`w-[40%] border-r flex flex-col transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black' : 'border-gray-200 bg-white'}`}>
             {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.map((message, idx) => (
@@ -840,10 +961,10 @@ export default function AIGalleryCreatorPage() {
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[90%] rounded-xl px-3 py-2 text-sm ${
+                    className={`max-w-[90%] rounded-xl px-3 py-2 text-sm transition-all duration-500 ${
                       message.role === 'user'
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-gray-100 text-gray-900'
+                        ? destructionMode ? 'bg-red-600 text-white' : 'bg-teal-600 text-white'
+                        : destructionMode ? 'bg-red-950 text-red-100' : 'bg-gray-100 text-gray-900'
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{message.content}</p>
@@ -856,9 +977,11 @@ export default function AIGalleryCreatorPage() {
 
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-xl px-3 py-2 flex items-center gap-2 text-sm">
-                    <Loader className="w-4 h-4 animate-spin text-teal-600" />
-                    <span className="text-gray-600">Thinking...</span>
+                  <div className={`rounded-xl px-3 py-2 flex items-center gap-2 text-sm transition-all duration-500 ${destructionMode ? 'bg-red-950' : 'bg-gray-100'}`}>
+                    <Loader className={`w-4 h-4 animate-spin transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-teal-600'}`} />
+                    <span className={`transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
+                      {destructionMode ? 'Planning destruction...' : 'Thinking...'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -867,21 +990,29 @@ export default function AIGalleryCreatorPage() {
             </div>
 
             {/* Chat Input */}
-            <div className="border-t border-gray-200 p-3 bg-gray-50">
+            <div className={`border-t p-3 transition-all duration-500 ${destructionMode ? 'border-red-900 bg-red-950/30' : 'border-gray-200 bg-gray-50'}`}>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask AI to create..."
+                  placeholder={destructionMode ? "Ask AI to create or DESTROY..." : "Ask AI to create..."}
                   disabled={isLoading || status === 'creating'}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all duration-500 ${
+                    destructionMode
+                      ? 'border-red-700 bg-red-950 text-red-100 placeholder-red-400 focus:ring-red-600 disabled:bg-red-950/50 disabled:text-red-500'
+                      : 'border-gray-300 focus:ring-teal-500 disabled:bg-gray-100 disabled:text-gray-500'
+                  }`}
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isLoading || status === 'creating'}
-                  className="bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-1 text-sm"
+                  className={`text-white px-3 py-2 rounded-lg font-medium transition-all duration-500 flex items-center gap-1 text-sm ${
+                    destructionMode
+                      ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-900'
+                      : 'bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400'
+                  }`}
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -1507,6 +1638,9 @@ export default function AIGalleryCreatorPage() {
           </div>
         </div>
       )}
+
+      {/* System Prompt Viewer */}
+      <SystemPromptViewer toolName="AI Gallery Creator" apiEndpoint="/api/ai/generate-gallery-plan" />
     </div>
   );
 }

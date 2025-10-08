@@ -103,8 +103,8 @@ export async function GET(
 
     const data = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error fetching image metadata:', error);
+  } catch (_error) {
+    console.error('Error fetching image metadata:', _error);
     return NextResponse.json(
       { error: 'Failed to fetch image metadata' },
       { status: 500 }
@@ -247,8 +247,8 @@ export async function PATCH(
       console.log(`Successfully updated image metadata (attempt ${attempt}):`, imageKey);
       return NextResponse.json({ success: true, data, attempt });
 
-    } catch (error) {
-      console.error(`Error on attempt ${attempt}:`, error);
+    } catch (_error) {
+      console.error(`Error on attempt ${attempt}:`, _error);
       lastError = error;
 
       if (attempt === maxRetries) {

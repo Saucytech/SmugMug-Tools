@@ -244,7 +244,6 @@ export default SmugMugGallery;`;
 
   const generateWordPressShortcode = () => {
     const selected = getSelectedPhotoData();
-    const imageKeys = selected.map(p => p.ImageKey).join(',');
 
     return `<?php
 /*

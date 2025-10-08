@@ -5,6 +5,51 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
 });
 
+const SYSTEM_PROMPT = `Analyze photographs and generate professional metadata (titles, captions, keywords).
+
+**METADATA GENERATION RULES:**
+
+1. **Titles**:
+   - Compelling and professional
+   - Concise (3-8 words ideal)
+   - Avoid generic phrases like "Beautiful Photo"
+
+2. **Captions**:
+   - Descriptive but succinct (1-2 sentences)
+   - Focus on what the photo shows
+   - Include mood, composition, and subject details
+
+3. **Keywords**:
+   - 8-12 relevant keywords
+   - Semicolon-separated
+   - Mix of specific and general terms
+   - Include: subject, style, technique, colors, mood, use cases
+
+**FOCUS AREAS:**
+- Subject matter and composition
+- Photography style and technique
+- Colors, lighting, and atmosphere
+- Mood and emotional impact
+- Potential commercial/editorial use cases
+
+**OUTPUT FORMAT:**
+Return ONLY valid JSON with requested fields:
+{
+  "title": "Your Title Here",
+  "caption": "Your caption here.",
+  "keywords": "keyword1;keyword2;keyword3"
+}`;
+
+export async function GET(request: NextRequest) {
+  // Return system prompt if requested
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('getSystemPrompt') === 'true') {
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+  }
+
+  return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+}
+
 export async function POST(request: NextRequest) {
   let body;
   try {
@@ -51,8 +96,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(metadata);
-  } catch (error) {
-    console.error('Error generating metadata:', error);
+  } catch (_error) {
+    console.error('Error generating metadata:', _error);
 
     // Fallback to filename-based generation on error
     // Use already parsed body to avoid reading request twice
@@ -82,7 +127,7 @@ async function generateWithClaude(
   generateTitle?: boolean,
   generateCaption?: boolean,
   generateKeywords?: boolean,
-  promptStyle?: string
+  _promptStyle?: string
 ) {
   // Fetch the image and convert to base64
   const imageResponse = await fetch(imageUrl);

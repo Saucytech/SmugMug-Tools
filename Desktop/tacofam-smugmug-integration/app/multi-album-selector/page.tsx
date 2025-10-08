@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart, Grid, LayoutGrid, Columns, X, Copy, Check, Play, Image as ImageIcon, Sparkles, Layout, Layers, Film, Camera, Monitor, Tablet, Smartphone, Code2, Eye } from 'lucide-react';
+import { ArrowLeft, Heart, Grid, LayoutGrid, Columns, X, Copy, Check, Play, Image as ImageIcon, Sparkles, Layout, Layers, Camera, Monitor, Tablet, Smartphone, Code2, Eye } from 'lucide-react';
 import ToolboxHeader from '@/components/ToolboxHeader';
 
 interface Photo {
@@ -56,7 +56,7 @@ export default function MultiAlbumSelector() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>('html');
   const [copied, setCopied] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
-  const [showPreview, setShowPreview] = useState(true);
+  const [showPreview, _setShowPreview] = useState(true);
   const [showTestPlayground, setShowTestPlayground] = useState(false);
 
   const [customization, setCustomization] = useState<CustomizationOptions>({
@@ -106,8 +106,8 @@ export default function MultiAlbumSelector() {
         router.push('/');
         return;
       }
-    } catch (error) {
-      console.error('[Multi-Album Selector] Auth check failed:', error);
+    } catch (_error) {
+      console.error('[Multi-Album Selector] Auth check failed:', _error);
       router.push('/');
       return;
     }
@@ -128,8 +128,8 @@ export default function MultiAlbumSelector() {
           }));
           allPhotos.push(...albumPhotos);
         }
-      } catch (err) {
-        console.error(`Error loading album ${albumKey}:`, err);
+      } catch (_err) {
+        console.error(`Error loading album ${albumKey}:`, _err);
       }
     }
 

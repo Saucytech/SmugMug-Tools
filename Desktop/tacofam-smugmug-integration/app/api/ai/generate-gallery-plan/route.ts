@@ -5,7 +5,27 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-const SYSTEM_PROMPT = `You are an AI assistant that helps photographers and organizations create SmugMug folder and gallery structures.
+const CREATION_ONLY_PROMPT = `You are an AI assistant that helps photographers and organizations create SmugMug folder and gallery structures.
+
+**MODE: CREATION ONLY** - You can ONLY create folders and galleries. You CANNOT delete anything.`;
+
+const DESTRUCTION_MODE_PROMPT = `You are an AI assistant that helps photographers and organizations create AND DESTROY SmugMug folder and gallery structures.
+
+🔥 **DESTRUCTION MODE ACTIVE** 🔥
+You have the power to DELETE folders and galleries. Use this power CAREFULLY!
+
+**YOU CAN:**
+- Create new folders and galleries
+- Delete existing folders and galleries
+- Reorganize structures by deleting old ones and creating new ones
+
+**DELETION RULES:**
+1. When user asks to "delete" or "remove" galleries/folders, add them to the "deletions" array
+2. Confirm what will be deleted before proceeding
+3. Be VERY clear about what's being destroyed
+4. Use the NodeID from existing folders to specify what to delete`;
+
+const SYSTEM_PROMPT_BASE = `
 
 **IMPORTANT RULES:**
 1. **Folders** organize content - they can contain other folders and galleries
@@ -15,19 +35,21 @@ const SYSTEM_PROMPT = `You are an AI assistant that helps photographers and orga
 5. Suggest appropriate privacy settings when relevant (Public, Private, Unlisted)
 
 **EXISTING FOLDERS:**
-You have access to the user's existing SmugMug folders. When they ask to "create galleries in the Wedding Events folder", you should:
-1. Search the existing folders list for a matching folder name
-2. Use that folder's NodeID as the parentFolderId for new galleries
-3. Confirm which folder you found before creating the plan
+You have access to the user's existing SmugMug folders. When they ask to "create galleries in the Wedding Events folder" or "Sporting Events" or any folder reference, you should:
+1. **Search the existing folders list** for a matching folder name (be flexible - match case-insensitively, handle partial matches, and common variations)
+2. **Use that folder's NodeID** as the parentFolderId for new galleries/folders
+3. **Confirm which folder you found** in your response before creating the plan
+4. **If you can't find an exact match**, list similar folder names and ask the user to clarify
+5. **IMPORTANT**: Users refer to folders by their display name (e.g., "Sporting Events"), NOT by NodeID. Always search by name first.
 
 **When a user describes what they want:**
-1. Check if they're referencing an existing folder (e.g., "in my Wedding Events folder")
-2. If so, search the existingFolders list and use the NodeID
-3. Understand their intent (event type, organizational needs)
-4. Design a logical folder/gallery hierarchy
-5. Ensure you don't exceed 5 folder levels (since level 6 must be galleries)
-6. Output a structured creation plan in JSON format
-7. Explain your reasoning and confirm which existing folder you're using (if applicable)
+1. **Check if they're referencing an existing folder** (e.g., "in my Wedding Events folder", "inside Sporting Events", "under my Photos folder")
+2. **If so, search the existingFolders list** - match by folder Name, not NodeID (be flexible with capitalization and spacing)
+3. **Understand their intent** (event type, organizational needs)
+4. **Design a logical folder/gallery hierarchy**
+5. **Ensure you don't exceed 5 folder levels** (since level 6 must be galleries)
+6. **Output a structured creation plan** in JSON format
+7. **Explain your reasoning** and confirm which existing folder you're using (show the folder name and NodeID)
 
 **Output Format:**
 You must respond with a JSON object wrapped in <plan> tags.
@@ -136,9 +158,25 @@ This will create a special upload URL that allows anyone with the link and passw
 
 Remember: Keep hierarchy under 6 levels, and level 6 must be galleries only!`;
 
+export async function GET(request: NextRequest) {
+  // Return system prompt if requested
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('getSystemPrompt') === 'true') {
+    const fullPrompt = `${CREATION_ONLY_PROMPT}\n\n${SYSTEM_PROMPT_BASE}\n\n--- DESTRUCTION MODE PROMPT ---\n\n${DESTRUCTION_MODE_PROMPT}`;
+    return NextResponse.json({ systemPrompt: fullPrompt });
+  }
+
+  return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { message, conversationHistory, existingFolders } = await request.json();
+    const { message, conversationHistory, existingFolders, existingGalleries, destructionMode } = await request.json();
+
+    console.log(`📁 AI Gallery Creator - Folders available: ${existingFolders?.length || 0}`);
+    if (existingFolders && existingFolders.length > 0) {
+      console.log('Folder names:', existingFolders.map((f: any) => f.Name).join(', '));
+    }
 
     // Format existing folders for the AI
     let foldersContext = '';
@@ -150,6 +188,48 @@ export async function POST(request: NextRequest) {
       foldersContext = '\n\n**USER\'S EXISTING SMUGMUG FOLDERS:** None found or still loading. You can create new folder structures.';
     }
 
+    // Format existing galleries for the AI
+    let galleriesContext = '';
+    if (existingGalleries && existingGalleries.length > 0) {
+      galleriesContext = '\n\n**USER\'S EXISTING SMUGMUG GALLERIES:**\n' +
+        existingGalleries.map((g: any) => `- "${g.Name}" (${g.ImageCount || 0} photos, AlbumKey: ${g.AlbumKey}${g.NodeID ? ', NodeID: ' + g.NodeID : ''})`).join('\n') +
+        '\n\nYou can see which galleries are empty (0 photos) or have content. This helps you identify galleries that might need deletion or organization.';
+    } else {
+      galleriesContext = '\n\n**USER\'S EXISTING SMUGMUG GALLERIES:** None found or still loading.';
+    }
+
+    // Build the system prompt based on mode
+    const modeHeader = destructionMode ? DESTRUCTION_MODE_PROMPT : CREATION_ONLY_PROMPT;
+    const deletionExamples = destructionMode ? `
+
+**Example with DELETIONS:**
+If user says "Delete my old 2020 weddings folder and create a new 2024 structure":
+<plan>
+{
+  "deletions": [
+    {
+      "nodeId": "xyz789",
+      "name": "2020 Weddings",
+      "type": "folder"
+    }
+  ],
+  "folders": [
+    {
+      "name": "2024 Weddings",
+      "privacy": "Private"
+    }
+  ],
+  "galleries": [],
+  "summary": "Deleted old 2020 Weddings folder and created fresh 2024 structure.",
+  "reasoning": "Cleaning up old content and starting fresh for the new year."
+}
+</plan>
+
+**IMPORTANT:** The "deletions" array should contain objects with: nodeId (required), name (for confirmation), and type ("folder" or "gallery").
+` : '';
+
+    const fullSystemPrompt = modeHeader + SYSTEM_PROMPT_BASE + deletionExamples;
+
     // Build conversation context
     const messages = [
       ...conversationHistory.map((msg: any) => ({
@@ -158,7 +238,7 @@ export async function POST(request: NextRequest) {
       })),
       {
         role: 'user',
-        content: message + foldersContext,
+        content: message + foldersContext + galleriesContext,
       },
     ];
 
@@ -166,7 +246,7 @@ export async function POST(request: NextRequest) {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: fullSystemPrompt,
       messages: messages,
     });
 
@@ -202,8 +282,8 @@ export async function POST(request: NextRequest) {
           message: messageWithoutPlan || planJson.reasoning || "Here's what I propose:",
           plan: planJson,
         });
-      } catch (parseError) {
-        console.error('Error parsing plan JSON:', parseError);
+      } catch (_parseError) {
+        console.error('Error parsing plan JSON:', _parseError);
         return NextResponse.json({
           message: "I generated a plan but there was an error parsing it. Let me try again.",
           plan: null,
@@ -216,8 +296,8 @@ export async function POST(request: NextRequest) {
         plan: null,
       });
     }
-  } catch (error) {
-    console.error('Error calling Claude API:', error);
+  } catch (_error) {
+    console.error('Error calling Claude API:', _error);
     return NextResponse.json(
       { error: 'Failed to generate plan', message: "I'm sorry, I encountered an error. Please try again." },
       { status: 500 }

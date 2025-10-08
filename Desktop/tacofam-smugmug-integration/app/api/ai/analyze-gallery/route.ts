@@ -5,9 +5,46 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const SYSTEM_PROMPT = `Gallery metadata analyzer for SmugMug photo organization.
+
+**YOUR ROLE:**
+Analyze photo metadata (titles, captions, keywords, dates, filenames) to understand the content, themes, and characteristics of a photo gallery.
+
+**ANALYSIS CRITERIA:**
+
+1. **Themes** - Identify main themes from metadata (weddings, portraits, landscapes, events, etc.)
+2. **Subjects** - Extract main subjects mentioned (people, places, objects)
+3. **Date Range** - Estimate time period from dates and metadata
+4. **Location** - Identify location if mentioned in metadata or filenames
+5. **Photo Style** - Infer photography style from keywords and titles
+6. **Color Palette** - Infer color themes if mentioned in metadata
+7. **Summary** - Write 2-3 sentence description of gallery content
+
+**OUTPUT FORMAT:**
+Return ONLY a JSON object with these exact fields:
+{
+  "themes": ["theme1", "theme2", "theme3"],
+  "subjects": ["subject1", "subject2"],
+  "dateRange": "estimated date range",
+  "location": "location if identifiable or null",
+  "photoStyle": "inferred style from metadata",
+  "colorPalette": "inferred palette or N/A",
+  "summary": "2-3 sentence description of gallery content"
+}
+
+Be thorough and accurate. Extract maximum insight from available metadata.`;
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('getSystemPrompt') === 'true') {
+    return NextResponse.json({ systemPrompt: SYSTEM_PROMPT });
+  }
+  return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { images, galleryName, albumKey } = await request.json();
+    const { images, galleryName, albumKey, customPrompt } = await request.json();
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return NextResponse.json(
@@ -29,6 +66,9 @@ export async function POST(request: NextRequest) {
 
     const metadataBlock = metadataTexts.join('\n');
 
+    // Use custom prompt if provided, otherwise use default SYSTEM_PROMPT
+    const promptToUse = customPrompt || SYSTEM_PROMPT;
+
     // Use AI to analyze metadata instead of images
     const message = await anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022', // Cheaper model for testing (~90% less cost than Sonnet)
@@ -36,24 +76,14 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'user',
-          content: `Analyze the metadata from photos in a SmugMug gallery named "${galleryName}". Create a comprehensive index based on the following image metadata:
+          content: `${promptToUse}
 
+Gallery Name: "${galleryName}"
+
+Image Metadata:
 ${metadataBlock}
 
-**Your task**: Create an index entry describing this gallery's content, themes, and characteristics based on the metadata.
-
-**Provide your response in this exact JSON format**:
-{
-  "themes": ["theme1", "theme2", "theme3"],
-  "subjects": ["subject1", "subject2"],
-  "dateRange": "estimated date range",
-  "location": "location if identifiable or null",
-  "photoStyle": "inferred style from metadata",
-  "colorPalette": "inferred palette or N/A",
-  "summary": "2-3 sentence description of gallery content"
-}
-
-Return ONLY the JSON object, no other text.`,
+Provide your analysis in the exact JSON format specified above. Return ONLY the JSON object, no other text.`,
         },
       ],
     });
@@ -74,7 +104,7 @@ Return ONLY the JSON object, no other text.`,
       }
 
       analysis = JSON.parse(cleanedText);
-    } catch (parseError) {
+    } catch (_parseError) {
       console.error('Failed to parse AI response:', responseText);
       return NextResponse.json(
         { error: 'Failed to parse AI analysis' },
