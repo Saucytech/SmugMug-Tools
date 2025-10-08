@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Heart, Grid, LayoutGrid, Columns, X, Copy, Check, Play, Image as ImageIcon, Sparkles, Layout, Layers, Camera, Monitor, Tablet, Smartphone, Code2, Eye } from 'lucide-react';
 import ToolboxHeader from '@/components/ToolboxHeader';
+
+export const dynamic = 'force-dynamic';
 
 interface Photo {
   ImageKey: string;
