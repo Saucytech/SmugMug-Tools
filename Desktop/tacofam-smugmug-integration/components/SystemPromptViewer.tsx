@@ -55,7 +55,7 @@ export default function SystemPromptViewer({ toolName, apiEndpoint }: SystemProm
         setDefaultPrompt('Failed to load system prompt');
         setEditedPrompt('Failed to load system prompt');
       }
-    } catch (error) {
+    } catch {
       setDefaultPrompt('Error loading system prompt');
       setEditedPrompt('Error loading system prompt');
     } finally {
