@@ -37,19 +37,12 @@ export default function Home() {
 
   // Check authentication status and admin role
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/smugmug/user', {
-          credentials: 'include',
-        });
-        if (response.ok) {
-          setIsAuthenticated(true);
-        }
-      } catch (_error) {
-        console.log('Not authenticated');
-      }
-    };
-    checkAuth();
+    // Check if user is logged in with NextAuth
+    if (session) {
+      setIsAuthenticated(true);
+    } else {
+      setIsAuthenticated(false);
+    }
 
     // Check if password was previously verified
     const verified = localStorage.getItem('smugtools_early_access');
