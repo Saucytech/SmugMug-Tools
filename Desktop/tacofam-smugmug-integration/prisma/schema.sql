@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     name VARCHAR(255),
     role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
-    coin_balance INTEGER DEFAULT 10000, -- Starting balance
+    coin_balance INTEGER DEFAULT 0, -- Balance starts at 0, coins added via transactions
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP
@@ -111,6 +111,20 @@ CREATE TABLE IF NOT EXISTS verification_tokens (
     PRIMARY KEY (identifier, token)
 );
 
+-- Tool states table - Admin control for tool availability
+CREATE TABLE IF NOT EXISTS tool_states (
+    id SERIAL PRIMARY KEY,
+    tool_id VARCHAR(100) UNIQUE NOT NULL, -- e.g., 'embed-sell', 'favorites-manager'
+    tool_name VARCHAR(255) NOT NULL, -- Display name
+    status VARCHAR(20) DEFAULT 'on' CHECK (status IN ('on', 'disabled', 'off')),
+    disabled_message TEXT, -- Custom message when disabled
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_states_tool_id ON tool_states(tool_id);
+CREATE INDEX IF NOT EXISTS idx_tool_states_status ON tool_states(status);
+
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -127,6 +141,9 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 CREATE TRIGGER update_smugmug_tokens_updated_at BEFORE UPDATE ON smugmug_tokens
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_tool_states_updated_at BEFORE UPDATE ON tool_states
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Create default admin user (password: 'admin123' - CHANGE THIS!)
 -- Password hash for 'admin123' using bcrypt
 INSERT INTO users (email, password_hash, name, role, coin_balance)
@@ -138,6 +155,18 @@ VALUES (
     999999999
 )
 ON CONFLICT (email) DO NOTHING;
+
+-- Initialize tool states (all tools ON by default)
+INSERT INTO tool_states (tool_id, tool_name, status) VALUES
+    ('embed-sell', 'Embed & Sell', 'on'),
+    ('favorites-manager', 'Favorites Selector', 'on'),
+    ('metadata-monster', 'MetaData Monster', 'on'),
+    ('ai-gallery-creator', 'AI Gallery Creator', 'on'),
+    ('photo-organizer', 'Photo Organizer', 'on'),
+    ('guest-upload-manager', 'Guest Upload Manager', 'on'),
+    ('downloader', 'Folder Downloader', 'on'),
+    ('sanity-checker', 'Sanity Checker', 'on')
+ON CONFLICT (tool_id) DO NOTHING;
 
 -- Sample queries for testing
 -- SELECT * FROM users;

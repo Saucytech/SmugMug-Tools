@@ -44,16 +44,19 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create user with starting balance of 10,000 coins
+    // Create user with 0 coin balance initially
     const user = await db.createUser(email, passwordHash, name);
 
-    // Create welcome bonus transaction
+    // Add welcome bonus transaction (this creates the transaction record)
     await db.addCoinTransaction(
       user.id,
       10000,
       'bonus',
       'Welcome bonus - Thank you for signing up!'
     );
+
+    // Update user's coin balance to match the transaction
+    await db.updateUserCoinBalance(user.id, 10000);
 
     return NextResponse.json(
       {
@@ -63,7 +66,7 @@ export async function POST(request: NextRequest) {
           id: user.id,
           email: user.email,
           name: user.name,
-          coinBalance: user.coin_balance,
+          coinBalance: 10000, // Return the updated balance
         },
       },
       { status: 201 }

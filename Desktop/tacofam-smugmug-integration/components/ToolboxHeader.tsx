@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { Wrench, ChevronDown, LogOut, User, ShoppingCart, Heart, Code2, Home, Sparkles, Brain, Upload, ClipboardCheck, Grid, Book, Eye, Coins, BarChart3, LogIn, Download } from 'lucide-react';
+import { Wrench, ChevronDown, LogOut, User, ShoppingCart, Heart, Code2, Home, Sparkles, Brain, Upload, ClipboardCheck, Grid, Book, Eye, Coins, BarChart3, LogIn, Download, Link2, Lock } from 'lucide-react';
 import { tokenStorage } from '@/lib/smugmug-client';
 import AIActivityIndicator from '@/components/AIActivityIndicator';
 import { useCoinBalance } from '@/stores/coinBalanceStore';
@@ -101,8 +101,22 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
   const [showCoinMenu, setShowCoinMenu] = useState(false);
   const [smugmugUser, setSmugmugUser] = useState<any>(null);
 
+  // Password gate for SmugMug connection
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+
   // Use centralized coin balance store
   const { balance: coinBalance, addCoins } = useCoinBalance();
+
+  useEffect(() => {
+    // Check if password was already verified
+    const earlyAccess = localStorage.getItem('smugtools_early_access');
+    if (earlyAccess === 'true') {
+      setIsPasswordVerified(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (session) {
@@ -113,6 +127,30 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
   const handleTopUp = (amount: number, price: string) => {
     addCoins(amount, `Purchased ${amount.toLocaleString()} Coins for ${price}`);
     setShowCoinMenu(false);
+  };
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === 'comingsoon') {
+      setIsPasswordVerified(true);
+      localStorage.setItem('smugtools_early_access', 'true');
+      setShowPasswordModal(false);
+      setPassword('');
+      setPasswordError('');
+      // Redirect to SmugMug OAuth
+      window.location.href = '/api/auth/smugmug';
+    } else {
+      setPasswordError('Incorrect password. Contact support@smugtools.com for early access.');
+    }
+  };
+
+  const handleConnectSmugMug = () => {
+    if (!isPasswordVerified) {
+      setShowPasswordModal(true);
+      setShowUserMenu(false);
+    } else {
+      window.location.href = '/api/auth/smugmug';
+    }
   };
 
   const loadSmugmugUser = async () => {
@@ -397,6 +435,38 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
 
                       <div className="h-px bg-gray-200 my-2" />
 
+                      {!smugmugUser ? (
+                        <button
+                          onClick={handleConnectSmugMug}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-green-50 rounded-lg transition-colors text-left"
+                        >
+                          <div className="relative">
+                            <Link2 className="w-4 h-4 text-green-600" />
+                            {!isPasswordVerified && (
+                              <Lock className="w-3 h-3 text-orange-500 absolute -top-1 -right-1" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">Connect to SmugMug</div>
+                            <div className="text-xs text-gray-500">
+                              {isPasswordVerified ? 'Link your SmugMug account' : 'Early access required'}
+                            </div>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="px-4 py-3 bg-green-50 rounded-lg">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Link2 className="w-4 h-4 text-green-600" />
+                            <div className="text-sm font-medium text-gray-900">Connected to SmugMug</div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {smugmugUser.NickName}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="h-px bg-gray-200 my-2" />
+
                       <button
                         onClick={() => {
                           handleLogout();
@@ -424,6 +494,80 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
           </div>
         </div>
       </div>
+
+      {/* Password Gate Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-pink-500 rounded-2xl mb-4">
+                <Lock className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Early Access Required
+              </h2>
+              <p className="text-gray-600">
+                Enter your early access password to connect your SmugMug account
+              </p>
+            </div>
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setPasswordError('');
+                  }}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors"
+                  placeholder="Enter password"
+                  autoFocus
+                />
+              </div>
+
+              {passwordError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-900">{passwordError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPassword('');
+                    setPasswordError('');
+                  }}
+                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold text-white transition-colors"
+                >
+                  Continue
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-900">
+                💡 Don&apos;t have early access? Contact{' '}
+                <a href="mailto:support@smugtools.com" className="font-semibold underline">
+                  support@smugtools.com
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

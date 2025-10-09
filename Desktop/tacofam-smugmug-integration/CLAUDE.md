@@ -1,18 +1,21 @@
-# Claude AI Development Guide for Smugtools.com
+# Claude AI Development Guide for Smugtools
 
 ## 🤖 Instructions for AI Assistants (Claude, GPT, etc.)
 
-This document provides guidance for AI coding assistants working with Smugtools.com, a professional SaaS platform for SmugMug photographers.
+This document provides guidance for AI coding assistants working with Smugtools, a professional multi-tenant SaaS platform for SmugMug photographers.
 
 ---
 
-## 📋 Template Overview
+## 📋 Project Overview
 
-**Project**: Smugtools.com - Professional SmugMug SaaS Platform
+**Project**: Smugtools - Multi-Tenant SmugMug SaaS Platform
 **Framework**: Next.js 14 (App Router)
 **Language**: TypeScript
-**Authentication**: NextAuth + OAuth 1.0a (✅ Fully Implemented)
-**Purpose**: Multi-tenant SaaS platform with AI-powered tools for photographers
+**Database**: Neon PostgreSQL (serverless)
+**Authentication**: NextAuth.js + SmugMug OAuth 1.0a (✅ Fully Implemented)
+**AI Provider**: Anthropic Claude API
+**Payments**: Stripe (coin-based system)
+**Purpose**: Production SaaS with 8 professional tools for photographers
 
 ### ⚠️ Important Disclaimers
 
@@ -32,92 +35,185 @@ This document provides guidance for AI coding assistants working with Smugtools.
 
 ## ✅ What's Already Working
 
-### Authentication Flow (100% Complete)
-- ✅ OAuth 1.0a request token generation
-- ✅ Secure token secret storage via HTTP-only cookies
-- ✅ SmugMug authorization redirect
-- ✅ OAuth callback handling
-- ✅ Access token exchange
-- ✅ Cookie cleanup after auth
-- ✅ Error handling
+### Authentication System (100% Complete)
+- ✅ NextAuth.js with database sessions (Neon PostgreSQL)
+- ✅ User registration and login (`/auth/signup`, `/auth/signin`)
+- ✅ SmugMug OAuth 1.0a integration
+- ✅ Encrypted token storage (AES-256-CBC)
+- ✅ Role-based access (admin/user)
+- ✅ HTTP-only, SameSite cookies
+- ✅ CSRF protection
+- ✅ Optional Stack Auth integration
 
-**Do NOT modify the auth flow unless specifically requested** - it's battle-tested and working.
+**Do NOT modify the auth flow unless specifically requested** - it's production-tested and working.
 
-### Existing API Routes
+### Database Schema (Neon PostgreSQL)
+- ✅ users (email, password_hash, role, coin_balance)
+- ✅ smugmug_tokens (encrypted access tokens per user)
+- ✅ tool_states (admin control over tool availability)
+- ✅ coin_transactions (purchases, usage, bonuses, refunds)
+- ✅ ai_operations (tracking all AI requests and costs)
+- ✅ accounts/sessions/verification_tokens (NextAuth tables)
+- ✅ stripe_customers (payment integration)
+- ✅ uploaded_images (guest upload tracking)
+
+### Existing API Routes (35+ endpoints)
 ```
 app/api/
-├── auth/smugmug/
-│   ├── route.ts              # OAuth initiation (WORKING ✅)
-│   └── callback/route.ts     # OAuth callback (WORKING ✅)
+├── auth/
+│   ├── [...nextauth]/route.ts       # NextAuth handlers ✅
+│   ├── signup/route.ts              # User registration ✅
+│   ├── logout/route.ts              # Logout handler ✅
+│   └── smugmug/
+│       ├── route.ts                 # OAuth initiation ✅
+│       └── callback/route.ts        # OAuth callback ✅
 ├── ai/
-│   └── generate-metadata/    # AI metadata generation (WORKING ✅)
+│   └── generate-metadata/route.ts   # AI metadata generation ✅
+├── admin/
+│   └── tools/route.ts               # Tool state management (admin only) ✅
+├── tools/
+│   └── states/route.ts              # Public tool states API ✅
+├── download/
+│   └── route.ts                     # Bulk download handler ✅
 └── smugmug/
     ├── albums/
-    │   ├── route.ts          # Fetch albums (WORKING ✅)
-    │   └── [albumKey]/images/route.ts  # Fetch images (WORKING ✅)
-    ├── folders/route.ts      # Fetch folders (WORKING ✅)
-    ├── user/route.ts         # Get user info (WORKING ✅)
-    └── image/[imageKey]/route.ts  # Update image metadata (WORKING ✅)
+    │   ├── route.ts                 # Fetch albums ✅
+    │   ├── [albumKey]/images/route.ts # Fetch album images ✅
+    │   └── delete/route.ts          # Delete albums ✅
+    ├── folders/route.ts             # Fetch folders ✅
+    ├── folder-tree/route.ts         # Folder hierarchy ✅
+    ├── user/route.ts                # Get user info ✅
+    ├── image/[imageKey]/route.ts    # Update image metadata ✅
+    ├── create-folder/route.ts       # Create folder ✅
+    ├── create-gallery/route.ts      # Create gallery/album ✅
+    ├── create-structure/route.ts    # Bulk structure creation ✅
+    ├── delete-node/route.ts         # Delete folder/gallery ✅
+    ├── guest-upload-folder/route.ts # Guest upload setup ✅
+    ├── upload/route.ts              # Photo upload ✅
+    ├── move-image/route.ts          # Move photo between albums ✅
+    ├── collect-image/route.ts       # Add image to album ✅
+    └── album-templates/route.ts     # Gallery templates ✅
 ```
 
-### Production-Ready Tools (Smugtools.com)
+### Production-Ready Tools (8 Professional Tools)
 
-**Favorites Manager** (`app/favorites-manager/`)
-- Create client photo selection sessions
-- Customizable themes and branding
-- Shareable client links
-- Track customer favorites
-- Optional "Buy" button integration
-- Uses localStorage for session storage
-
-**MetaData Monster** (`app/metadata-monster/`)
-- AI-powered metadata generation
-- Batch process titles, captions, keywords
-- Multiple prompt styles (Professional, Creative, SEO, etc.)
-- Credit system for AI usage
-- Edit before saving to SmugMug
-- Export reports as CSV
-
-**Multi-Album Selector** (`app/multi-album-selector/`)
+**1. Embed & Sell** (`app/favorites/` - formerly Multi-Album Selector)
 - Select photos across multiple albums
 - Generate embed codes (HTML, React, WordPress, JSON)
 - Multiple display layouts (Grid, Carousel, Masonry)
+- Buy button integration
 - Preview before exporting
 
-### Developer Tools
-- `app/api-reference/page.tsx` - Interactive SmugMug API documentation browser
-- `app/metadata/page.tsx` - EXIF and metadata viewer for images
-- `app/page.tsx` - Main dashboard with navigation to all tools
-- `app/albums/[albumKey]/page.tsx` - Album photo grid with sessionStorage caching
-- `app/photo/[imageKey]/page.tsx` - Photo detail page using cached data
-- `app/layout.tsx` - Root layout with Tailwind CSS
-- State management with custom hooks and localStorage
+**2. Favorites Selector** (`app/favorites-manager/`)
+- 7 customizable color themes
+- Logo branding upload (PNG/JPG/SVG)
+- Shareable client links
+- Track customer favorites (name, email)
+- Optional "Buy" button integration
+- localStorage for session storage
 
-### 🎯 Featured Production Tools
+**3. MetaData Monster** (`app/metadata-monster/`)
+- AI-powered metadata generation (1 coin per photo)
+- 2 modes: Normal & Seek & Capture
+- 5 prompt styles (Professional, Creative, SEO, Minimal, Descriptive)
+- Batch process titles, captions, keywords
+- Edit before saving to SmugMug
+- Export reports as CSV
+
+**4. AI Gallery Creator** (`app/ai-gallery-creator/`)
+- AI chat for automatic folder structure creation
+- 5 pre-built templates (Wedding, Sports, Real Estate, Portrait, Corporate)
+- Manual folder/gallery creation tools
+- Destruction Mode for cleanup
+- Template save/load system
+- Guest upload link generation
+
+**5. Photo Organizer** (`app/photo-organizer/`)
+- AI auto-sorting into correct albums
+- Confidence scoring for suggestions
+- Smart indexing for fast searches
+- Bulk organization
+- Preview before applying
+
+**6. Guest Upload Manager** (`app/guest-upload-manager/`)
+- Project-based organization
+- People library (reusable templates)
+- Drag-and-drop people management
+- Unique upload URL per person
+- Batch "Execute Pending" for bulk creation
+- Upload tracking
+
+**7. Folder Downloader** (`app/downloader/`)
+- 3 download strategies (Single ZIP, Album-based, Auto-split)
+- 5 image size options (Original, X3Large, X2Large, XLarge, Large)
+- Folder tree navigation with checkboxes
+- Preserve original folder hierarchy
+- Delete albums option
+
+**8. Sanity Checker** (`app/sanity-checker/`)
+- AI-powered deep analysis using cached gallery data
+- Severity categorization (Critical, Optimization, General)
+- Terminal-style log output
+- Clickable links to affected galleries
+- Auto-fix available for some issues
+
+### Supporting Pages
+- `app/page.tsx` - Main dashboard with tool state management
+- `app/admin/page.tsx` - Admin dashboard (analytics, user management, tool control)
+- `app/ai-dashboard/page.tsx` - AI usage tracking and analytics
+- `app/auth/signin/page.tsx` - Login page
+- `app/auth/signup/page.tsx` - Registration page
+- `app/pricing/page.tsx` - Coin packages and Stripe checkout
+- `app/api-reference/page.tsx` - Interactive SmugMug API documentation
+
+### 🎯 Tool Routing Guide
 
 **When users ask to:**
-- "Let clients select photos" → Direct them to **Favorites Manager** (`/favorites-manager`)
-- "Generate photo metadata" → Direct them to **MetaData Monster** (`/metadata-monster`)
-- "Create embeddable galleries" → Direct them to **Multi-Album Selector** (`/multi-album-selector`)
-- "View API documentation" → Direct them to **API Reference** (`/api-reference`)
-- "Inspect photo metadata" → Direct them to **Metadata Viewer** (`/metadata`)
+- "Create embeddable galleries" → **Embed & Sell** (`/favorites`)
+- "Let clients select photos" → **Favorites Selector** (`/favorites-manager`)
+- "Generate photo metadata" → **MetaData Monster** (`/metadata-monster`)
+- "Organize folder structure" → **AI Gallery Creator** (`/ai-gallery-creator`)
+- "Sort photos with AI" → **Photo Organizer** (`/photo-organizer`)
+- "Share upload links" → **Guest Upload Manager** (`/guest-upload-manager`)
+- "Download photos" → **Folder Downloader** (`/downloader`)
+- "Analyze account" → **Sanity Checker** (`/sanity-checker`)
+- "View API docs" → **API Reference** (`/api-reference`)
+- "Track AI usage" → **AI Dashboard** (`/ai-dashboard`)
+- "Manage platform" → **Admin Dashboard** (`/admin`)
 
-These tools are **production-ready and fully working**. Don't rebuild them unless specifically requested.
+These 8 tools are **production-ready and fully working**. Don't rebuild them unless specifically requested.
 
-### ⚠️ Known SmugMug API Limitation
+### ⚠️ Critical SmugMug API Pattern (RESOLVED)
 
-**DO NOT use the `/api/v2/image/{imageKey}` GET endpoint for reading image data.**
+**IMPORTANT: Always use versioned image URIs with serial number suffix**
 
-**Problem**: The SmugMug `/api/v2/image/{imageKey}` GET endpoint has a persistent OAuth nonce collision issue. Even with cryptographically unique nonces and fresh OAuth instances per request, SmugMug returns `oauth_problem=nonce_used` errors consistently. This appears to be a SmugMug API bug or undocumented rate limiting specific to this endpoint.
+**Problem (RESOLVED)**: The `oauth_problem=nonce_used` errors were caused by using non-versioned image keys (e.g., `MLB2MBL`) instead of versioned ones with serial numbers (e.g., `MLB2MBL-0`).
 
-**NOTE**: The PUT endpoint (`/api/v2/image/{imageKey}`) for **updating** image metadata DOES work and is used successfully in MetaData Monster with random delays to prevent nonce collisions.
+**Root Cause**: When using non-versioned endpoints, SmugMug redirects to the versioned endpoint, but OAuth clients follow redirects without re-signing, causing nonce errors.
 
-**Solution**: Use the sessionStorage pattern instead:
-1. The `/api/v2/album/{albumKey}!images` endpoint returns ALL photo data (including metadata)
-2. Store photo data in `sessionStorage` when user clicks on a photo
-3. Photo detail page reads from sessionStorage instead of making individual image API calls
+**Solution**: Always use the `Uri` field from SmugMug API responses:
 
-**Implementation**:
+```typescript
+// ❌ WRONG: Non-versioned (causes oauth_problem=nonce_used)
+const endpoint = `/api/v2/album/${albumKey}/image/${imageKey}`;
+
+// ✅ CORRECT: Use Uri field from API response (includes -0 suffix)
+const photo = albumData.Response.AlbumImage[0];
+const endpoint = photo.Uri; // e.g., "/api/v2/album/G644RP/image/MLB2MBL-0"
+```
+
+**Why this matters**:
+- PATCH requests for metadata updates work reliably
+- No need for artificial delays between requests
+- MetaData Monster can update metadata in bulk without errors
+- Standard OAuth nonce handling works as expected
+
+**Best Practice for Reading Image Data**:
+Still use the sessionStorage pattern for optimal performance:
+1. The `/api/v2/album/{albumKey}!images` endpoint returns ALL photo data
+2. Store photo data in `sessionStorage` when user navigates
+3. Photo detail pages read from cache instead of making API calls
+
 ```typescript
 // In album page - when photo is clicked:
 sessionStorage.setItem('currentPhoto', JSON.stringify(photo));
@@ -130,31 +226,38 @@ if (cachedPhoto) {
 }
 ```
 
-**Why this works better**:
-- Avoids the OAuth nonce issue entirely
-- Faster (no additional API call)
-- More efficient (data already fetched)
-- Better user experience (instant page load)
+**Benefits of caching approach**:
+- Faster page loads (no API call)
+- Reduced API usage
+- Better user experience
+- Works for all image operations
+
+**Credit**: Thanks to SmugMug engineer Erik 'Egg' Giberti for identifying the versioned URI solution.
 
 ---
 
 ## 🎯 Common User Requests & How to Handle Them
 
-### 0. "I need [client favorites / metadata generation / gallery embeds]"
+### 0. "I need [specific workflow feature]"
 
-**IMPORTANT: Check existing tools FIRST before building anything new!**
+**IMPORTANT: Check existing 8 tools FIRST before building anything new!**
 
-Smugtools.com includes production-ready tools for common photographer needs:
+Smugtools includes production-ready tools for common photographer needs:
 
 - **Client photo selection?** → Use `/favorites-manager` (already built!)
 - **Generate metadata?** → Use `/metadata-monster` (already built!)
-- **Create embeds?** → Use `/multi-album-selector` (already built!)
+- **Create embeds?** → Use `/favorites` (already built!)
+- **Organize structure?** → Use `/ai-gallery-creator` (already built!)
+- **Sort photos with AI?** → Use `/photo-organizer` (already built!)
+- **Share upload links?** → Use `/guest-upload-manager` (already built!)
+- **Download photos?** → Use `/downloader` (already built!)
+- **Analyze account?** → Use `/sanity-checker` (already built!)
 - **API docs?** → Use `/api-reference` (already built!)
 
 **Only build new features if:**
-1. The existing tools don't meet the specific requirement
+1. The existing 8 tools don't meet the specific requirement
 2. User explicitly asks to modify or extend an existing tool
-3. User wants something completely different
+3. User wants something completely different from the 8 tools
 
 ### 1. "Add a new SmugMug API feature"
 
@@ -220,32 +323,40 @@ If user reports auth issues:
 
 **Do NOT rewrite the auth flow unless there's a specific bug.**
 
-### 3. "Add database storage for tokens"
+### 3. "Database and token storage"
 
-**Current State**: Tokens are in URL params (demo only)
+**Current State**: ✅ FULLY IMPLEMENTED with NextAuth + Neon PostgreSQL
 
-**Steps to Upgrade**:
-1. Ask user which database (Prisma, MongoDB, etc.)
-2. Create schema with `accessToken` and `tokenSecret` fields
-3. Modify `app/api/auth/smugmug/callback/route.ts`:
-   - Replace URL redirect with database storage
-   - Set up session or secure cookie
-4. Update all SmugMug API routes to fetch tokens from database
+**Architecture**:
+- NextAuth.js handles user sessions
+- SmugMug tokens stored in `smugmug_tokens` table (AES-256-CBC encrypted)
+- User authentication via `users` table (bcrypt password hashing)
+- Coin balance and transactions tracked
+- AI operations logged for analytics
 
-**Example with Prisma**:
+**Token Retrieval Pattern**:
 ```typescript
-// In callback route:
-const user = await prisma.user.create({
-  data: {
-    smugmugAccessToken: accessToken,
-    smugmugTokenSecret: accessTokenSecret,
-  },
-});
+// In any API route that needs SmugMug access:
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { decrypt } from "@/lib/encryption";
+import db from "@/lib/db";
 
-// Set session cookie
-const response = NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_APP_URL!));
-response.cookies.set('user_id', user.id, { httpOnly: true, secure: true });
+const session = await getServerSession(authOptions);
+if (!session) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+const result = await db.query(
+  'SELECT access_token, token_secret FROM smugmug_tokens WHERE user_id = $1',
+  [session.user.id]
+);
+
+const accessToken = decrypt(result.rows[0].access_token);
+const tokenSecret = decrypt(result.rows[0].token_secret);
 ```
+
+**DO NOT rebuild this system** - it's production-ready with proper encryption and session management.
 
 ### 4. "Build a new feature" (e.g., search, upload, etc.)
 
@@ -301,16 +412,37 @@ The demo UI (`app/page.tsx`) can be:
 
 **Required**:
 ```env
+# SmugMug API
 SMUGMUG_API_KEY=xxx
 SMUGMUG_API_SECRET=xxx
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Database (Neon PostgreSQL)
+DATABASE_URL=postgresql://...
+DATABASE_URL_UNPOOLED=postgresql://...
+
+# NextAuth
+NEXTAUTH_SECRET=xxx
+NEXTAUTH_URL=http://localhost:3000
+
+# Encryption (32-byte hex key)
+ENCRYPTION_KEY=xxx
+
+# AI (Anthropic)
+ANTHROPIC_API_KEY=xxx
 ```
 
-**Optional** (for production):
+**Optional** (for full features):
 ```env
-DATABASE_URL=xxx
-SESSION_SECRET=xxx
-LOG_LEVEL=info
+# Stripe (payments)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+
+# Stack Auth (alternative to NextAuth)
+NEXT_PUBLIC_STACK_PROJECT_ID=xxx
+NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=xxx
+STACK_SECRET_SERVER_KEY=xxx
 ```
 
 ---
@@ -508,26 +640,43 @@ When a user asks you to work on this project:
 
 ## ✅ Summary for AI Assistants
 
-**Smugtools.com provides**:
-- ✅ Multi-tenant SaaS architecture
-- ✅ Working OAuth 1.0a + NextAuth with SmugMug
-- ✅ Clean Next.js 14 architecture
-- ✅ TypeScript setup
-- ✅ Production-ready platform with 5 professional tools:
-  - **Favorites Manager** - Client photo selection galleries
-  - **MetaData Monster** - AI-powered metadata generation
-  - **Multi-Album Selector** - Embeddable gallery creator
-  - **API Reference** - Interactive SmugMug API documentation
-  - **Metadata Viewer** - EXIF and metadata inspector
-- ✅ Complete API routes (albums, folders, user, images, AI)
-- ✅ Production-ready foundation
+**Smugtools provides**:
+- ✅ Multi-tenant SaaS architecture with Neon PostgreSQL
+- ✅ NextAuth.js + SmugMug OAuth 1.0a (fully working)
+- ✅ Clean Next.js 14 App Router architecture
+- ✅ TypeScript with strict type checking
+- ✅ Production SaaS with 8 professional tools:
+  1. **Embed & Sell** - Embeddable galleries with buy buttons
+  2. **Favorites Selector** - Client photo selection with 7 themes
+  3. **MetaData Monster** - AI metadata generation (2 modes, 5 styles)
+  4. **AI Gallery Creator** - Structure creation with templates
+  5. **Photo Organizer** - AI sorting and smart indexing
+  6. **Guest Upload Manager** - Project-based upload links
+  7. **Folder Downloader** - Bulk downloads with hierarchy
+  8. **Sanity Checker** - AI account analysis
+- ✅ 35+ API routes (auth, smugmug, ai, admin, download)
+- ✅ Admin dashboard (analytics, user management, tool states)
+- ✅ AI Dashboard (usage tracking, coin management)
+- ✅ Stripe integration (coin-based payment system)
+- ✅ Encrypted token storage (AES-256-CBC)
+- ✅ Role-based access control (admin/user)
+- ✅ Global albums cache (Zustand store)
 
 **Your job is to**:
-- ✅ **FIRST: Check if an existing tool solves the user's need!**
-- 🎯 Build NEW SmugMug features (if not already built)
-- 🎨 Customize existing tools (if requested)
-- 📦 Add integrations
-- 🚀 Help deploy to production
-- 🐛 Debug issues (rarely auth-related)
+- ✅ **FIRST: Check if one of the 8 tools solves the user's need!**
+- 🎯 Build NEW features ONLY if not already implemented
+- 🎨 Customize existing tools when requested
+- 📦 Add integrations (after checking existing functionality)
+- 🚀 Help deploy to production (Vercel + Neon + Stripe)
+- 🐛 Debug issues (auth/database/API integration)
+- 📝 Maintain documentation accuracy
 
-**The authentication is DONE. Professional tools are BUILT. Check what exists before building!** 🌟
+**The authentication is PRODUCTION-READY. 8 professional tools are BUILT. Database architecture is SOLID. Admin system is WORKING. Check what exists before building anything new!** 🌟
+
+**Key Files to Reference**:
+- Database schema: `prisma/schema.sql`
+- Token encryption: `lib/encryption.ts`
+- Albums cache: `stores/albumsStore.ts`
+- Auth config: `app/api/auth/[...nextauth]/route.ts`
+- Tool states: `app/api/admin/tools/route.ts`
+- SmugMug patterns: `app/api/smugmug/*/route.ts`

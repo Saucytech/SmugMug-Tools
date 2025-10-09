@@ -27,7 +27,7 @@ export const db = {
   async createUser(email: string, passwordHash: string, name?: string) {
     const result = await sql`
       INSERT INTO users (email, password_hash, name, coin_balance)
-      VALUES (${email}, ${passwordHash}, ${name || null}, 10000)
+      VALUES (${email}, ${passwordHash}, ${name || null}, 0)
       RETURNING *
     `;
     return result[0];
@@ -248,6 +248,47 @@ export const db = {
       GROUP BY u.id
       ORDER BY u.created_at DESC
       LIMIT ${limit}
+    `;
+  },
+
+  // Tool state operations
+  async getAllToolStates() {
+    return await sql`
+      SELECT * FROM tool_states
+      ORDER BY tool_name ASC
+    `;
+  },
+
+  async getToolState(toolId: string) {
+    const result = await sql`
+      SELECT * FROM tool_states
+      WHERE tool_id = ${toolId}
+      LIMIT 1
+    `;
+    return result[0] || null;
+  },
+
+  async updateToolState(
+    toolId: string,
+    status: 'on' | 'disabled' | 'off',
+    disabledMessage?: string
+  ) {
+    await sql`
+      UPDATE tool_states
+      SET
+        status = ${status},
+        disabled_message = ${disabledMessage || null},
+        updated_at = CURRENT_TIMESTAMP
+      WHERE tool_id = ${toolId}
+    `;
+  },
+
+  async getActiveToolStates() {
+    // Returns tools that are either 'on' or 'disabled' (not 'off')
+    return await sql`
+      SELECT * FROM tool_states
+      WHERE status IN ('on', 'disabled')
+      ORDER BY tool_name ASC
     `;
   },
 };

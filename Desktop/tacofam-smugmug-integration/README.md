@@ -10,58 +10,101 @@ The complete toolkit for photographers using SmugMug. Built with Next.js 14, Typ
 
 ## 🌟 What is Smugtools?
 
-**Smugtools.com** is a professional SaaS platform that extends SmugMug's capabilities with powerful tools for photographers:
+**Smugtools.com** is a multi-tenant SaaS platform that extends SmugMug's capabilities with 8 professional tools for photographers:
 
 - 🤖 **AI-Powered Metadata** - Generate titles, captions, and keywords automatically
 - 👥 **Client Galleries** - Beautiful, shareable galleries for client photo selection
 - 📊 **Analytics Dashboard** - Track usage, AI operations, and client engagement
 - 🎨 **Multi-Album Tools** - Create embeddable galleries from multiple albums
-- 💎 **Premium Features** - Coin-based AI processing with flexible pricing
-- 🔐 **Multi-Tenant SaaS** - Secure, scalable architecture for multiple users
+- 📤 **Guest Uploads** - Share upload links with clients and guests
+- 📁 **Bulk Downloads** - Download photos with preserved folder hierarchy
+- 🔍 **Sanity Checker** - AI-powered account analysis and optimization
+- 🎯 **Photo Organizer** - AI sorting with smart indexing
+- 💎 **Coin System** - Flexible AI credit pricing with Stripe integration
+- 🔐 **Enterprise Security** - Encrypted tokens, NextAuth, role-based access
 
 ---
 
 ## ✨ Features
 
-### 🧰 Professional Tools
+### 🧰 8 Professional Tools
 
-#### MetaData Monster
-AI-powered bulk metadata generation for your photos:
-- Batch process titles, captions, and keywords
-- Multiple AI prompt styles (Professional, Creative, SEO, etc.)
-- Edit before saving to SmugMug
-- Export reports as CSV
-- Token-based AI usage tracking
-
-#### Favorites Manager
-Let clients select their favorite photos:
-- Customizable branding with logo upload
-- Multiple theme options
-- Shareable client links
-- Optional "Buy" button integration
-- Track customer selections
-
-#### Multi-Album Selector
+#### 1. Embed & Sell (Multi-Album Selector)
 Create embeddable photo galleries:
 - Select photos across multiple albums
 - Generate embed codes (HTML, React, WordPress, JSON)
 - Multiple display layouts (Grid, Carousel, Masonry)
+- Buy button integration
 - Preview before exporting
 
-#### Photo Downloader
-Bulk download tools for photographers:
-- Download multiple photos at once
-- Organize by album or custom selection
-- High-quality original files
-- Progress tracking
+#### 2. Favorites Selector (Favorites Manager)
+Let clients select their favorite photos:
+- 7 customizable color themes
+- Logo branding upload (PNG/JPG/SVG)
+- Shareable client links
+- Optional "Buy" button integration
+- Customer tracking (name, email)
+
+#### 3. MetaData Monster
+AI-powered bulk metadata generation:
+- 2 modes: Normal & Seek & Capture
+- 5 prompt styles (Professional, Creative, SEO, Minimal, Descriptive)
+- Batch process titles, captions, keywords
+- Edit before saving to SmugMug
+- Export reports as CSV
+- 1 coin per photo
+
+#### 4. AI Gallery Creator
+Create folder structures with AI assistance:
+- AI chat for automatic structure creation
+- 5 pre-built templates (Wedding, Sports, Real Estate, Portrait, Corporate)
+- Manual folder/gallery creation tools
+- Destruction Mode for cleanup
+- Template save/load system
+- Guest upload link generation
+
+#### 5. Photo Organizer
+AI-powered photo organization:
+- AI auto-sorting into correct albums
+- Confidence scoring for suggestions
+- Smart indexing for fast searches
+- Bulk organization
+- Preview before applying
+
+#### 6. Guest Upload Manager
+Share upload links with clients:
+- Project-based organization
+- People library (reusable templates)
+- Drag-and-drop people management
+- Unique upload URL per person
+- Batch "Execute Pending" for bulk creation
+- Upload tracking
+
+#### 7. Folder Downloader
+Download with preserved hierarchy:
+- 3 download strategies (Single ZIP, Album-based, Auto-split)
+- 5 image size options (Original, X3Large, X2Large, XLarge, Large)
+- Folder tree navigation with checkboxes
+- Preserve original folder structure
+- Delete albums option
+
+#### 8. Sanity Checker
+Comprehensive account analysis:
+- AI-powered deep analysis using cached gallery data
+- Severity categorization (Critical, Optimization, General)
+- Terminal-style log output
+- Clickable links to affected galleries
+- Auto-fix available for some issues
 
 ### 🔐 Authentication & Security
 
-- **NextAuth.js** - Secure user authentication
-- **Role-Based Access** - Admin and user roles
+- **NextAuth.js** - Secure user authentication with database sessions
+- **Stack Auth Integration** - Optional authentication provider
+- **Role-Based Access** - Admin and user roles with permission system
 - **Encrypted Tokens** - AES-256-CBC encryption for SmugMug OAuth tokens
-- **Session Management** - HTTP-only cookies
-- **CSRF Protection** - Built-in security
+- **Session Management** - HTTP-only, SameSite cookies
+- **CSRF Protection** - Built-in NextAuth security
+- **Tool State Management** - Admin control over tool availability
 
 ### 💰 Monetization Ready
 
@@ -109,41 +152,50 @@ Create `.env.development.local`:
 # SmugMug API
 SMUGMUG_API_KEY=your_api_key
 SMUGMUG_API_SECRET=your_api_secret
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Database
+# Database (Neon PostgreSQL)
 DATABASE_URL=your_neon_connection_string
+DATABASE_URL_UNPOOLED=your_neon_unpooled_string
 
 # NextAuth
 NEXTAUTH_SECRET=your_nextauth_secret
 NEXTAUTH_URL=http://localhost:3000
 
-# Encryption
+# Encryption (for SmugMug tokens)
 ENCRYPTION_KEY=your_64_char_hex_key
 
-# Stripe
+# Stripe (optional - for coin purchases)
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 
-# AI
+# AI (Anthropic Claude)
 ANTHROPIC_API_KEY=your_anthropic_key
+
+# Stack Auth (optional alternative to NextAuth)
+NEXT_PUBLIC_STACK_PROJECT_ID=your_stack_project_id
+NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=your_stack_client_key
+STACK_SECRET_SERVER_KEY=your_stack_secret_key
 ```
 
 ### 3. Database Setup
 
-Run the Neon schema:
+**See detailed instructions in [MULTI_TENANT_SETUP.md](./MULTI_TENANT_SETUP.md)**
+
+Quick steps:
 
 ```bash
-# Copy schema to Neon SQL Editor
+# 1. Copy schema to Neon SQL Editor
 cat prisma/schema.sql
-```
 
-Execute in your Neon console, then create admin user:
+# 2. Execute schema in Neon console
 
-```sql
--- Generate password hash first:
--- node -e "const bcrypt = require('bcryptjs'); bcrypt.hash('YOUR_PASSWORD', 10, (err, hash) => console.log(hash));"
+# 3. Generate admin password hash
+node -e "const bcrypt = require('bcryptjs'); bcrypt.hash('YOUR_PASSWORD', 10, (err, hash) => console.log(hash));"
 
+# 4. Update admin user in database
+# Run in Neon SQL Editor:
 UPDATE users
 SET password_hash = 'YOUR_HASH', email = 'admin@smugtools.com'
 WHERE role = 'admin';
@@ -155,21 +207,28 @@ WHERE role = 'admin';
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Visit:
+- Homepage: [http://localhost:3000](http://localhost:3000)
+- Sign up: [http://localhost:3000/auth/signup](http://localhost:3000/auth/signup)
+- Admin dashboard: [http://localhost:3000/admin](http://localhost:3000/admin)
 
 ---
 
 ## 📚 Documentation
 
 ### For Users
-- [Setup Guide](./MULTI_TENANT_SETUP.md) - Complete deployment instructions
-- [API Reference](./API_ENDPOINTS.md) - All available endpoints
-- [Tool Inventory](./tools/TOOLBOX_INVENTORY.md) - Feature documentation
+- [Setup Guide](./MULTI_TENANT_SETUP.md) - Complete multi-tenant setup instructions
+- [Tools Guide](./TOOLS_GUIDE.md) - Comprehensive guide to all 8 tools
+- [Admin Guide](./ADMIN_GUIDE.md) - Platform administration and management
 
 ### For Developers
-- [Developer Guide](./CLAUDE.md) - AI assistant instructions
-- [Agent Architecture](./.claude/agents/README.md) - Specialized AI agents
-- [Security Guide](./.claude/agents/security-guardian.md) - Security best practices
+- [API Reference](./API_REFERENCE.md) - All 35+ API endpoints documented
+- [Architecture Guide](./ARCHITECTURE.md) - System design, database schema, security
+- [Developer Guide](./CLAUDE.md) - AI assistant development instructions
+
+### Legacy Documentation
+- [Legacy Docs](./docs/legacy/) - Archived documentation from earlier versions
+- [Mobile Docs](./docs/mobile/) - Mobile optimization documentation archive
 
 ---
 
@@ -178,26 +237,54 @@ Open [http://localhost:3000](http://localhost:3000)
 ```
 smugtools/
 ├── app/
-│   ├── api/                    # API routes
-│   │   ├── auth/              # NextAuth + SmugMug OAuth
-│   │   ├── smugmug/           # SmugMug API integration
-│   │   ├── ai/                # AI metadata generation
-│   │   ├── stripe/            # Payment processing
-│   │   └── admin/             # Admin endpoints
-│   ├── metadata-monster/      # AI metadata tool
-│   ├── favorites-manager/     # Client gallery tool
-│   ├── downloader/            # Bulk download tool
-│   ├── admin/                 # Admin dashboard
-│   ├── auth/                  # Sign in/up pages
-│   └── pricing/               # Pricing & purchase
-├── components/                # React components
-├── lib/                       # Utilities
-│   ├── db.ts                 # Database client
-│   ├── encryption.ts         # Token encryption
-│   └── coinCalculator.ts     # AI cost calculator
-├── prisma/                    # Database schemas
-└── stores/                    # Zustand state management
+│   ├── api/                       # 35+ API routes
+│   │   ├── auth/                 # NextAuth + SmugMug OAuth
+│   │   │   ├── [...nextauth]/   # NextAuth handlers
+│   │   │   ├── signup/          # User registration
+│   │   │   └── smugmug/         # SmugMug OAuth flow
+│   │   ├── smugmug/              # SmugMug API integration
+│   │   │   ├── albums/          # Album management
+│   │   │   ├── folders/         # Folder operations
+│   │   │   ├── create-gallery/  # Gallery creation
+│   │   │   ├── create-folder/   # Folder creation
+│   │   │   ├── upload/          # Photo uploads
+│   │   │   └── [20+ more]       # Additional endpoints
+│   │   ├── ai/                   # AI operations
+│   │   │   └── generate-metadata/
+│   │   ├── admin/                # Admin-only endpoints
+│   │   │   └── tools/           # Tool state management
+│   │   ├── tools/                # Tool states API
+│   │   └── download/             # Bulk download handler
+│   ├── metadata-monster/         # Tool: AI metadata generation
+│   ├── favorites-manager/        # Tool: Client galleries
+│   ├── ai-gallery-creator/       # Tool: Structure creator
+│   ├── photo-organizer/          # Tool: AI sorting
+│   ├── guest-upload-manager/     # Tool: Upload links
+│   ├── downloader/               # Tool: Bulk downloads
+│   ├── sanity-checker/           # Tool: Account analysis
+│   ├── admin/                    # Admin dashboard
+│   ├── ai-dashboard/             # AI usage analytics
+│   ├── auth/                     # Sign in/up pages
+│   └── pricing/                  # Coin packages
+├── components/                   # React components
+│   ├── ToolboxHeader.tsx        # Main navigation
+│   ├── AlbumsLoader.tsx         # Album fetching
+│   ├── CacheSyncButton.tsx      # Cache management
+│   └── SessionProvider.tsx      # Auth provider
+├── lib/                          # Utilities
+│   ├── db.ts                    # Database client (Neon)
+│   ├── encryption.ts            # AES-256-CBC for tokens
+│   ├── coinCalculator.ts        # AI cost calculation
+│   └── galleryCache.ts          # Album cache system
+├── stores/                       # Zustand state
+│   └── albumsStore.ts           # Global albums state
+├── prisma/                       # Database
+│   └── schema.sql               # 8 tables schema
+└── types/                        # TypeScript types
+    └── smugmug.ts               # SmugMug API types
 ```
+
+**See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design.**
 
 ---
 

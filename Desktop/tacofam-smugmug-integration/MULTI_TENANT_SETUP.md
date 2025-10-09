@@ -211,6 +211,64 @@ Make sure you updated the admin password hash in the database.
 
 ---
 
+## Verification Checklist
+
+After completing setup, verify everything works:
+
+### Database Verification
+```sql
+-- Check all tables exist
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
+-- Should see: users, smugmug_tokens, tool_states, coin_transactions, ai_operations, etc.
+
+-- Check admin user
+SELECT email, role FROM users WHERE role = 'admin';
+
+-- Check tool states
+SELECT tool_id, status FROM tool_states;
+```
+
+### Application Verification
+- [ ] Can access homepage (http://localhost:3000)
+- [ ] Can sign up new user (/auth/signup)
+- [ ] Can sign in with admin account (/auth/signin)
+- [ ] Admin can access /admin dashboard
+- [ ] Can see all 8 tools on homepage
+- [ ] Can connect SmugMug account
+- [ ] Can load albums successfully
+
+### Environment Variables Check
+```bash
+# Verify all required variables are set
+echo "SMUGMUG_API_KEY: ${SMUGMUG_API_KEY:0:10}..."
+echo "DATABASE_URL: ${DATABASE_URL:0:20}..."
+echo "NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:0:10}..."
+echo "ENCRYPTION_KEY: ${ENCRYPTION_KEY:0:10}..."
+echo "ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:0:10}..."
+```
+
+### Common Issues
+
+**"ENCRYPTION_KEY not set or invalid"**:
+- Solution: Key must be exactly 64 hex characters (32 bytes)
+- Generate new: `openssl rand -hex 32`
+
+**"Cannot connect to database"**:
+- Solution 1: Check DATABASE_URL is correct
+- Solution 2: Verify Neon database is active
+- Solution 3: Try DATABASE_URL_UNPOOLED instead
+
+**"Admin login fails"**:
+- Solution: Verify password hash was set correctly
+- Regenerate: `node -e "const bcrypt = require('bcryptjs'); bcrypt.hash('PASSWORD', 10, (err, hash) => console.log(hash));"`
+- Update: `UPDATE users SET password_hash = 'HASH' WHERE role = 'admin';`
+
+**"Tool states not loading"**:
+- Solution: Insert default tool states
+- See prisma/schema.sql for INSERT statements
+
+---
+
 ## Support
 
 If you encounter issues:
@@ -218,3 +276,5 @@ If you encounter issues:
 2. Check Neon database logs
 3. Verify all environment variables are set correctly
 4. Test database connection with: `SELECT 1;` in Neon SQL Editor
+5. Review [ARCHITECTURE.md](./ARCHITECTURE.md) for system design
+6. Consult [ADMIN_GUIDE.md](./ADMIN_GUIDE.md) for admin tasks
