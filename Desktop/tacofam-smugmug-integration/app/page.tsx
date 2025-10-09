@@ -205,19 +205,19 @@ export default function Home() {
                 <Wrench className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto mb-6 text-white drop-shadow-2xl animate-bounce" />
               </div>
 
-              {/* Main Heading with Sparkle */}
+              {/* Main Heading with Sparkle - 5% smaller */}
               <div className="relative inline-block mb-6">
-                <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 animate-pulse">
+                <h1 className="text-[2.85rem] sm:text-[3.42rem] md:text-[3.99rem] lg:text-[4.56rem] font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 animate-pulse">
                   Smugtools
                 </h1>
                 <Sparkles className="absolute -top-4 -right-4 w-8 h-8 text-yellow-400 animate-spin" style={{animationDuration: '3s'}} />
                 <Sparkles className="absolute -bottom-2 -left-4 w-6 h-6 text-pink-400 animate-spin" style={{animationDuration: '4s'}} />
               </div>
 
-              {/* Coming Soon Badge with Animation */}
+              {/* Coming Soon Badge with Animation - 20% smaller */}
               <div className="inline-block mb-8 animate-bounce">
-                <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 px-8 py-4 rounded-full shadow-2xl transform hover:scale-110 transition-transform">
-                  <p className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900">
+                <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 px-6 py-3 rounded-full shadow-2xl transform hover:scale-110 transition-transform">
+                  <p className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900">
                     🚀 COMING SOON 🚀
                   </p>
                 </div>
