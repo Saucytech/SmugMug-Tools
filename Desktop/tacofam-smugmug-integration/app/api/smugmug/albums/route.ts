@@ -8,15 +8,6 @@ import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Custom nonce generator to ensure uniqueness
-function generateNonce(): string {
-  return crypto.randomBytes(32).toString('base64')
-    .replace(/\+/g, '')
-    .replace(/\//g, '')
-    .replace(/=/g, '')
-    .substring(0, 32);
-}
-
 const oauth = new OAuth({
   consumer: {
     key: process.env.SMUGMUG_API_KEY!,
@@ -32,7 +23,7 @@ const oauth = new OAuth({
   nonce_length: 32,
 });
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get user session
     const session = await getServerSession(authOptions);
@@ -71,7 +62,7 @@ export async function GET(request: NextRequest) {
       oauth.authorize(userRequestData, {
         key: accessToken,
         secret: accessTokenSecret,
-      }, generateNonce())
+      })
     );
 
     const userResponse = await fetch(userUrl, {
@@ -102,7 +93,7 @@ export async function GET(request: NextRequest) {
         oauth.authorize(requestData, {
           key: accessToken,
           secret: accessTokenSecret,
-        }, generateNonce())
+        })
       );
 
       const response = await fetch(albumsUrl, {
