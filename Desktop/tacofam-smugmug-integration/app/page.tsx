@@ -19,10 +19,6 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [toolStates, setToolStates] = useState<Record<string, ToolState>>({});
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -42,12 +38,6 @@ export default function Home() {
       setIsAuthenticated(true);
     } else {
       setIsAuthenticated(false);
-    }
-
-    // Check if password was previously verified
-    const verified = localStorage.getItem('smugtools_early_access');
-    if (verified === 'true') {
-      setIsPasswordVerified(true);
     }
 
     // Check if user is admin
@@ -120,24 +110,8 @@ export default function Home() {
     }
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === 'comingsoon') {
-      setIsPasswordVerified(true);
-      localStorage.setItem('smugtools_early_access', 'true');
-      setShowPasswordModal(false);
-      setPasswordError('');
-      // Now proceed to SmugMug OAuth
-      window.location.href = '/api/auth/smugmug';
-    } else {
-      setPasswordError('Incorrect password. Contact support@smugtools.com for early access.');
-    }
-  };
-
   const handleToolClick = (toolPath?: string) => {
-    if (!isPasswordVerified) {
-      setShowPasswordModal(true);
-    } else if (toolPath) {
+    if (toolPath) {
       router.push(toolPath);
     }
   };
@@ -424,86 +398,11 @@ export default function Home() {
     );
   }
 
-  // Password Modal
-  const PasswordModal = () => (
-    <>
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Early Access Required</h2>
-              <p className="text-gray-600 text-sm">
-                Smugtools is currently in private beta. Enter your early access password to connect your SmugMug account.
-              </p>
-            </div>
-
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="access-password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Early Access Password
-                </label>
-                <input
-                  id="access-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setPasswordError('');
-                  }}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors"
-                  placeholder="Enter password"
-                  autoFocus
-                  required
-                />
-              </div>
-
-              {passwordError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-sm text-red-900">{passwordError}</p>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordModal(false);
-                    setPassword('');
-                    setPasswordError('');
-                  }}
-                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105 active:scale-95"
-                >
-                  Continue
-                </button>
-              </div>
-
-              <p className="text-xs text-center text-gray-500 mt-4">
-                Don't have access? <a href="mailto:support@smugtools.com" className="text-purple-600 hover:underline">Request early access</a>
-              </p>
-            </form>
-          </div>
-        </div>
-      )}
-    </>
-  );
-
   // If no tool selected, show toolbox dashboard
   if (!selectedTool) {
     return (
       <>
         <ToolboxHeader />
-        <PasswordModal />
 
         <main className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8">
           <div className="max-w-7xl mx-auto">
@@ -514,17 +413,17 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('embed-sell')) return;
+                    if (isToolDisabled('embed-sell') && !isAdmin) return;
                     setSelectedTool('embed-sell');
                   }}
-                  disabled={isToolDisabled('embed-sell')}
+                  disabled={isToolDisabled('embed-sell') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('embed-sell')
+                    isToolDisabled('embed-sell') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-500'
                   }`}
                   aria-label="Launch Embed & Sell tool to create embeddable galleries with buy buttons"
-                  title={isToolDisabled('embed-sell') ? (toolStates['embed-sell']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('embed-sell') && !isAdmin ? (toolStates['embed-sell']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
                   <div className={`bg-gradient-to-br from-purple-500 to-purple-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('embed-sell') && 'group-hover:scale-110'}`}>
                     <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -578,17 +477,17 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('favorites-manager')) return;
+                    if (isToolDisabled('favorites-manager') && !isAdmin) return;
                     handleToolClick('/favorites-manager');
                   }}
-                  disabled={isToolDisabled('favorites-manager')}
+                  disabled={isToolDisabled('favorites-manager') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('favorites-manager')
+                    isToolDisabled('favorites-manager') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-500'
                   }`}
                   aria-label="Launch Favorites Selector for client photo selection and approvals"
-                  title={isToolDisabled('favorites-manager') ? (toolStates['favorites-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('favorites-manager') && !isAdmin ? (toolStates['favorites-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
                   <div className={`bg-gradient-to-br from-pink-500 to-pink-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('favorites-manager') && 'group-hover:scale-110'}`}>
                     <Heart className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -623,19 +522,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('metadata-monster')) return;
+                    if (isToolDisabled('metadata-monster') && !isAdmin) return;
                     handleToolClick('/metadata-monster');
                   }}
-                  disabled={isToolDisabled('metadata-monster')}
+                  disabled={isToolDisabled('metadata-monster') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('metadata-monster')
+                    isToolDisabled('metadata-monster') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-500'
                   }`}
                   aria-label="Launch MetaData Monster for AI-powered metadata generation"
-                  title={isToolDisabled('metadata-monster') ? (toolStates['metadata-monster']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('metadata-monster') && !isAdmin ? (toolStates['metadata-monster']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
-                  <div className={`bg-gradient-to-br from-green-500 to-green-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('metadata-monster') && 'group-hover:scale-110'}`}>
+                  <div className={`bg-gradient-to-br from-green-500 to-green-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('metadata-monster') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Code2 className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
                   </div>
                   <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">MetaData Monster</h2>
@@ -671,19 +570,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('ai-gallery-creator')) return;
+                    if (isToolDisabled('ai-gallery-creator') && !isAdmin) return;
                     handleToolClick('/ai-gallery-creator');
                   }}
-                  disabled={isToolDisabled('ai-gallery-creator')}
+                  disabled={isToolDisabled('ai-gallery-creator') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('ai-gallery-creator')
+                    isToolDisabled('ai-gallery-creator') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-500'
                   }`}
                   aria-label="Launch AI Gallery Creator to build folder structures with AI assistance"
-                  title={isToolDisabled('ai-gallery-creator') ? (toolStates['ai-gallery-creator']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('ai-gallery-creator') && !isAdmin ? (toolStates['ai-gallery-creator']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
-                  <div className={`bg-gradient-to-br from-teal-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('ai-gallery-creator') && 'group-hover:scale-110'}`}>
+                  <div className={`bg-gradient-to-br from-teal-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('ai-gallery-creator') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
                   </div>
                   <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">AI Gallery Creator</h2>
@@ -719,19 +618,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('photo-organizer')) return;
+                    if (isToolDisabled('photo-organizer') && !isAdmin) return;
                     handleToolClick('/photo-organizer');
                   }}
-                  disabled={isToolDisabled('photo-organizer')}
+                  disabled={isToolDisabled('photo-organizer') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('photo-organizer')
+                    isToolDisabled('photo-organizer') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500'
                   }`}
                   aria-label="Launch Photo Organizer for AI-powered smart photo organization"
-                  title={isToolDisabled('photo-organizer') ? (toolStates['photo-organizer']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('photo-organizer') && !isAdmin ? (toolStates['photo-organizer']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
-                  <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('photo-organizer') && 'group-hover:scale-110'}`}>
+                  <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('photo-organizer') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Brain className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
                   </div>
                   <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Photo Organizer</h2>
@@ -767,19 +666,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('guest-upload-manager')) return;
+                    if (isToolDisabled('guest-upload-manager') && !isAdmin) return;
                     handleToolClick('/guest-upload-manager');
                   }}
-                  disabled={isToolDisabled('guest-upload-manager')}
+                  disabled={isToolDisabled('guest-upload-manager') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('guest-upload-manager')
+                    isToolDisabled('guest-upload-manager') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500'
                   }`}
                   aria-label="Launch Guest Upload Manager to create shareable upload links for clients"
-                  title={isToolDisabled('guest-upload-manager') ? (toolStates['guest-upload-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('guest-upload-manager') && !isAdmin ? (toolStates['guest-upload-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
-                  <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('guest-upload-manager') && 'group-hover:scale-110'}`}>
+                  <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('guest-upload-manager') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Upload className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
                   </div>
                   <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Guest Upload Manager</h2>
@@ -812,19 +711,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('downloader')) return;
+                    if (isToolDisabled('downloader') && !isAdmin) return;
                     handleToolClick('/downloader');
                   }}
-                  disabled={isToolDisabled('downloader')}
+                  disabled={isToolDisabled('downloader') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('downloader')
+                    isToolDisabled('downloader') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500'
                   }`}
                   aria-label="Launch Folder Downloader to download photos with preserved folder hierarchy"
-                  title={isToolDisabled('downloader') ? (toolStates['downloader']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('downloader') && !isAdmin ? (toolStates['downloader']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
-                  <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('downloader') && 'group-hover:scale-110'}`}>
+                  <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('downloader') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Download className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
                   </div>
                   <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Folder Downloader</h2>
@@ -857,19 +756,19 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
-                    if (isToolDisabled('sanity-checker')) return;
+                    if (isToolDisabled('sanity-checker') && !isAdmin) return;
                     handleToolClick('/sanity-checker');
                   }}
-                  disabled={isToolDisabled('sanity-checker')}
+                  disabled={isToolDisabled('sanity-checker') && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('sanity-checker')
+                    isToolDisabled('sanity-checker') && !isAdmin
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500'
                   }`}
                   aria-label="Launch Sanity Checker for comprehensive account analysis and optimization"
-                  title={isToolDisabled('sanity-checker') ? (toolStates['sanity-checker']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={isToolDisabled('sanity-checker') && !isAdmin ? (toolStates['sanity-checker']?.disabled_message || 'This feature is temporarily disabled') : ''}
                 >
-                  <div className={`bg-gradient-to-br from-orange-500 to-red-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('sanity-checker') && 'group-hover:scale-110'}`}>
+                  <div className={`bg-gradient-to-br from-orange-500 to-red-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('sanity-checker') && !isAdmin && 'group-hover:scale-110'}`}>
                     <ClipboardCheck className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
                   </div>
                   <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Sanity Checker</h2>
