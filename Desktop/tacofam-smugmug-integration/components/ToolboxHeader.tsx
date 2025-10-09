@@ -436,28 +436,23 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
                           </div>
                         </button>
                       ) : (
-                        <>
-                          <div className="px-4 py-3 bg-green-50 rounded-lg">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Link2 className="w-4 h-4 text-green-600" />
-                              <div className="text-sm font-medium text-gray-900">Connected to SmugMug</div>
-                            </div>
+                        <div className="px-4 py-3 bg-green-50 rounded-lg">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Link2 className="w-4 h-4 text-green-600" />
+                            <div className="text-sm font-medium text-gray-900">Connected to SmugMug</div>
+                          </div>
+                          <div className="flex items-center justify-between">
                             <div className="text-xs text-gray-500">
                               {smugmugUser.NickName}
                             </div>
+                            <button
+                              onClick={handleDisconnectSmugMug}
+                              className="text-xs text-red-600 hover:text-red-700 hover:underline transition-colors"
+                            >
+                              Disconnect
+                            </button>
                           </div>
-
-                          <button
-                            onClick={handleDisconnectSmugMug}
-                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 rounded-lg transition-colors text-left text-orange-600 mt-2"
-                          >
-                            <Link2 className="w-4 h-4" />
-                            <div>
-                              <div className="font-medium">Disconnect SmugMug</div>
-                              <div className="text-xs text-orange-500">Switch to a different account</div>
-                            </div>
-                          </button>
-                        </>
+                        </div>
                       )}
 
                       <div className="h-px bg-gray-200 my-2" />
