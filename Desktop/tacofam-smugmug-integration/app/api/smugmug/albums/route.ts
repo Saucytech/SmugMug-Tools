@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 // Custom nonce generator to ensure uniqueness
 function generateNonce(): string {
   return crypto.randomBytes(32).toString('base64')
