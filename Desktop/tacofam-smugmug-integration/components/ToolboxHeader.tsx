@@ -102,13 +102,14 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
   const [smugmugUser, setSmugmugUser] = useState<any>(null);
 
   // Use centralized coin balance store
-  const { balance: coinBalance, addCoins } = useCoinBalance();
+  const { balance: coinBalance, addCoins, fetchBalance } = useCoinBalance();
 
   useEffect(() => {
     if (session) {
       loadSmugmugUser();
+      fetchBalance(); // Load coin balance from server
     }
-  }, [session]);
+  }, [session, fetchBalance]);
 
   const handleTopUp = (amount: number, price: string) => {
     addCoins(amount, `Purchased ${amount.toLocaleString()} Coins for ${price}`);
