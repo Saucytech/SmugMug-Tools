@@ -21,6 +21,8 @@ export default function Home() {
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
   const [toolStates, setToolStates] = useState<Record<string, ToolState>>({});
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSmugMugConnected, setIsSmugMugConnected] = useState(false);
+  const [checkingSmugMug, setCheckingSmugMug] = useState(true);
 
   // Use centralized albums store
   const { albums, loading, error, fetchAlbums} = useAlbumsStore();
@@ -36,8 +38,11 @@ export default function Home() {
     // Check if user is logged in with NextAuth
     if (session) {
       setIsAuthenticated(true);
+      checkSmugMugConnection();
     } else {
       setIsAuthenticated(false);
+      setIsSmugMugConnected(false);
+      setCheckingSmugMug(false);
     }
 
     // Check if user is admin
@@ -50,6 +55,20 @@ export default function Home() {
     // Load tool states
     loadToolStates();
   }, [session]);
+
+  const checkSmugMugConnection = async () => {
+    try {
+      const response = await fetch('/api/smugmug/user', {
+        credentials: 'include',
+      });
+      setIsSmugMugConnected(response.ok);
+    } catch (error) {
+      console.error('Error checking SmugMug connection:', error);
+      setIsSmugMugConnected(false);
+    } finally {
+      setCheckingSmugMug(false);
+    }
+  };
 
   const loadToolStates = async () => {
     try {
@@ -406,6 +425,37 @@ export default function Home() {
 
         <main className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8">
           <div className="max-w-7xl mx-auto">
+
+          {/* SmugMug Connection Banner */}
+          {!checkingSmugMug && !isSmugMugConnected && (
+            <div className="mb-6 bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-300 rounded-xl p-6 shadow-lg">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <svg className="w-12 h-12 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    SmugMug Connection Required
+                  </h3>
+                  <p className="text-gray-700 mb-4">
+                    All tools require a SmugMug account connection to function. Please connect your SmugMug account to access the toolbox.
+                  </p>
+                  <button
+                    onClick={() => window.location.href = '/api/auth/smugmug'}
+                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    Connect to SmugMug
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Tools Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {/* Embed and Sell Tool */}
@@ -413,17 +463,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('embed-sell') && !isAdmin) return;
                     setSelectedTool('embed-sell');
                   }}
-                  disabled={isToolDisabled('embed-sell') && !isAdmin}
+                  disabled={(isToolDisabled('embed-sell') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('embed-sell') && !isAdmin
+                    ((isToolDisabled('embed-sell') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-500'
                   }`}
                   aria-label="Launch Embed & Sell tool to create embeddable galleries with buy buttons"
-                  title={isToolDisabled('embed-sell') && !isAdmin ? (toolStates['embed-sell']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('embed-sell') && !isAdmin ? (toolStates['embed-sell']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-purple-500 to-purple-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('embed-sell') && 'group-hover:scale-110'}`}>
                     <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -477,17 +528,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('favorites-manager') && !isAdmin) return;
                     handleToolClick('/favorites-manager');
                   }}
-                  disabled={isToolDisabled('favorites-manager') && !isAdmin}
+                  disabled={(isToolDisabled('favorites-manager') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('favorites-manager') && !isAdmin
+                    ((isToolDisabled('favorites-manager') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-500'
                   }`}
                   aria-label="Launch Favorites Selector for client photo selection and approvals"
-                  title={isToolDisabled('favorites-manager') && !isAdmin ? (toolStates['favorites-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('favorites-manager') && !isAdmin ? (toolStates['favorites-manager']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-pink-500 to-pink-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('favorites-manager') && 'group-hover:scale-110'}`}>
                     <Heart className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -522,17 +574,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('metadata-monster') && !isAdmin) return;
                     handleToolClick('/metadata-monster');
                   }}
-                  disabled={isToolDisabled('metadata-monster') && !isAdmin}
+                  disabled={(isToolDisabled('metadata-monster') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('metadata-monster') && !isAdmin
+                    ((isToolDisabled('metadata-monster') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-500'
                   }`}
                   aria-label="Launch MetaData Monster for AI-powered metadata generation"
-                  title={isToolDisabled('metadata-monster') && !isAdmin ? (toolStates['metadata-monster']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('metadata-monster') && !isAdmin ? (toolStates['metadata-monster']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-green-500 to-green-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('metadata-monster') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Code2 className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -570,17 +623,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('ai-gallery-creator') && !isAdmin) return;
                     handleToolClick('/ai-gallery-creator');
                   }}
-                  disabled={isToolDisabled('ai-gallery-creator') && !isAdmin}
+                  disabled={(isToolDisabled('ai-gallery-creator') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('ai-gallery-creator') && !isAdmin
+                    ((isToolDisabled('ai-gallery-creator') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-500'
                   }`}
                   aria-label="Launch AI Gallery Creator to build folder structures with AI assistance"
-                  title={isToolDisabled('ai-gallery-creator') && !isAdmin ? (toolStates['ai-gallery-creator']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('ai-gallery-creator') && !isAdmin ? (toolStates['ai-gallery-creator']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-teal-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('ai-gallery-creator') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -618,17 +672,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('photo-organizer') && !isAdmin) return;
                     handleToolClick('/photo-organizer');
                   }}
-                  disabled={isToolDisabled('photo-organizer') && !isAdmin}
+                  disabled={(isToolDisabled('photo-organizer') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('photo-organizer') && !isAdmin
+                    ((isToolDisabled('photo-organizer') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500'
                   }`}
                   aria-label="Launch Photo Organizer for AI-powered smart photo organization"
-                  title={isToolDisabled('photo-organizer') && !isAdmin ? (toolStates['photo-organizer']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('photo-organizer') && !isAdmin ? (toolStates['photo-organizer']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('photo-organizer') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Brain className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -666,17 +721,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('guest-upload-manager') && !isAdmin) return;
                     handleToolClick('/guest-upload-manager');
                   }}
-                  disabled={isToolDisabled('guest-upload-manager') && !isAdmin}
+                  disabled={(isToolDisabled('guest-upload-manager') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('guest-upload-manager') && !isAdmin
+                    ((isToolDisabled('guest-upload-manager') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500'
                   }`}
                   aria-label="Launch Guest Upload Manager to create shareable upload links for clients"
-                  title={isToolDisabled('guest-upload-manager') && !isAdmin ? (toolStates['guest-upload-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('guest-upload-manager') && !isAdmin ? (toolStates['guest-upload-manager']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('guest-upload-manager') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Upload className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -711,17 +767,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('downloader') && !isAdmin) return;
                     handleToolClick('/downloader');
                   }}
-                  disabled={isToolDisabled('downloader') && !isAdmin}
+                  disabled={(isToolDisabled('downloader') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('downloader') && !isAdmin
+                    ((isToolDisabled('downloader') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500'
                   }`}
                   aria-label="Launch Folder Downloader to download photos with preserved folder hierarchy"
-                  title={isToolDisabled('downloader') && !isAdmin ? (toolStates['downloader']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('downloader') && !isAdmin ? (toolStates['downloader']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('downloader') && !isAdmin && 'group-hover:scale-110'}`}>
                     <Download className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -756,17 +813,18 @@ export default function Home() {
               <div className="relative">
                 <button
                   onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                     if (isToolDisabled('sanity-checker') && !isAdmin) return;
                     handleToolClick('/sanity-checker');
                   }}
-                  disabled={isToolDisabled('sanity-checker') && !isAdmin}
+                  disabled={(isToolDisabled('sanity-checker') || !isSmugMugConnected) && !isAdmin}
                   className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
-                    isToolDisabled('sanity-checker') && !isAdmin
+                    ((isToolDisabled('sanity-checker') || !isSmugMugConnected) && !isAdmin)
                       ? 'opacity-60 cursor-not-allowed border-gray-200'
                       : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500'
                   }`}
                   aria-label="Launch Sanity Checker for comprehensive account analysis and optimization"
-                  title={isToolDisabled('sanity-checker') && !isAdmin ? (toolStates['sanity-checker']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                  title={!isSmugMugConnected && !isAdmin ? 'Connect to SmugMug to use this tool' : (isToolDisabled('sanity-checker') && !isAdmin ? (toolStates['sanity-checker']?.disabled_message || 'This feature is temporarily disabled') : '')}
                 >
                   <div className={`bg-gradient-to-br from-orange-500 to-red-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('sanity-checker') && !isAdmin && 'group-hover:scale-110'}`}>
                     <ClipboardCheck className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
@@ -943,6 +1001,7 @@ export default function Home() {
                     <button
                       key={album.AlbumKey}
                       onClick={() => {
+                    if (!isSmugMugConnected && !isAdmin) return;
                         const newSelection = new Set(selectedAlbumsForEmbed);
                         if (isSelected) {
                           newSelection.delete(album.AlbumKey);
