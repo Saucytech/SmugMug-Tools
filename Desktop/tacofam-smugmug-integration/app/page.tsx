@@ -1,13 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FolderIcon, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck, Coins, Download } from 'lucide-react';
+import { FolderIcon, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck, Coins, Download, MessageSquarePlus, Power, PowerOff, Ban } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import { useAlbumsStore } from '@/stores/albumsStore';
 
+interface ToolState {
+  tool_id: string;
+  status: 'on' | 'disabled' | 'off';
+  disabled_message: string | null;
+}
+
 export default function Home() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
@@ -15,9 +23,11 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [toolStates, setToolStates] = useState<Record<string, ToolState>>({});
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Use centralized albums store
-  const { albums, loading, error, fetchAlbums } = useAlbumsStore();
+  const { albums, loading, error, fetchAlbums} = useAlbumsStore();
 
   // Pagination, filtering, and sorting state
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,7 +35,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // Check authentication status via API call (cookies are HTTP-only now)
+  // Check authentication status and admin role
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -46,7 +56,76 @@ export default function Home() {
     if (verified === 'true') {
       setIsPasswordVerified(true);
     }
-  }, []);
+
+    // Check if user is admin
+    if (session?.user) {
+      const adminStatus = (session.user as any).role === 'admin';
+      console.log('Admin check:', { session: session.user, role: (session.user as any).role, isAdmin: adminStatus });
+      setIsAdmin(adminStatus);
+    }
+
+    // Load tool states
+    loadToolStates();
+  }, [session]);
+
+  const loadToolStates = async () => {
+    try {
+      const response = await fetch('/api/tools/states');
+      if (response.ok) {
+        const data = await response.json();
+        const statesMap: Record<string, ToolState> = {};
+        data.tools.forEach((tool: any) => {
+          statesMap[tool.tool_id] = {
+            tool_id: tool.tool_id,
+            status: tool.status,
+            disabled_message: tool.disabled_message,
+          };
+        });
+        setToolStates(statesMap);
+      }
+    } catch (error) {
+      console.error('Error loading tool states:', error);
+    }
+  };
+
+  const getToolStatus = (toolId: string): 'on' | 'disabled' | 'off' => {
+    return toolStates[toolId]?.status || 'on'; // Default to 'on' if not found
+  };
+
+  const isToolDisabled = (toolId: string): boolean => {
+    return getToolStatus(toolId) === 'disabled';
+  };
+
+  const isToolHidden = (toolId: string): boolean => {
+    return getToolStatus(toolId) === 'off';
+  };
+
+  const updateToolState = async (toolId: string, newStatus: 'on' | 'disabled' | 'off', e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+
+    try {
+      const response = await fetch('/api/admin/tools', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toolId,
+          status: newStatus,
+          disabledMessage: newStatus === 'disabled' ? 'This feature is temporarily disabled and will return soon.' : null,
+        }),
+      });
+
+      if (response.ok) {
+        // Reload tool states
+        await loadToolStates();
+      } else {
+        console.error('Failed to update tool state');
+      }
+    } catch (error) {
+      console.error('Error updating tool state:', error);
+    }
+  };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -433,245 +512,433 @@ export default function Home() {
         <ToolboxHeader />
         <PasswordModal />
 
-        {/* Disclaimer Banner */}
-        <div className="bg-orange-50 border-b-2 border-orange-200">
-          <div className="max-w-7xl mx-auto px-4 py-3">
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <div className="flex-1">
-                <p className="text-sm text-orange-900">
-                  <strong>Not an official SmugMug app.</strong> These tools can delete, move, or modify your content. Use at your own risk.
-                  <a href="https://www.smugmug.com/app/library/trash" target="_blank" rel="noopener noreferrer" className="underline hover:text-orange-700 ml-1">
-                    Recover deleted items
-                  </a>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <main className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8">
           <div className="max-w-7xl mx-auto">
-            {/* Welcome Section */}
-            <div className="mb-8 sm:mb-10 md:mb-12 text-center px-4">
-              <Wrench className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 text-purple-600 mx-auto mb-3 sm:mb-4" />
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-2 sm:mb-3">Smugtools</h1>
-              <p className="text-base sm:text-lg md:text-xl text-gray-600">Professional tools to enhance your SmugMug workflow</p>
-            </div>
-
           {/* Tools Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {/* Embed and Sell Tool */}
-            <button
-              onClick={() => setSelectedTool('embed-sell')}
-              className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-purple-500 focus:outline-none focus:ring-4 focus:ring-purple-200 focus:border-purple-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
-              aria-label="Launch Embed & Sell tool to create embeddable galleries with buy buttons"
-            >
-              <div className="bg-gradient-to-br from-purple-500 to-purple-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <ShoppingCart className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+            {!isToolHidden('embed-sell') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('embed-sell')) return;
+                    setSelectedTool('embed-sell');
+                  }}
+                  disabled={isToolDisabled('embed-sell')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('embed-sell')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-500'
+                  }`}
+                  aria-label="Launch Embed & Sell tool to create embeddable galleries with buy buttons"
+                  title={isToolDisabled('embed-sell') ? (toolStates['embed-sell']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-purple-500 to-purple-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('embed-sell') && 'group-hover:scale-110'}`}>
+                    <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Embed & Sell</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    Multi-album selector with buy buttons. 4 export formats.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] sm:text-xs font-semibold rounded-full">HTML/React/WP</span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] sm:text-xs font-semibold rounded-full">JSON</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('embed-sell') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {/* Admin Toggle Controls */}
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button
+                      onClick={(e) => updateToolState('embed-sell', 'on', e)}
+                      className={`p-1 rounded transition-all ${getToolStatus('embed-sell') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`}
+                      title="Turn ON"
+                    >
+                      <Power className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => updateToolState('embed-sell', 'disabled', e)}
+                      className={`p-1 rounded ${getToolStatus('embed-sell') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`}
+                      title="Disable"
+                    >
+                      <Ban className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => updateToolState('embed-sell', 'off', e)}
+                      className={`p-1 rounded ${getToolStatus('embed-sell') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`}
+                      title="Turn OFF"
+                    >
+                      <PowerOff className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Embed & Sell</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Create beautiful embeddable galleries with buy buttons. Perfect for selling photos on your own website.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">Multi-select</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">3 Layouts</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">Buy Buttons</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-purple-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
+            )}
 
             {/* Favorites Selector Tool */}
-            <button
-              onClick={() => handleToolClick('/favorites-manager')}
-              className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-200 focus:border-pink-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
-              aria-label="Launch Favorites Selector for client photo selection and approvals"
-            >
-              <div className="bg-gradient-to-br from-pink-500 to-pink-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Heart className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+            {!isToolHidden('favorites-manager') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('favorites-manager')) return;
+                    handleToolClick('/favorites-manager');
+                  }}
+                  disabled={isToolDisabled('favorites-manager')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('favorites-manager')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-500'
+                  }`}
+                  aria-label="Launch Favorites Selector for client photo selection and approvals"
+                  title={isToolDisabled('favorites-manager') ? (toolStates['favorites-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-pink-500 to-pink-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('favorites-manager') && 'group-hover:scale-110'}`}>
+                    <Heart className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Favorites Selector</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    Client gallery with 7 themes, logo branding, and buy button.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] sm:text-xs font-semibold rounded-full">7 Themes</span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] sm:text-xs font-semibold rounded-full">Logo Upload</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('favorites-manager') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button onClick={(e) => updateToolState('favorites-manager', 'on', e)} className={`p-1 rounded transition-all ${getToolStatus('favorites-manager') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`} title="Turn ON"><Power className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('favorites-manager', 'disabled', e)} className={`p-1 rounded ${getToolStatus('favorites-manager') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`} title="Disable"><Ban className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('favorites-manager', 'off', e)} className={`p-1 rounded ${getToolStatus('favorites-manager') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`} title="Turn OFF"><PowerOff className="w-3 h-3" /></button>
+                  </div>
+                )}
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Favorites Selector</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Let customers select their favorite photos from your albums. Perfect for client galleries and photo approvals.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-pink-100 text-pink-700 text-xs font-semibold rounded-full">Shareable Links</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-pink-100 text-pink-700 text-xs font-semibold rounded-full">Vote Tracking</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-pink-100 text-pink-700 text-xs font-semibold rounded-full">Results Dashboard</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-pink-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
+            )}
 
             {/* MetaData Monster Tool */}
-            <button
-              onClick={() => handleToolClick('/metadata-monster')}
-              className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-green-500 focus:outline-none focus:ring-4 focus:ring-green-200 focus:border-green-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
-              aria-label="Launch MetaData Monster for AI-powered metadata generation"
-            >
-              <div className="bg-gradient-to-br from-green-500 to-green-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Code2 className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+            {!isToolHidden('metadata-monster') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('metadata-monster')) return;
+                    handleToolClick('/metadata-monster');
+                  }}
+                  disabled={isToolDisabled('metadata-monster')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('metadata-monster')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-500'
+                  }`}
+                  aria-label="Launch MetaData Monster for AI-powered metadata generation"
+                  title={isToolDisabled('metadata-monster') ? (toolStates['metadata-monster']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-green-500 to-green-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('metadata-monster') && 'group-hover:scale-110'}`}>
+                    <Code2 className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">MetaData Monster</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    AI metadata with Seek & Capture mode. 5 prompt styles, CSV export.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] sm:text-xs font-semibold rounded-full flex items-center gap-0.5">
+                      <Coins className="w-2 h-2 sm:w-3 sm:h-3" />
+                      Coins
+                    </span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-green-100 text-green-700 text-[10px] sm:text-xs font-semibold rounded-full">Seek & Capture</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('metadata-monster') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button onClick={(e) => updateToolState('metadata-monster', 'on', e)} className={`p-1 rounded transition-all ${getToolStatus('metadata-monster') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`} title="Turn ON"><Power className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('metadata-monster', 'disabled', e)} className={`p-1 rounded ${getToolStatus('metadata-monster') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`} title="Disable"><Ban className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('metadata-monster', 'off', e)} className={`p-1 rounded ${getToolStatus('metadata-monster') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`} title="Turn OFF"><PowerOff className="w-3 h-3" /></button>
+                  </div>
+                )}
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">MetaData Monster</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                AI-powered automatic Title, Caption, and Keyword generator. Bulk process your entire photo library in minutes.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                  <Coins className="w-3 h-3" />
-                  Uses Coins
-                </span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">AI-Powered</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">Bulk Processing</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">Auto-Save</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-green-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
+            )}
 
             {/* AI Gallery Creator Tool */}
-            <button
-              onClick={() => handleToolClick('/ai-gallery-creator')}
-              className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-200 focus:border-teal-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
-              aria-label="Launch AI Gallery Creator to build folder structures with AI assistance"
-            >
-              <div className="bg-gradient-to-br from-teal-500 to-cyan-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Sparkles className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+            {!isToolHidden('ai-gallery-creator') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('ai-gallery-creator')) return;
+                    handleToolClick('/ai-gallery-creator');
+                  }}
+                  disabled={isToolDisabled('ai-gallery-creator')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('ai-gallery-creator')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-500'
+                  }`}
+                  aria-label="Launch AI Gallery Creator to build folder structures with AI assistance"
+                  title={isToolDisabled('ai-gallery-creator') ? (toolStates['ai-gallery-creator']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-teal-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('ai-gallery-creator') && 'group-hover:scale-110'}`}>
+                    <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">AI Gallery Creator</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    AI + manual tools. 5 templates, destruction mode, guest links.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] sm:text-xs font-semibold rounded-full flex items-center gap-0.5">
+                      <Coins className="w-2 h-2 sm:w-3 sm:h-3" />
+                      Coins
+                    </span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-teal-100 text-teal-700 text-[10px] sm:text-xs font-semibold rounded-full">5 Templates</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('ai-gallery-creator') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button onClick={(e) => updateToolState('ai-gallery-creator', 'on', e)} className={`p-1 rounded transition-all ${getToolStatus('ai-gallery-creator') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`} title="Turn ON"><Power className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('ai-gallery-creator', 'disabled', e)} className={`p-1 rounded ${getToolStatus('ai-gallery-creator') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`} title="Disable"><Ban className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('ai-gallery-creator', 'off', e)} className={`p-1 rounded ${getToolStatus('ai-gallery-creator') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`} title="Turn OFF"><PowerOff className="w-3 h-3" /></button>
+                  </div>
+                )}
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">AI Gallery Creator</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Chat with AI to create complex folder and gallery structures automatically. Build your entire SmugMug organization in minutes.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                  <Coins className="w-3 h-3" />
-                  Uses Coins
-                </span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-teal-100 text-teal-700 text-xs font-semibold rounded-full">AI Chatbot</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-teal-100 text-teal-700 text-xs font-semibold rounded-full">Nested Folders</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-teal-100 text-teal-700 text-xs font-semibold rounded-full">Bulk Creation</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-teal-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
+            )}
 
             {/* Photo Organizer Tool */}
-            <button
-              onClick={() => handleToolClick('/photo-organizer')}
-              className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
-              aria-label="Launch Photo Organizer for AI-powered smart photo organization"
-            >
-              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Brain className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+            {!isToolHidden('photo-organizer') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('photo-organizer')) return;
+                    handleToolClick('/photo-organizer');
+                  }}
+                  disabled={isToolDisabled('photo-organizer')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('photo-organizer')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500'
+                  }`}
+                  aria-label="Launch Photo Organizer for AI-powered smart photo organization"
+                  title={isToolDisabled('photo-organizer') ? (toolStates['photo-organizer']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('photo-organizer') && 'group-hover:scale-110'}`}>
+                    <Brain className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Photo Organizer</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    AI-powered photo organization with smart indexing.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] sm:text-xs font-semibold rounded-full flex items-center gap-0.5">
+                      <Coins className="w-2 h-2 sm:w-3 sm:h-3" />
+                      Coins
+                    </span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] sm:text-xs font-semibold rounded-full">Auto-Sort</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('photo-organizer') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button onClick={(e) => updateToolState('photo-organizer', 'on', e)} className={`p-1 rounded transition-all ${getToolStatus('photo-organizer') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`} title="Turn ON"><Power className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('photo-organizer', 'disabled', e)} className={`p-1 rounded ${getToolStatus('photo-organizer') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`} title="Disable"><Ban className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('photo-organizer', 'off', e)} className={`p-1 rounded ${getToolStatus('photo-organizer') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`} title="Turn OFF"><PowerOff className="w-3 h-3" /></button>
+                  </div>
+                )}
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Photo Organizer</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                AI-powered photo organization with smart gallery indexing. Build an index once, then auto-sort new images with confidence-based suggestions.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                  <Coins className="w-3 h-3" />
-                  Uses Coins
-                </span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">Smart Index</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">Auto-Sort</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">Dry Run</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-indigo-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
+            )}
 
             {/* Guest Upload Manager Tool */}
-            <button
-              onClick={() => handleToolClick('/guest-upload-manager')}
-              className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
-              aria-label="Launch Guest Upload Manager to create shareable upload links for clients"
-            >
-              <div className="bg-gradient-to-br from-blue-500 to-cyan-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Upload className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+            {!isToolHidden('guest-upload-manager') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('guest-upload-manager')) return;
+                    handleToolClick('/guest-upload-manager');
+                  }}
+                  disabled={isToolDisabled('guest-upload-manager')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('guest-upload-manager')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500'
+                  }`}
+                  aria-label="Launch Guest Upload Manager to create shareable upload links for clients"
+                  title={isToolDisabled('guest-upload-manager') ? (toolStates['guest-upload-manager']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('guest-upload-manager') && 'group-hover:scale-110'}`}>
+                    <Upload className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Guest Upload Manager</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    Project-based with people library. Drag-and-drop management.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full">Projects</span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full">Drag-Drop</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('guest-upload-manager') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button onClick={(e) => updateToolState('guest-upload-manager', 'on', e)} className={`p-1 rounded transition-all ${getToolStatus('guest-upload-manager') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`} title="Turn ON"><Power className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('guest-upload-manager', 'disabled', e)} className={`p-1 rounded ${getToolStatus('guest-upload-manager') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`} title="Disable"><Ban className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('guest-upload-manager', 'off', e)} className={`p-1 rounded ${getToolStatus('guest-upload-manager') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`} title="Turn OFF"><PowerOff className="w-3 h-3" /></button>
+                  </div>
+                )}
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Guest Upload Manager</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Share upload links with clients and guests. Let them upload photos directly to your SmugMug albums with optional password protection.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Shareable Links</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Password Protected</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Direct Upload</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-blue-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
+            )}
 
             {/* Folder Downloader Tool */}
-            <button
-              onClick={() => handleToolClick('/downloader')}
-              className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 text-left min-h-[160px] touch-manipulation"
-              aria-label="Launch Folder Downloader to download photos with preserved folder hierarchy"
-            >
-              <div className="bg-gradient-to-br from-blue-500 to-cyan-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Download className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+            {!isToolHidden('downloader') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('downloader')) return;
+                    handleToolClick('/downloader');
+                  }}
+                  disabled={isToolDisabled('downloader')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('downloader')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500'
+                  }`}
+                  aria-label="Launch Folder Downloader to download photos with preserved folder hierarchy"
+                  title={isToolDisabled('downloader') ? (toolStates['downloader']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-blue-500 to-cyan-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('downloader') && 'group-hover:scale-110'}`}>
+                    <Download className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Folder Downloader</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    3 download strategies, 5 size options. Preserves hierarchy.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full">3 Strategies</span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-full">5 Sizes</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('downloader') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button onClick={(e) => updateToolState('downloader', 'on', e)} className={`p-1 rounded transition-all ${getToolStatus('downloader') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`} title="Turn ON"><Power className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('downloader', 'disabled', e)} className={`p-1 rounded ${getToolStatus('downloader') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`} title="Disable"><Ban className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('downloader', 'off', e)} className={`p-1 rounded ${getToolStatus('downloader') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`} title="Turn OFF"><PowerOff className="w-3 h-3" /></button>
+                  </div>
+                )}
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Folder Downloader</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Download your photos with preserved folder hierarchy. Select folders and albums, choose image size, and export as ZIP.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Folder Structure</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Bulk Download</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">ZIP Export</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-blue-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
+            )}
 
             {/* Sanity Checker Tool */}
+            {!isToolHidden('sanity-checker') && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (isToolDisabled('sanity-checker')) return;
+                    handleToolClick('/sanity-checker');
+                  }}
+                  disabled={isToolDisabled('sanity-checker')}
+                  className={`w-full group bg-white rounded-lg p-2 sm:p-3 md:p-4 shadow-md transition-all border-2 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation ${
+                    isToolDisabled('sanity-checker')
+                      ? 'opacity-60 cursor-not-allowed border-gray-200'
+                      : 'hover:shadow-xl active:shadow-lg active:scale-[0.98] border-gray-200 hover:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500'
+                  }`}
+                  aria-label="Launch Sanity Checker for comprehensive account analysis and optimization"
+                  title={isToolDisabled('sanity-checker') ? (toolStates['sanity-checker']?.disabled_message || 'This feature is temporarily disabled') : ''}
+                >
+                  <div className={`bg-gradient-to-br from-orange-500 to-red-600 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 transition-transform ${!isToolDisabled('sanity-checker') && 'group-hover:scale-110'}`}>
+                    <ClipboardCheck className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Sanity Checker</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                    AI analysis with severity grouping. Auto-fix for some issues.
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] sm:text-xs font-semibold rounded-full flex items-center gap-0.5">
+                      <Coins className="w-2 h-2 sm:w-3 sm:h-3" />
+                      Coins
+                    </span>
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] sm:text-xs font-semibold rounded-full">Auto-Fix</span>
+                  </div>
+                </button>
+
+                {/* OFF State Overlay */}
+                {isAdmin && getToolStatus('sanity-checker') === 'off' && (
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg pointer-events-none" />
+                )}
+
+                {isAdmin && (
+                  <div className="absolute top-1 right-1 flex gap-0.5 z-10">
+                    <button onClick={(e) => updateToolState('sanity-checker', 'on', e)} className={`p-1 rounded transition-all ${getToolStatus('sanity-checker') === 'on' ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-200 text-gray-600 hover:bg-green-100'}`} title="Turn ON"><Power className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('sanity-checker', 'disabled', e)} className={`p-1 rounded ${getToolStatus('sanity-checker') === 'disabled' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-yellow-100'}`} title="Disable"><Ban className="w-3 h-3" /></button>
+                    <button onClick={(e) => updateToolState('sanity-checker', 'off', e)} className={`p-1 rounded ${getToolStatus('sanity-checker') === 'off' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`} title="Turn OFF"><PowerOff className="w-3 h-3" /></button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Feature Request Card */}
             <button
-              onClick={() => handleToolClick('/sanity-checker')}
-              className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-orange-500 focus:outline-none focus:ring-4 focus:ring-orange-200 focus:border-orange-500 text-left min-h-[160px] touch-manipulation"
-              aria-label="Launch Sanity Checker for comprehensive account analysis and optimization"
+              onClick={() => router.push('/feature-request')}
+              className="group bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-2 sm:p-3 md:p-4 shadow-md hover:shadow-xl active:shadow-lg active:scale-[0.98] transition-all border-2 border-dashed border-gray-300 hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-200 text-left min-h-[60px] sm:min-h-[100px] touch-manipulation"
+              aria-label="Submit a feature request"
             >
-              <div className="bg-gradient-to-br from-orange-500 to-red-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <ClipboardCheck className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+              <div className="bg-gradient-to-br from-purple-400 to-pink-500 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center mb-1 sm:mb-2 md:mb-3 group-hover:scale-110 transition-transform">
+                <MessageSquarePlus className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-white" />
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Sanity Checker</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Comprehensive account analysis tool. Reviews all galleries, metadata, and settings to find optimization opportunities and potential issues.
+              <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 mb-0.5 sm:mb-1">Feature Request</h2>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 leading-tight line-clamp-2">
+                Have an idea? Let us know what features you'd like to see!
               </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                  <Coins className="w-3 h-3" />
-                  Uses Coins
-                </span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">AI Analysis</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">Auto-Fix</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">Reports</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-orange-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              <div className="flex flex-wrap gap-1">
+                <span className="px-1.5 sm:px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] sm:text-xs font-semibold rounded-full">Feedback</span>
+                <span className="px-1.5 sm:px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] sm:text-xs font-semibold rounded-full">New</span>
               </div>
             </button>
           </div>
         </div>
+
+        {/* Footer Disclaimer */}
+        <footer className="mt-12 pb-6">
+          <div className="max-w-7xl mx-auto px-4">
+            <p className="text-xs text-gray-500 text-center">
+              Not an official SmugMug app. These tools can delete, move, or modify your content. Use at your own risk.{' '}
+              <a href="https://www.smugmug.com/app/library/trash" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">
+                Recover deleted items
+              </a>
+            </p>
+          </div>
+        </footer>
       </main>
       </>
     );
