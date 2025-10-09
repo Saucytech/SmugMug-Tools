@@ -15,6 +15,7 @@ export default function SignUpPage() {
     password: '',
     confirmPassword: '',
   });
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -31,6 +32,13 @@ export default function SignUpPage() {
     // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    // Validate terms agreement
+    if (!agreedToTerms) {
+      setError('You must acknowledge the risks and agree to the terms');
       setLoading(false);
       return;
     }
@@ -225,11 +233,42 @@ export default function SignUpPage() {
               </div>
             </div>
 
+            {/* Disclaimer & Acknowledgment */}
+            <div className="p-4 bg-orange-50 border-2 border-orange-200 rounded-lg space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-orange-900 mb-1">Important Notice</h3>
+                  <ul className="text-xs text-orange-800 space-y-1">
+                    <li>• <strong>Not an official SmugMug app</strong> - Third-party tool using SmugMug API</li>
+                    <li>• <strong>Destructive operations possible</strong> - Can delete, move, or modify content</li>
+                    <li>• <strong>Use at your own risk</strong> - Always backup important photos</li>
+                    <li>• <strong>Recovery available</strong> - Deleted items at <a href="https://www.smugmug.com/app/library/trash" target="_blank" rel="noopener noreferrer" className="underline hover:text-orange-900">SmugMug Trash</a></li>
+                  </ul>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                  required
+                />
+                <span className="text-xs text-gray-700 group-hover:text-gray-900">
+                  I understand that Smugtools can perform destructive operations on my SmugMug account,
+                  and I agree to use it at my own risk. I acknowledge this is not an official SmugMug product.
+                </span>
+              </label>
+            </div>
+
             {/* Sign Up Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !agreedToTerms}
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+              title={!agreedToTerms ? 'Please acknowledge the risks before creating an account' : ''}
             >
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>

@@ -4,6 +4,8 @@
 
 The complete toolkit for photographers using SmugMug. Built with Next.js 14, TypeScript, and AI - featuring client galleries, metadata generation, analytics, and more.
 
+> ⚠️ **IMPORTANT DISCLAIMER:** Smugtools is NOT an official SmugMug application. It is a third-party tool that interacts with your SmugMug account via the official SmugMug API. These tools can modify, delete, move, or rename your photos and albums. **Use at your own risk.** Always back up important content before using destructive operations. Deleted content can be recovered in your SmugMug account at: [SmugMug Library Trash](https://www.smugmug.com/app/library/trash)
+
 ---
 
 ## 🌟 What is Smugtools?
@@ -196,6 +198,54 @@ smugtools/
 ├── prisma/                    # Database schemas
 └── stores/                    # Zustand state management
 ```
+
+---
+
+## ⚠️ Important Disclaimers
+
+### Not an Official SmugMug Product
+
+**Smugtools.com is an independent third-party application** and is not affiliated with, endorsed by, or supported by SmugMug, Inc. We use the official SmugMug API to provide our services, but we are not part of SmugMug.
+
+### Use at Your Own Risk
+
+These tools can perform **destructive operations** on your SmugMug account:
+
+- ✂️ **Delete photos and albums** - Permanently remove content (recoverable from trash)
+- 🔄 **Move and reorganize** - Change folder structures and album locations
+- ✏️ **Rename and modify** - Update album names, photo titles, captions, keywords
+- 🔁 **Overwrite metadata** - Replace existing photo information
+
+**Important:**
+- Always review changes before confirming destructive actions
+- Test with a small subset of photos first
+- Back up important content before using batch operations
+- Keep track of what you've modified
+
+### Recovery Options
+
+If you accidentally delete content:
+
+1. Go to your SmugMug account
+2. Navigate to **Library → Trash**
+3. Direct link: https://www.smugmug.com/app/library/trash
+4. Restore deleted items within 60 days (SmugMug's retention period)
+
+### Data Privacy
+
+- We **never** store your SmugMug photos on our servers
+- OAuth tokens are encrypted in our database (AES-256-CBC)
+- All SmugMug API calls go directly from your browser or our server to SmugMug
+- AI processing sends only image URLs to Anthropic Claude (not the images themselves)
+- We don't share your data with third parties
+
+### Support & Liability
+
+- Use Smugtools at your own risk
+- We are not responsible for data loss or account issues
+- Always maintain backups of important photos
+- For SmugMug account issues, contact SmugMug support directly
+- For Smugtools issues, contact us at support@smugtools.com
 
 ---
 

@@ -14,6 +14,20 @@ This document provides guidance for AI coding assistants working with Smugtools.
 **Authentication**: NextAuth + OAuth 1.0a (✅ Fully Implemented)
 **Purpose**: Multi-tenant SaaS platform with AI-powered tools for photographers
 
+### ⚠️ Important Disclaimers
+
+**NOT an official SmugMug product** - Smugtools is an independent third-party application using the SmugMug API.
+
+**Destructive operations** - These tools can:
+- Delete photos and albums
+- Move and reorganize content
+- Rename and modify metadata
+- Overwrite existing data
+
+**Users must acknowledge** - Sign-up page requires users to agree they understand the risks and will use at their own risk.
+
+**Recovery** - Deleted content can be recovered at: https://www.smugmug.com/app/library/trash
+
 ---
 
 ## ✅ What's Already Working
