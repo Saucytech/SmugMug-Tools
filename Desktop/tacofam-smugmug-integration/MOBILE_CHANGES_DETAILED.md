@@ -27,8 +27,8 @@
 
 #### Main Heading
 ```diff
-- <h1 className="text-5xl font-bold mb-4">SmugMug Toolbox</h1>
-+ <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">SmugMug Toolbox</h1>
+- <h1 className="text-5xl font-bold mb-4">Smugtools</h1>
++ <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">Smugtools</h1>
 ```
 **Impact**:
 - Mobile: 30px font size
@@ -84,11 +84,11 @@
 ```diff
 - <div className="mb-12 text-center">
 -   <Wrench className="w-16 h-16 text-purple-600 mx-auto mb-4" />
--   <h1 className="text-5xl font-bold text-gray-900 mb-3">SmugMug Toolbox</h1>
+-   <h1 className="text-5xl font-bold text-gray-900 mb-3">Smugtools</h1>
 -   <p className="text-xl text-gray-600">Professional tools to enhance your SmugMug workflow</p>
 + <div className="mb-8 sm:mb-10 md:mb-12 text-center px-4">
 +   <Wrench className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 text-purple-600 mx-auto mb-3 sm:mb-4" />
-+   <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-2 sm:mb-3">SmugMug Toolbox</h1>
++   <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-2 sm:mb-3">Smugtools</h1>
 +   <p className="text-base sm:text-lg md:text-xl text-gray-600">Professional tools to enhance your SmugMug workflow</p>
 ```
 **Impact**: All elements scale down appropriately for mobile screens
@@ -183,7 +183,7 @@
 -   <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
 -     <Wrench className="w-7 h-7 text-purple-600" />
 -     <div className="flex flex-col">
--       <span className="text-lg font-bold text-gray-900">SmugMug Toolbox</span>
+-       <span className="text-lg font-bold text-gray-900">Smugtools</span>
 -       {activeTool && (
 -         <span className="text-xs text-gray-500">/ {activeTool.name}</span>
 -       )}
@@ -191,7 +191,7 @@
 +   <button className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px] touch-manipulation shrink-0">
 +     <Wrench className="w-6 h-6 sm:w-7 sm:h-7 text-purple-600 shrink-0" />
 +     <div className="flex flex-col min-w-0">
-+       <span className="text-sm sm:text-base md:text-lg font-bold text-gray-900 truncate">SmugMug Toolbox</span>
++       <span className="text-sm sm:text-base md:text-lg font-bold text-gray-900 truncate">Smugtools</span>
 +       {activeTool && (
 +         <span className="text-xs text-gray-500 truncate hidden sm:block">/ {activeTool.name}</span>
 +       )}

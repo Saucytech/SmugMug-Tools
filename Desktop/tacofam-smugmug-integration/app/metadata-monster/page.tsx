@@ -633,6 +633,42 @@ export default function MetaDataMonster() {
       <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
 
+          {/* Instructions Banner */}
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-gray-800">
+                <span className="font-semibold">How to use:</span> {
+                  mode === 'normal'
+                    ? 'Select an album and photos that need metadata. Choose a prompt style (Professional, Creative, SEO, etc.) and generate AI-powered titles, captions, and keywords. Review and edit before saving to SmugMug.'
+                    : 'Select galleries to scan (use "Select All" for all galleries). Click "Scan for Missing Metadata" to find photos without titles, captions, or keywords. Then process the grouped results with AI.'
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Header - Mobile Optimized */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">MetaData Monster</h1>
+              <p className="text-sm sm:text-base text-gray-600">AI-powered metadata generation for your photos</p>
+            </div>
+
+            {/* Export Report */}
+            {photos.length > 0 && (
+              <button
+                onClick={exportReport}
+                className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 sm:py-2 rounded-lg transition-colors min-h-[48px]"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export Report</span>
+                <span className="sm:hidden">Export</span>
+              </button>
+            )}
+          </div>
+
           {/* Mode Toggle - Mobile Optimized */}
           <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
@@ -674,65 +710,6 @@ export default function MetaDataMonster() {
                   'Scan multiple galleries to find photos missing metadata'
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* Instructions Banner */}
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm text-gray-800">
-                <span className="font-semibold">How to use:</span> {
-                  mode === 'normal'
-                    ? 'Select an album and photos that need metadata. Choose a prompt style (Professional, Creative, SEO, etc.) and generate AI-powered titles, captions, and keywords. Review and edit before saving to SmugMug.'
-                    : 'Select galleries to scan (use "Select All" for all galleries). Click "Scan for Missing Metadata" to find photos without titles, captions, or keywords. Then process the grouped results with AI.'
-                }
-              </p>
-            </div>
-          </div>
-
-
-          {/* Header - Mobile Optimized */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8">
-            <div className="flex-1">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">MetaData Monster</h1>
-              <p className="text-sm sm:text-base text-gray-600">AI-powered metadata generation for your photos</p>
-            </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* Credits Display */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <button
-                  onClick={() => setShowCreditsModal(true)}
-                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-3 sm:py-2 rounded-lg shadow-lg hover:shadow-xl active:shadow transition-all font-semibold min-h-[48px]"
-                >
-                  <Coins className="w-5 h-5" />
-                  {credits.remaining} Credits
-                </button>
-                <button
-                  onClick={() => {
-                    creditsStorage.reset();
-                    setCredits(creditsStorage.getBalance()!);
-                  }}
-                  className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-800 underline self-center min-h-[44px] flex items-center justify-center"
-                  title="Reset credits to 100 (dev only)"
-                >
-                  Reset
-                </button>
-              </div>
-
-              {/* Export Report */}
-              {photos.length > 0 && (
-                <button
-                  onClick={exportReport}
-                  className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 sm:py-2 rounded-lg transition-colors min-h-[48px]"
-                >
-                  <Download className="w-4 h-4" />
-                  <span className="hidden sm:inline">Export Report</span>
-                  <span className="sm:hidden">Export</span>
-                </button>
-              )}
             </div>
           </div>
 

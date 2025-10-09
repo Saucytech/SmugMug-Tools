@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Wrench, ChevronDown, LogOut, User, ShoppingCart, Heart, Code2, Home, Sparkles, Brain, Upload, ClipboardCheck, Grid, Book, Eye, Coins, BarChart3 } from 'lucide-react';
+import { useSession, signOut } from 'next-auth/react';
+import { Wrench, ChevronDown, LogOut, User, ShoppingCart, Heart, Code2, Home, Sparkles, Brain, Upload, ClipboardCheck, Grid, Book, Eye, Coins, BarChart3, LogIn, Download } from 'lucide-react';
 import { tokenStorage } from '@/lib/smugmug-client';
 import AIActivityIndicator from '@/components/AIActivityIndicator';
 import { useCoinBalance } from '@/stores/coinBalanceStore';
@@ -59,13 +60,6 @@ const TOOLS: Tool[] = [
     color: 'text-blue-600',
   },
   {
-    id: 'multi-album-selector',
-    name: 'Multi-Album Selector',
-    icon: <Grid className="w-4 h-4" />,
-    path: '/multi-album-selector',
-    color: 'text-cyan-600',
-  },
-  {
     id: 'api-reference',
     name: 'API Reference',
     icon: <Book className="w-4 h-4" />,
@@ -78,6 +72,13 @@ const TOOLS: Tool[] = [
     icon: <Eye className="w-4 h-4" />,
     path: '/metadata',
     color: 'text-slate-600',
+  },
+  {
+    id: 'downloader',
+    name: 'Folder Downloader',
+    icon: <Download className="w-4 h-4" />,
+    path: '/downloader',
+    color: 'text-blue-600',
   },
   {
     id: 'sanity-checker',
@@ -94,30 +95,29 @@ interface ToolboxHeaderProps {
 
 export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showCoinMenu, setShowCoinMenu] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [smugmugUser, setSmugmugUser] = useState<any>(null);
 
   // Use centralized coin balance store
   const { balance: coinBalance, addCoins } = useCoinBalance();
 
   useEffect(() => {
-    loadUser();
-  }, []);
+    if (session) {
+      loadSmugmugUser();
+    }
+  }, [session]);
 
   const handleTopUp = (amount: number, price: string) => {
     addCoins(amount, `Purchased ${amount.toLocaleString()} Coins for ${price}`);
     setShowCoinMenu(false);
   };
 
-  const loadUser = async () => {
+  const loadSmugmugUser = async () => {
     const tokens = tokenStorage.getTokens();
-    if (!tokens) {
-      setLoading(false);
-      return;
-    }
+    if (!tokens) return;
 
     try {
       const response = await fetch('/api/smugmug/user', {
@@ -129,20 +129,18 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
 
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user);
+        setSmugmugUser(data.user);
       }
     } catch (err) {
-      console.error('Error loading user:', err);
-    } finally {
-      setLoading(false);
+      console.error('Error loading SmugMug user:', err);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     tokenStorage.clearTokens();
-    // Clear photo organizer index when logging out
     localStorage.removeItem('photo-organizer-index');
-    window.location.href = '/';
+    await signOut({ redirect: false });
+    router.push('/');
   };
 
   const getCurrentTool = () => {
@@ -164,7 +162,7 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
             >
               <Wrench className="w-6 h-6 sm:w-7 sm:h-7 text-purple-600 shrink-0" />
               <div className="flex flex-col min-w-0">
-                <span className="text-sm sm:text-base md:text-lg font-bold text-gray-900 truncate">SmugMug Toolbox</span>
+                <span className="text-sm sm:text-base md:text-lg font-bold text-gray-900 truncate">Smugtools</span>
                 {activeTool && (
                   <span className="text-xs text-gray-500 truncate hidden sm:block">/ {activeTool.name}</span>
                 )}
@@ -197,7 +195,7 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
                       >
                         <Home className="w-4 h-4 text-gray-600" />
                         <div>
-                          <div className="font-medium text-gray-900">Toolbox Home</div>
+                          <div className="font-medium text-gray-900">Smugtools Home</div>
                           <div className="text-xs text-gray-500">View all tools</div>
                         </div>
                       </button>
@@ -233,7 +231,7 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
             <AIActivityIndicator />
 
             {/* Coin Balance */}
-            {user && (
+            {session && (
               <div className="relative">
                 <button
                   onClick={() => setShowCoinMenu(!showCoinMenu)}
@@ -311,31 +309,25 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
               </div>
             )}
 
-            {loading ? (
+            {status === 'loading' ? (
               <div className="text-xs sm:text-sm text-gray-500">Loading...</div>
-            ) : user ? (
+            ) : session ? (
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   onBlur={() => setTimeout(() => setShowUserMenu(false), 200)}
                   className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors min-h-[44px] touch-manipulation"
                 >
-                  {user.ImageUrl ? (
-                    <img
-                      src={user.ImageUrl}
-                      alt={user.NickName}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
-                      {user.NickName?.charAt(0)?.toUpperCase() || 'U'}
-                    </div>
-                  )}
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+                    {session.user?.name?.charAt(0)?.toUpperCase() || session.user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
                   <div className="text-left hidden sm:block min-w-0">
                     <div className="text-sm font-semibold text-gray-900 truncate">
-                      {user.NickName || user.Name || 'User'}
+                      {session.user?.name || session.user?.email || 'User'}
                     </div>
-                    <div className="text-xs text-gray-500 truncate">SmugMug Account</div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {(session.user as any)?.role === 'admin' ? 'Admin' : 'User'}
+                    </div>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform shrink-0 ${showUserMenu ? 'rotate-180' : ''}`} />
                 </button>
@@ -345,29 +337,24 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
                   <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
                     <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 border-b border-gray-200">
                       <div className="flex items-center gap-3">
-                        {user.ImageUrl ? (
-                          <img
-                            src={user.ImageUrl}
-                            alt={user.NickName}
-                            className="w-12 h-12 rounded-full"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
-                            {user.NickName?.charAt(0)?.toUpperCase() || 'U'}
-                          </div>
-                        )}
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
+                          {session.user?.name?.charAt(0)?.toUpperCase() || session.user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
                         <div>
                           <div className="font-semibold text-gray-900">
-                            {user.NickName || user.Name}
+                            {session.user?.name || 'User'}
                           </div>
-                          {user.Domain && (
+                          <div className="text-xs text-gray-500">
+                            {session.user?.email}
+                          </div>
+                          {smugmugUser?.Domain && (
                             <a
-                              href={`https://${user.Domain}`}
+                              href={`https://${smugmugUser.Domain}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs text-purple-600 hover:underline"
                             >
-                              {user.Domain}
+                              {smugmugUser.Domain}
                             </a>
                           )}
                         </div>
@@ -375,6 +362,25 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
                     </div>
 
                     <div className="p-2">
+                      {(session.user as any)?.role === 'admin' && (
+                        <>
+                          <button
+                            onClick={() => {
+                              router.push('/admin');
+                              setShowUserMenu(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 rounded-lg transition-colors text-left"
+                          >
+                            <BarChart3 className="w-4 h-4 text-purple-600" />
+                            <div>
+                              <div className="font-medium text-gray-900">Admin Dashboard</div>
+                              <div className="text-xs text-gray-500">Platform analytics</div>
+                            </div>
+                          </button>
+                          <div className="h-px bg-gray-200 my-2" />
+                        </>
+                      )}
+
                       <button
                         onClick={() => {
                           router.push('/ai-dashboard');
@@ -384,8 +390,8 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
                       >
                         <BarChart3 className="w-4 h-4 text-purple-600" />
                         <div>
-                          <div className="font-medium text-gray-900">AI Operations Dashboard</div>
-                          <div className="text-xs text-gray-500">Track token usage & costs</div>
+                          <div className="font-medium text-gray-900">My AI Operations</div>
+                          <div className="text-xs text-gray-500">Track your usage</div>
                         </div>
                       </button>
 
@@ -407,12 +413,12 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
               </div>
             ) : (
               <button
-                onClick={() => router.push('/')}
-                className="flex items-center gap-1.5 sm:gap-2 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors text-xs sm:text-sm font-medium min-h-[44px] touch-manipulation"
+                onClick={() => router.push('/auth/signin')}
+                className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:scale-[0.98] text-white px-3 sm:px-4 py-2 rounded-lg transition-all text-xs sm:text-sm font-semibold min-h-[44px] touch-manipulation shadow-lg hover:shadow-xl"
               >
-                <User className="w-4 h-4 shrink-0" />
-                <span className="hidden sm:inline">Connect Account</span>
-                <span className="sm:hidden">Connect</span>
+                <LogIn className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">Sign In</span>
+                <span className="sm:hidden">Sign In</span>
               </button>
             )}
           </div>

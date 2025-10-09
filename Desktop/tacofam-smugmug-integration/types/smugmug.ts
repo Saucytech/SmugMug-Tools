@@ -46,6 +46,12 @@ export interface SmugMugImage {
     ImageSizes?: {
       Uri: string;
     };
+    ImageSizeDetails?: {
+      Uri: string;
+    };
+    LargestImage?: {
+      Url: string;
+    };
     LargeImage?: {
       Url: string;
     };

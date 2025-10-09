@@ -1,27 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FolderIcon, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck, Grid, Eye, Coins } from 'lucide-react';
-import { smugmugApi } from '@/lib/smugmug-client';
+import { FolderIcon, Book, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck, Coins, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import ToolboxHeader from '@/components/ToolboxHeader';
-
-interface Album {
-  AlbumKey: string;
-  Name: string;
-  ImageCount: number;
-  UrlName?: string;
-}
-
+import { useAlbumsStore } from '@/stores/albumsStore';
 
 export default function Home() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
-  const [albums, setAlbums] = useState<Album[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
+
+  // Use centralized albums store
+  const { albums, loading, error, fetchAlbums } = useAlbumsStore();
 
   // Pagination, filtering, and sorting state
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,21 +54,6 @@ export default function Home() {
     // Clear photo organizer index when logging out
     localStorage.removeItem('photo-organizer-index');
     setIsAuthenticated(false);
-    setAlbums([]);
-  };
-
-  const fetchAlbums = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await smugmugApi.getAlbums();
-      setAlbums(data.albums || []);
-    } catch (_err) {
-      setError('Failed to load albums. Please try reconnecting.');
-      console.error('Error fetching albums:', _err);
-    } finally {
-      setLoading(false);
-    }
   };
 
   // Filter albums by search term
@@ -103,57 +80,52 @@ export default function Home() {
 
   if (!isAuthenticated) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-        <div className="text-center max-w-2xl w-full px-4">
-          <Wrench className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 text-blue-400" />
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">SmugMug Toolbox</h1>
-          <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8 text-gray-300 px-2">
-            Professional tools to enhance your SmugMug workflow
-          </p>
-          <button
-            onClick={handleAuth}
-            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-[0.98] text-white font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg text-base sm:text-lg transition-all shadow-lg hover:shadow-xl min-h-[48px] touch-manipulation"
-            aria-label="Connect your SmugMug account to access all tools"
-          >
-            Connect SmugMug Account
-          </button>
-          <p className="mt-4 sm:mt-6 text-base sm:text-sm text-gray-400">
-            Don&apos;t have an API key yet?{' '}
-            <a
-              href="https://api.smugmug.com/api/developer/apply"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline min-h-[44px] inline-block py-2 active:text-blue-300"
-              aria-label="Apply for SmugMug API key"
+      <>
+        <ToolboxHeader />
+        <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+          <div className="text-center max-w-2xl w-full px-4">
+            <Wrench className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 text-blue-400" />
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">Smugtools</h1>
+            <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8 text-gray-300 px-2">
+              Professional tools to enhance your SmugMug workflow
+            </p>
+            <button
+              onClick={handleAuth}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-[0.98] text-white font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg text-base sm:text-lg transition-all shadow-lg hover:shadow-xl min-h-[48px] touch-manipulation"
+              aria-label="Connect your SmugMug account to access all tools"
             >
-              Apply here
-            </a>
-          </p>
+              Connect SmugMug Account
+            </button>
+            <p className="mt-4 sm:mt-6 text-base sm:text-sm text-gray-400">
+              Don&apos;t have an API key yet?{' '}
+              <a
+                href="https://api.smugmug.com/api/developer/apply"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline min-h-[44px] inline-block py-2 active:text-blue-300"
+                aria-label="Apply for SmugMug API key"
+              >
+                Apply here
+              </a>
+            </p>
 
-          {/* Developer Tools */}
-          <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-700">
-            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Developer Tools</h3>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-              <a
-                href="/api-reference"
-                className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 active:scale-[0.98] text-white font-semibold py-3 px-5 sm:px-6 rounded-lg transition-all flex items-center justify-center gap-2 min-h-[48px] touch-manipulation"
-                aria-label="Browse SmugMug API Reference documentation"
-              >
-                <Book className="w-5 h-5" />
-                <span className="text-base">API Reference</span>
-              </a>
-              <a
-                href="/metadata"
-                className="bg-green-600 hover:bg-green-700 active:bg-green-800 active:scale-[0.98] text-white font-semibold py-3 px-5 sm:px-6 rounded-lg transition-all flex items-center justify-center gap-2 min-h-[48px] touch-manipulation"
-                aria-label="View and inspect photo metadata and EXIF data"
-              >
-                <Database className="w-5 h-5" />
-                <span className="text-base">Metadata Viewer</span>
-              </a>
+            {/* Developer Tools */}
+            <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-700">
+              <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Developer Tools</h3>
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+                <a
+                  href="/api-reference"
+                  className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 active:scale-[0.98] text-white font-semibold py-3 px-5 sm:px-6 rounded-lg transition-all flex items-center justify-center gap-2 min-h-[48px] touch-manipulation"
+                  aria-label="Browse SmugMug API Reference documentation"
+                >
+                  <Book className="w-5 h-5" />
+                  <span className="text-base">API Reference</span>
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </>
     );
   }
 
@@ -167,7 +139,7 @@ export default function Home() {
             {/* Welcome Section */}
             <div className="mb-8 sm:mb-10 md:mb-12 text-center px-4">
               <Wrench className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 text-purple-600 mx-auto mb-3 sm:mb-4" />
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-2 sm:mb-3">SmugMug Toolbox</h1>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-2 sm:mb-3">Smugtools</h1>
               <p className="text-base sm:text-lg md:text-xl text-gray-600">Professional tools to enhance your SmugMug workflow</p>
             </div>
 
@@ -329,30 +301,6 @@ export default function Home() {
               </div>
             </button>
 
-            {/* Multi-Album Selector Tool */}
-            <button
-              onClick={() => router.push('/multi-album-selector')}
-              className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:border-cyan-500 text-left min-h-[160px] touch-manipulation"
-              aria-label="Launch Multi-Album Selector to create embeddable galleries from multiple albums"
-            >
-              <div className="bg-gradient-to-br from-cyan-500 to-blue-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Grid className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
-              </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Multi-Album Selector</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Select photos across multiple albums and generate embeddable galleries. Choose from 8 display styles and export as HTML, React, or WordPress.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-cyan-100 text-cyan-700 text-xs font-semibold rounded-full">8 Layouts</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-cyan-100 text-cyan-700 text-xs font-semibold rounded-full">Multi-Export</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-cyan-100 text-cyan-700 text-xs font-semibold rounded-full">Preview</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-cyan-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
-
             {/* API Reference Tool */}
             <button
               onClick={() => router.push('/api-reference')}
@@ -377,25 +325,25 @@ export default function Home() {
               </div>
             </button>
 
-            {/* Metadata Viewer Tool */}
+            {/* Folder Downloader Tool */}
             <button
-              onClick={() => router.push('/metadata')}
-              className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-slate-500 focus:outline-none focus:ring-4 focus:ring-slate-200 focus:border-slate-500 text-left min-h-[160px] touch-manipulation"
-              aria-label="Launch Metadata Viewer to inspect photo EXIF and metadata"
+              onClick={() => router.push('/downloader')}
+              className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 text-left min-h-[160px] touch-manipulation"
+              aria-label="Launch Folder Downloader to download photos with preserved folder hierarchy"
             >
-              <div className="bg-gradient-to-br from-slate-500 to-gray-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Eye className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
+              <div className="bg-gradient-to-br from-blue-500 to-cyan-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
+                <Download className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Metadata Viewer</h2>
+              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">Folder Downloader</h2>
               <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Inspect detailed EXIF and metadata for any SmugMug image. View camera settings, keywords, GPS data, and more.
+                Download your photos with preserved folder hierarchy. Select folders and albums, choose image size, and export as ZIP.
               </p>
               <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full">EXIF Data</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full">GPS Info</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full">Full Details</span>
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Folder Structure</span>
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Bulk Download</span>
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">ZIP Export</span>
               </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-slate-600 font-semibold flex items-center gap-2 text-base">
+              <div className="mt-2 sm:mt-5 md:mt-6 text-blue-600 font-semibold flex items-center gap-2 text-base">
                 Launch Tool
                 <span className="group-hover:translate-x-1 transition-transform">→</span>
               </div>
@@ -457,6 +405,12 @@ export default function Home() {
       <main className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
 
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">Embed & Sell</h1>
+          <p className="text-sm sm:text-base text-gray-600">Create embeddable galleries with buy buttons for your website</p>
+        </div>
+
         {/* Error Message */}
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
@@ -474,19 +428,6 @@ export default function Home() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {selectedAlbumsForEmbed.size > 0 && (
-                <button
-                  onClick={() => {
-                    // Navigate to multi-album photo selector
-                    const albumKeys = Array.from(selectedAlbumsForEmbed).join(',');
-                    router.push(`/multi-album-selector?albums=${albumKeys}`);
-                  }}
-                  className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 active:scale-[0.98] text-white px-6 py-3 rounded-lg transition-all font-medium min-h-[48px] touch-manipulation text-base"
-                  aria-label={`Continue with ${selectedAlbumsForEmbed.size} selected album${selectedAlbumsForEmbed.size !== 1 ? 's' : ''}`}
-                >
-                  Continue with {selectedAlbumsForEmbed.size} Album{selectedAlbumsForEmbed.size !== 1 ? 's' : ''}
-                </button>
-              )}
               <button
                 onClick={fetchAlbums}
                 disabled={loading}

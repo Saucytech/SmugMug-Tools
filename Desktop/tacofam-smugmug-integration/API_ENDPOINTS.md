@@ -1,6 +1,6 @@
-# SmugMug Toolbox API Endpoints Reference
+# Smugtools API Endpoints Reference
 
-Complete reference for all API endpoints in the SmugMug Toolbox application.
+Complete reference for all API endpoints in the Smugtools application.
 
 ---
 

@@ -1,8 +1,8 @@
-# SmugMug Toolbox Agent Team
+# Smugtools Agent Team
 
 ## Overview
 
-This directory contains 5 specialized AI agents designed to work together on the SmugMug Toolbox project. Each agent has specific responsibilities, tool access, and expertise.
+This directory contains 5 specialized AI agents designed to work together on the Smugtools project. Each agent has specific responsibilities, tool access, and expertise.
 
 ## The Team
 

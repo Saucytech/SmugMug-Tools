@@ -1,7 +1,7 @@
-# SmugMug Toolbox - Complete Tool Inventory
+# Smugtools - Complete Tool Inventory
 
 **Last Updated:** 2025-10-08
-**Purpose:** Comprehensive reference document for all SmugMug Toolbox tools, their features, locations, and development status.
+**Purpose:** Comprehensive reference document for all Smugtools tools, their features, locations, and development status.
 
 ---
 
@@ -18,7 +18,7 @@
 
 ## Overview
 
-The SmugMug Toolbox contains **10 professional tools** for photographers and SmugMug users. All tools are:
+The Smugtools contains **10 professional tools** for photographers and SmugMug users. All tools are:
 - Fully integrated into navigation (homepage + header dropdown)
 - Authenticated with SmugMug OAuth 1.0a
 - Built with Next.js 14 (App Router) + TypeScript + Tailwind CSS

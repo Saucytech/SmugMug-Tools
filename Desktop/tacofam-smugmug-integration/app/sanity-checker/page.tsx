@@ -8,6 +8,8 @@ import SystemPromptViewer from '@/components/SystemPromptViewer';
 import { tokenStorage } from '@/lib/smugmug-client';
 import { useModelPreferences, AVAILABLE_MODELS } from '@/stores/modelPreferencesStore';
 import { useAIActivityStore } from '@/stores/aiActivityStore';
+import { galleryCache } from '@/lib/galleryCache';
+import CacheFreshnessIndicator from '@/components/CacheFreshnessIndicator';
 import {
   ClipboardCheck,
   AlertTriangle,
@@ -114,24 +116,24 @@ export default function SanityChecker() {
     }
   };
 
-  // Load cached index data from Photo Organizer
+  // Load cached gallery data from unified cache
   const loadCachedIndexData = (): GalleryIndexEntry[] => {
     try {
-      const cached = localStorage.getItem('photo-organizer-index');
-      if (!cached) return [];
+      // Load from unified cache service
+      const cachedGalleries = galleryCache.getAllGalleries();
 
-      // Photo Organizer stores data as an array directly, not wrapped in an object
-      const indexData = JSON.parse(cached);
+      // Map CachedGallery to GalleryIndexEntry format
+      const indexData: GalleryIndexEntry[] = cachedGalleries.map(gallery => ({
+        albumKey: gallery.albumKey,
+        albumName: gallery.albumName,
+        imageCount: gallery.imageCount,
+        images: gallery.images,
+        indexedAt: gallery.lastRefreshed,
+      }));
 
-      // Check if it's already an array
-      if (Array.isArray(indexData)) {
-        return indexData;
-      }
-
-      // Fallback if data structure changes
-      return indexData.galleries || [];
+      return indexData;
     } catch (_error) {
-      console.error('Error loading cached index:', _error);
+      console.error('Error loading cached gallery data:', _error);
       return [];
     }
   };
@@ -156,7 +158,7 @@ export default function SanityChecker() {
 
       if (loadedGalleries.length === 0) {
         addLog('❌ No cached gallery data found');
-        alert('No cached gallery data found. Please index galleries in the Photo Organizer tool first.');
+        alert('No gallery data available. Please index galleries using the Photo Organizer tool to populate the cache.');
         setScanning(false);
         return;
       }
@@ -410,10 +412,16 @@ export default function SanityChecker() {
             <div className="bg-white rounded-lg sm:rounded-2xl p-6 sm:p-12 text-center border-2 border-gray-200">
               <ClipboardCheck className="w-16 h-16 sm:w-20 sm:h-20 text-orange-500 mx-auto mb-3 sm:mb-6" />
               <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">Ready to Analyze Your SmugMug Account</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-8 max-w-2xl mx-auto leading-snug sm:leading-relaxed">
+              <p className="text-sm sm:text-base text-gray-600 mb-4 max-w-2xl mx-auto leading-snug sm:leading-relaxed">
                 This tool will analyze your galleries, images, metadata, and settings to find optimization opportunities and potential issues.
                 It uses cached data from the Photo Organizer to speed up the analysis.
               </p>
+
+              {/* Cache Status */}
+              <div className="mb-4 sm:mb-8 flex justify-center">
+                <CacheFreshnessIndicator showAll={true} compact={false} />
+              </div>
+
               <button
                 onClick={startScan}
                 className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 active:scale-[0.98] text-white font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg text-base sm:text-lg transition-all shadow-lg hover:shadow-xl flex items-center gap-2 sm:gap-3 mx-auto"

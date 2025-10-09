@@ -1,18 +1,18 @@
-# Claude AI Development Guide
+# Claude AI Development Guide for Smugtools.com
 
 ## 🤖 Instructions for AI Assistants (Claude, GPT, etc.)
 
-This document provides guidance for AI coding assistants working with this SmugMug API template.
+This document provides guidance for AI coding assistants working with Smugtools.com, a professional SaaS platform for SmugMug photographers.
 
 ---
 
 ## 📋 Template Overview
 
-**Project Type**: SmugMug API Starter Template
+**Project**: Smugtools.com - Professional SmugMug SaaS Platform
 **Framework**: Next.js 14 (App Router)
 **Language**: TypeScript
-**Authentication**: OAuth 1.0a (✅ Fully Implemented)
-**Purpose**: Production-ready foundation for any SmugMug-powered application
+**Authentication**: NextAuth + OAuth 1.0a (✅ Fully Implemented)
+**Purpose**: Multi-tenant SaaS platform with AI-powered tools for photographers
 
 ---
 
@@ -46,7 +46,7 @@ app/api/
     └── image/[imageKey]/route.ts  # Update image metadata (WORKING ✅)
 ```
 
-### Production-Ready Tools (SmugMug Toolbox)
+### Production-Ready Tools (Smugtools.com)
 
 **Favorites Manager** (`app/favorites-manager/`)
 - Create client photo selection sessions
@@ -130,7 +130,7 @@ if (cachedPhoto) {
 
 **IMPORTANT: Check existing tools FIRST before building anything new!**
 
-The template now includes production-ready tools for common photographer needs:
+Smugtools.com includes production-ready tools for common photographer needs:
 
 - **Client photo selection?** → Use `/favorites-manager` (already built!)
 - **Generate metadata?** → Use `/metadata-monster` (already built!)
@@ -494,11 +494,12 @@ When a user asks you to work on this project:
 
 ## ✅ Summary for AI Assistants
 
-**This template gives you**:
-- ✅ Working OAuth 1.0a with SmugMug
+**Smugtools.com provides**:
+- ✅ Multi-tenant SaaS architecture
+- ✅ Working OAuth 1.0a + NextAuth with SmugMug
 - ✅ Clean Next.js 14 architecture
 - ✅ TypeScript setup
-- ✅ Production-ready SmugMug Toolbox with 5 professional tools:
+- ✅ Production-ready platform with 5 professional tools:
   - **Favorites Manager** - Client photo selection galleries
   - **MetaData Monster** - AI-powered metadata generation
   - **Multi-Album Selector** - Embeddable gallery creator

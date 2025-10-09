@@ -1,140 +1,150 @@
-# SmugMug API Starter Template
+# Smugtools.com
 
-🚀 **Production-Ready Next.js Template for SmugMug API Integration**
+🚀 **Professional SmugMug Tools for Photographers**
 
-A battle-tested, fully authenticated Next.js starter template for building any SmugMug-powered application. OAuth 1.0a authentication is completely configured and working - just add your API credentials and start building your dream SmugMug project.
-
----
-
-## 🎯 What Is This?
-
-This is a **complete, working foundation** for any SmugMug API project. The hardest part (OAuth 1.0a) is done and tested. Now includes professional photographer tools for client galleries, AI-powered metadata generation, and more!
-
-Use this template to build:
-
-- 📸 Photo gallery websites
-- 🔄 Backup and sync tools
-- 🛍️ E-commerce integrations
-- 📱 Social media crossposters
-- 🎨 Photo editing workflows
-- 📝 Content management systems
-- 🔍 Photo search engines
-- 💾 Media libraries
-- 🤖 AI-powered metadata tools
-- 👥 Client photo selection galleries
-- ...and anything else you can imagine!
+The complete toolkit for photographers using SmugMug. Built with Next.js 14, TypeScript, and AI - featuring client galleries, metadata generation, analytics, and more.
 
 ---
 
-## ✨ What's Included (Already Working)
+## 🌟 What is Smugtools?
 
-### 🔐 Complete OAuth 1.0a Flow
-- ✅ Request token generation with secure cookie-based secret storage
-- ✅ User authorization redirect to SmugMug
-- ✅ Access token exchange and validation
-- ✅ Token persistence (ready to extend to database)
-- ✅ Error handling and retry logic
+**Smugtools.com** is a professional SaaS platform that extends SmugMug's capabilities with powerful tools for photographers:
 
-### 🎨 Production-Ready Stack
-- **Next.js 14** - App Router, Server Components, API Routes
+- 🤖 **AI-Powered Metadata** - Generate titles, captions, and keywords automatically
+- 👥 **Client Galleries** - Beautiful, shareable galleries for client photo selection
+- 📊 **Analytics Dashboard** - Track usage, AI operations, and client engagement
+- 🎨 **Multi-Album Tools** - Create embeddable galleries from multiple albums
+- 💎 **Premium Features** - Coin-based AI processing with flexible pricing
+- 🔐 **Multi-Tenant SaaS** - Secure, scalable architecture for multiple users
+
+---
+
+## ✨ Features
+
+### 🧰 Professional Tools
+
+#### MetaData Monster
+AI-powered bulk metadata generation for your photos:
+- Batch process titles, captions, and keywords
+- Multiple AI prompt styles (Professional, Creative, SEO, etc.)
+- Edit before saving to SmugMug
+- Export reports as CSV
+- Token-based AI usage tracking
+
+#### Favorites Manager
+Let clients select their favorite photos:
+- Customizable branding with logo upload
+- Multiple theme options
+- Shareable client links
+- Optional "Buy" button integration
+- Track customer selections
+
+#### Multi-Album Selector
+Create embeddable photo galleries:
+- Select photos across multiple albums
+- Generate embed codes (HTML, React, WordPress, JSON)
+- Multiple display layouts (Grid, Carousel, Masonry)
+- Preview before exporting
+
+#### Photo Downloader
+Bulk download tools for photographers:
+- Download multiple photos at once
+- Organize by album or custom selection
+- High-quality original files
+- Progress tracking
+
+### 🔐 Authentication & Security
+
+- **NextAuth.js** - Secure user authentication
+- **Role-Based Access** - Admin and user roles
+- **Encrypted Tokens** - AES-256-CBC encryption for SmugMug OAuth tokens
+- **Session Management** - HTTP-only cookies
+- **CSRF Protection** - Built-in security
+
+### 💰 Monetization Ready
+
+- **Stripe Integration** - Accept payments for AI credits
+- **Coin System** - Flexible credit-based pricing
+- **Usage Tracking** - Monitor AI operations and costs
+- **Admin Dashboard** - Grant bonus coins, view analytics
+- **Transaction History** - Complete audit trail
+
+### 🎨 Tech Stack
+
+- **Next.js 14** - App Router, Server Components
 - **TypeScript** - Full type safety
-- **Tailwind CSS** - Modern, responsive styling
-- **OAuth 1.0a** - Secure authentication with `oauth-1.0a` package
-- **SmugMug API v2** - Latest API version
-
-### 📦 Professional Tools Included
-
-#### 🧰 SmugMug Toolbox (Production-Ready Features)
-- **Favorites Manager** - Let clients select their favorite photos from galleries
-  - Customizable branding with logo upload
-  - Multiple theme options
-  - Optional "Buy" button integration
-  - Shareable client links
-  - Track customer selections
-
-- **MetaData Monster** - AI-powered photo metadata generation
-  - Batch process titles, captions, and keywords
-  - Multiple prompt styles (Professional, Creative, SEO, etc.)
-  - Edit before saving
-  - Export reports
-  - Auto-save to SmugMug
-
-- **Multi-Album Selector** - Create embeddable galleries
-  - Select photos from multiple albums
-  - Generate embed codes (HTML, React, WordPress)
-  - Multiple display layouts (Grid, Carousel, Masonry)
-  - Export to JSON
-
-#### 🛠️ Developer Tools
-- **API Reference Browser** - Interactive SmugMug API documentation
-- **Metadata Viewer** - Inspect EXIF and image metadata
-- Album browsing and navigation
-- URL-based folder/album navigation
-- Responsive design throughout
-
-### 🏗️ Clean Architecture
-```
-app/
-├── api/
-│   ├── auth/smugmug/
-│   │   ├── route.ts              # OAuth initiation (✅ Working)
-│   │   └── callback/route.ts     # OAuth callback (✅ Working)
-│   ├── ai/
-│   │   └── generate-metadata/    # AI metadata generation
-│   └── smugmug/
-│       ├── albums/               # Album endpoints
-│       ├── folders/              # Folder endpoints
-│       ├── user/                 # User info
-│       └── image/[imageKey]/     # Image updates
-├── favorites-manager/            # Client photo selection tool
-├── metadata-monster/             # AI metadata generator
-├── multi-album-selector/         # Gallery embed creator
-├── api-reference/                # API documentation browser
-├── metadata/                     # Metadata viewer
-├── layout.tsx                    # Root layout
-└── page.tsx                      # Main dashboard
-```
+- **Tailwind CSS** - Modern, responsive design
+- **Neon PostgreSQL** - Serverless database
+- **Anthropic Claude** - AI vision for metadata
+- **Stripe** - Payment processing
+- **OAuth 1.0a** - SmugMug authentication
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Get SmugMug API Credentials
+### Prerequisites
 
-1. Go to [SmugMug API Developer Portal](https://api.smugmug.com/api/developer/apply)
-2. Log in with your SmugMug account
-3. Click **"Apply for an API Key"**
-4. Fill out the form:
-   - **Application Name**: Your Project Name
-   - **Description**: Brief description of your app
-   - **Application URL**: `http://localhost:3000` (development) or your domain (production)
-   - **Callback URL**: `http://localhost:3000/api/auth/smugmug/callback`
-5. Submit and copy your **API Key** and **API Secret**
+- Node.js 18+ and npm
+- SmugMug account with API access
+- Neon database (free tier available)
+- Stripe account (for payments)
+- Anthropic API key (for AI features)
 
-### 2. Clone & Install
+### 1. Clone Repository
 
 ```bash
-# Clone or download this template
-git clone <your-repo-url>
-cd smugmug-api-template
-
-# Install dependencies
+git clone https://github.com/Saucytech/smugtools.git
+cd smugtools
 npm install
 ```
 
-### 3. Configure Environment
+### 2. Environment Setup
 
-```bash
-# Copy environment template
-cp .env.example .env
-```
-
-Edit `.env` and add your credentials:
+Create `.env.development.local`:
 
 ```env
-SMUGMUG_API_KEY=your_api_key_here
-SMUGMUG_API_SECRET=your_api_secret_here
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+# SmugMug API
+SMUGMUG_API_KEY=your_api_key
+SMUGMUG_API_SECRET=your_api_secret
+
+# Database
+DATABASE_URL=your_neon_connection_string
+
+# NextAuth
+NEXTAUTH_SECRET=your_nextauth_secret
+NEXTAUTH_URL=http://localhost:3000
+
+# Encryption
+ENCRYPTION_KEY=your_64_char_hex_key
+
+# Stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# AI
+ANTHROPIC_API_KEY=your_anthropic_key
+```
+
+### 3. Database Setup
+
+Run the Neon schema:
+
+```bash
+# Copy schema to Neon SQL Editor
+cat prisma/schema.sql
+```
+
+Execute in your Neon console, then create admin user:
+
+```sql
+-- Generate password hash first:
+-- node -e "const bcrypt = require('bcryptjs'); bcrypt.hash('YOUR_PASSWORD', 10, (err, hash) => console.log(hash));"
+
+UPDATE users
+SET password_hash = 'YOUR_HASH', email = 'admin@smugtools.com'
+WHERE role = 'admin';
 ```
 
 ### 4. Run Development Server
@@ -143,239 +153,87 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) - **Authentication is ready to use!**
-
-### 5. Test Authentication
-
-1. Click "Connect SmugMug Account"
-2. Authorize on SmugMug
-3. You'll be redirected back with working access tokens
-4. Start building! 🎉
+Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 🛠️ How to Build Your App
+## 📚 Documentation
 
-### Understanding the Auth Flow
+### For Users
+- [Setup Guide](./MULTI_TENANT_SETUP.md) - Complete deployment instructions
+- [API Reference](./API_ENDPOINTS.md) - All available endpoints
+- [Tool Inventory](./tools/TOOLBOX_INVENTORY.md) - Feature documentation
 
-The OAuth flow is **completely handled** for you:
+### For Developers
+- [Developer Guide](./CLAUDE.md) - AI assistant instructions
+- [Agent Architecture](./.claude/agents/README.md) - Specialized AI agents
+- [Security Guide](./.claude/agents/security-guardian.md) - Security best practices
 
-1. **User clicks "Connect"** → `GET /api/auth/smugmug`
-   - Generates request token
-   - Stores secret in HTTP-only cookie
-   - Redirects to SmugMug authorization
+---
 
-2. **User authorizes on SmugMug** → Redirects to your callback
+## 🏗️ Architecture
 
-3. **Callback processes tokens** → `GET /api/auth/smugmug/callback`
-   - Retrieves secret from cookie
-   - Exchanges for access token
-   - Returns tokens to your app
-   - Cleans up temporary cookie
-
-4. **You're authenticated!** → Build your features
-
-### Making Authenticated API Calls
-
-Use the included OAuth helper in your API routes:
-
-```typescript
-// Example: app/api/smugmug/user/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import OAuth from 'oauth-1.0a';
-import crypto from 'crypto';
-
-const oauth = new OAuth({
-  consumer: {
-    key: process.env.SMUGMUG_API_KEY!,
-    secret: process.env.SMUGMUG_API_SECRET!,
-  },
-  signature_method: 'HMAC-SHA1',
-  hash_function(base_string, key) {
-    return crypto.createHmac('sha1', key).update(base_string).digest('base64');
-  },
-});
-
-export async function GET(request: NextRequest) {
-  // Get tokens from your storage (currently in URL params - upgrade to DB!)
-  const accessToken = request.headers.get('x-access-token');
-  const accessTokenSecret = request.headers.get('x-access-token-secret');
-
-  const requestData = {
-    url: 'https://api.smugmug.com/api/v2!authuser',
-    method: 'GET',
-  };
-
-  const authHeader = oauth.toHeader(
-    oauth.authorize(requestData, {
-      key: accessToken!,
-      secret: accessTokenSecret!,
-    })
-  );
-
-  const response = await fetch(requestData.url, {
-    headers: { ...authHeader, Accept: 'application/json' },
-  });
-
-  const data = await response.json();
-  return NextResponse.json(data);
-}
 ```
-
-### Available SmugMug API Endpoints
-
-Explore the [SmugMug API v2 Documentation](https://api.smugmug.com/api/v2/doc) to see all available endpoints:
-
-- **User Info**: `/api/v2!authuser`
-- **Albums**: `/api/v2/user/{username}!albums`
-- **Images**: `/api/v2/album/{albumKey}!images`
-- **Folders**: `/api/v2/user/{username}!folders`
-- **Upload**: `/api/v2/upload`
-- **Search**: `/api/v2!search`
-- And many more...
-
----
-
-## 🔒 Production Considerations
-
-### Security Upgrades Needed
-
-⚠️ **Current State**: Tokens are passed via URL params (demo only)
-
-**Before deploying to production:**
-
-1. **Store tokens securely**
-   - Use database (PostgreSQL, MongoDB, etc.)
-   - Or encrypted session storage
-   - Or secure cookie-based sessions
-
-2. **Add CSRF protection**
-   - Implement state parameter in OAuth flow
-   - Use CSRF tokens
-
-3. **Use HTTPS only**
-   - Update `NEXT_PUBLIC_APP_URL` to HTTPS
-   - Update SmugMug callback URL to HTTPS
-
-4. **Add rate limiting**
-   - Protect API routes from abuse
-   - Respect SmugMug's 5,000 requests/day limit
-
-5. **Implement proper error handling**
-   - Log errors securely
-   - Show user-friendly error messages
-
-### Example: Database Token Storage
-
-```typescript
-// Upgrade from URL params to database
-// Example with Prisma:
-
-// prisma/schema.prisma
-model User {
-  id                  String   @id @default(cuid())
-  smugmugAccessToken  String
-  smugmugTokenSecret  String
-  createdAt           DateTime @default(now())
-}
-
-// In callback route:
-await prisma.user.create({
-  data: {
-    smugmugAccessToken: accessToken,
-    smugmugTokenSecret: accessTokenSecret,
-  },
-});
+smugtools/
+├── app/
+│   ├── api/                    # API routes
+│   │   ├── auth/              # NextAuth + SmugMug OAuth
+│   │   ├── smugmug/           # SmugMug API integration
+│   │   ├── ai/                # AI metadata generation
+│   │   ├── stripe/            # Payment processing
+│   │   └── admin/             # Admin endpoints
+│   ├── metadata-monster/      # AI metadata tool
+│   ├── favorites-manager/     # Client gallery tool
+│   ├── downloader/            # Bulk download tool
+│   ├── admin/                 # Admin dashboard
+│   ├── auth/                  # Sign in/up pages
+│   └── pricing/               # Pricing & purchase
+├── components/                # React components
+├── lib/                       # Utilities
+│   ├── db.ts                 # Database client
+│   ├── encryption.ts         # Token encryption
+│   └── coinCalculator.ts     # AI cost calculator
+├── prisma/                    # Database schemas
+└── stores/                    # Zustand state management
 ```
 
 ---
 
-## 📊 SmugMug API Limits & Info
+## 🔐 Security
 
-- **Rate Limit**: 5,000 requests per day per API key
-- **Image Sizes**: Thumbnail, Small, Medium, Large, Original
-- **OAuth Tokens**: Do not expire (unless revoked by user)
-- **API Version**: v2 (current)
-- **Response Format**: JSON
+Smugtools implements enterprise-grade security:
 
----
-
-## 🎨 Customizing the Template
-
-### Replace the Example UI
-
-The current UI (`app/page.tsx`) is just a demo. Replace it with your own:
-
-```typescript
-// app/page.tsx - Build your custom UI here
-export default function Home() {
-  return (
-    <div>
-      {/* Your awesome SmugMug app UI */}
-    </div>
-  );
-}
-```
-
-### Add More API Routes
-
-Create new routes in `app/api/smugmug/`:
-
-```
-app/api/smugmug/
-├── user/route.ts          # Get user info
-├── search/route.ts        # Search photos
-├── upload/route.ts        # Upload photos
-└── [your-feature]/route.ts
-```
-
-### Modify Styling
-
-- Edit `app/globals.css` for global styles
-- Update `tailwind.config.js` for custom theme
-- Use Tailwind classes throughout
+- ✅ **Password Hashing** - bcrypt with 10 rounds
+- ✅ **Token Encryption** - AES-256-CBC for OAuth tokens
+- ✅ **Secure Sessions** - HTTP-only, SameSite cookies
+- ✅ **CSRF Protection** - NextAuth built-in
+- ✅ **Role-Based Access** - Admin/user permissions
+- ✅ **SSL Encryption** - Neon database SSL
+- ✅ **API Rate Limiting** - DDoS protection
+- ✅ **Input Validation** - XSS prevention
 
 ---
 
-## 📚 Additional Resources
+## 💎 Pricing & Coins
 
-### SmugMug Documentation
-- [API v2 Docs](https://api.smugmug.com/api/v2/doc)
-- [API Developer Portal](https://api.smugmug.com/api/developer)
-- [OAuth 1.0a Spec](https://oauth.net/core/1.0a/)
+Smugtools uses a **coin-based credit system**:
 
-### Next.js Documentation
-- [Next.js Docs](https://nextjs.org/docs)
-- [App Router](https://nextjs.org/docs/app)
-- [API Routes](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
+- AI operations consume coins based on token usage
+- Users purchase coin packages via Stripe
+- Admins can grant bonus coins
+- Real-time balance tracking
+- Complete transaction history
 
----
-
-## 🐛 Troubleshooting
-
-### "Authentication failed"
-- ✅ Verify API Key and Secret in `.env`
-- ✅ Check callback URL matches exactly
-- ✅ Ensure cookies are enabled in browser
-
-### "Missing OAuth token secret"
-- ✅ Clear browser cookies and try again
-- ✅ Check cookie settings (httpOnly, sameSite)
-
-### "Failed to fetch albums"
-- ✅ Verify you completed OAuth flow
-- ✅ Check access tokens are present
-- ✅ Verify SmugMug account has albums
-
-### Images not loading
-- ✅ Check album privacy settings in SmugMug
-- ✅ Verify image URLs in response
+**Default Packages:**
+- Starter: 1,000 coins - $9.99
+- Professional: 5,000 coins - $39.99
+- Enterprise: 15,000 coins - $99.99
 
 ---
 
-## 🚢 Deployment
+## 🚀 Deployment
 
-### Deploy to Vercel (Recommended)
+### Deploy to Vercel
 
 ```bash
 # Install Vercel CLI
@@ -383,97 +241,106 @@ npm install -g vercel
 
 # Deploy
 vercel login
-vercel deploy
+vercel deploy --prod
 ```
 
-**Important**: Update environment variables in Vercel dashboard and SmugMug callback URL to production domain.
+### Environment Variables
 
-### Other Platforms
-- **Netlify**: Works great with Next.js
-- **Railway**: Easy deployment
-- **AWS/GCP/Azure**: Full control
+Set these in Vercel dashboard:
+- All `.env` variables
+- Update `NEXTAUTH_URL` to production domain
+- Update SmugMug callback URL
+
+### Stripe Webhook
+
+Configure webhook in Stripe dashboard:
+- URL: `https://your-domain.com/api/stripe/webhook`
+- Events: `checkout.session.completed`, `payment_intent.succeeded`
+
+---
+
+## 🛠️ Development
+
+### Available Commands
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run ESLint
+npm run type-check   # TypeScript validation
+npm test             # Run Playwright tests
+```
+
+### Testing
+
+```bash
+# Run all tests
+npm test
+
+# Mobile tests
+npm run test:mobile
+
+# UI mode
+npm run test:ui
+
+# Debug mode
+npm run test:debug
+```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
 ## 📝 License
 
-MIT - Use this template for anything!
+MIT License - see [LICENSE](./LICENSE) file for details
 
 ---
 
 ## 🙋 Support
 
-- **SmugMug API Issues**: [SmugMug API Documentation](https://api.smugmug.com/api/v2/doc)
-- **Template Issues**: Open an issue in this repository
-- **Next.js Questions**: [Next.js Discord](https://nextjs.org/discord)
+- **Website**: [smugtools.com](https://smugtools.com)
+- **Email**: support@smugtools.com
+- **GitHub Issues**: [Report a bug](https://github.com/Saucytech/smugtools/issues)
+- **SmugMug API**: [Official Documentation](https://api.smugmug.com/api/v2/doc)
 
 ---
 
-## 🧰 Using the Built-in Tools
+## 🌟 Roadmap
 
-### Favorites Manager
-Perfect for professional photographers working with clients:
-
-1. Navigate to `/favorites-manager`
-2. Create a new favorites session
-3. Select albums for clients to browse
-4. Customize the theme and branding
-5. Share the link with your client
-6. Track their selections in real-time
-
-**Client view includes:**
-- Beautiful, responsive photo gallery
-- Heart icon to mark favorites
-- Optional "Buy" buttons
-- Custom branding with your logo
-
-### MetaData Monster
-AI-powered bulk metadata generation:
-
-1. Navigate to `/metadata-monster`
-2. Select an album
-3. Choose what to generate (titles, captions, keywords)
-4. Select a prompt style (Professional, Creative, SEO, etc.)
-5. Process selected photos
-6. Edit generated metadata before saving
-7. Auto-save to SmugMug or export as CSV
-
-**Uses AI vision to:**
-- Analyze photo content
-- Generate relevant titles
-- Write descriptive captions
-- Create SEO-optimized keywords
-
-### Multi-Album Selector
-Create embeddable photo galleries:
-
-1. Navigate to `/multi-album-selector`
-2. Select photos from multiple albums
-3. Choose display layout (Grid, Carousel, Masonry)
-4. Generate embed code (HTML, React, WordPress, JSON)
-5. Copy and use in your website
+- [ ] Video support for galleries
+- [ ] Advanced analytics dashboard
+- [ ] Mobile app (React Native)
+- [ ] Shopify integration
+- [ ] Print fulfillment integration
+- [ ] Social media auto-posting
+- [ ] Client invoicing system
+- [ ] Advanced SEO tools
 
 ---
 
-## 🌟 What's Next?
+## 🎉 Credits
 
-You now have a **fully working, authenticated SmugMug API connection** with professional tools included! The hard part is done!
+Built with ❤️ by [Saucytech](https://github.com/Saucytech)
 
-**Already Built:**
-- ✅ Client photo selection galleries
-- ✅ AI metadata generation
-- ✅ Gallery embed code generator
-- ✅ API reference browser
-- ✅ Metadata viewer
+Powered by:
+- [Next.js](https://nextjs.org)
+- [Anthropic Claude](https://www.anthropic.com)
+- [SmugMug API](https://api.smugmug.com)
+- [Neon Database](https://neon.tech)
+- [Stripe](https://stripe.com)
 
-**More Ideas to build:**
-- Photo portfolio site with automatic SmugMug sync
-- Family photo sharing app
-- Photography business website
-- Photo backup tool
-- Print-on-demand integration
-- Social media scheduler
-- Photo contest platform
-- Advanced analytics dashboard
+---
 
-**The possibilities are endless - start building! 🚀**
+**Transform your SmugMug workflow with Smugtools.com** 🚀

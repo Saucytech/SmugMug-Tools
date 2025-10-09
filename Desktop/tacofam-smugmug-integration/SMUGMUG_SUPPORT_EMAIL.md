@@ -22,7 +22,7 @@ I am writing to report a persistent issue with the SmugMug API v2 that is preven
 ### Technical Details
 
 **Affected Endpoints:**
-1. `PATCH /api/v2/image/{imageKey}`
+- Most alre1. `PATCH /api/v2/image/{imageKey}`
 2. `PATCH /api/v2/album/{albumKey}/image/{imageKey}`
 
 **Error Response:**
@@ -164,7 +164,7 @@ Total Duration: 20.8 seconds
 ### Environment Information
 
 **API Key:** 2D4ZRJvnzMjsc7DxB9R7VjSTMksfqkX8
-**Application:** SmugMug Toolbox (Next.js 14 application)
+**Application:** Smugtools (Next.js 14 application)
 **Use Case:** Professional photographer workflow automation
 **Request Volume:** Batch metadata updates (10-50 images per session)
 **Testing Period:** October 2025

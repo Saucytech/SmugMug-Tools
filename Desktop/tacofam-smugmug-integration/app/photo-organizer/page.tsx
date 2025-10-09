@@ -38,6 +38,9 @@ import SystemPromptViewer from "@/components/SystemPromptViewer";
 import { analysisStorage, AnalysisSession, AnalyzedPhoto } from "@/lib/analysis-storage";
 import { useModelPreferences, AVAILABLE_MODELS } from '@/stores/modelPreferencesStore';
 import { useAIActivityStore } from '@/stores/aiActivityStore';
+import { galleryCache, type CachedGallery } from '@/lib/galleryCache';
+import CacheFreshnessIndicator from '@/components/CacheFreshnessIndicator';
+import { CacheSyncButton } from '@/components/CacheSyncButton';
 
 interface GalleryIndex {
   albumKey: string;
@@ -186,6 +189,8 @@ export default function PhotoOrganizer() {
     taskName: string;
   } | null>(null);
   const [hideEmptyGalleries, setHideEmptyGalleries] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Multi-select state for Sort Existing Photos
   const [folders, setFolders] = useState<any[]>([]);
@@ -294,33 +299,30 @@ export default function PhotoOrganizer() {
         const fetchedGalleries = data.albums || [];
         setGalleries(fetchedGalleries);
 
-        // Clean up gallery index - remove any indexed galleries that no longer exist
-        const saved = localStorage.getItem("photo-organizer-index");
-        if (saved) {
-          try {
-            const currentIndex = JSON.parse(saved);
-            const validAlbumKeys = new Set(
-              fetchedGalleries.map((g: any) => g.AlbumKey),
-            );
+        // Clean up cached galleries - remove any that no longer exist on SmugMug
+        try {
+          const cachedGalleries = galleryCache.getAllGalleries();
+          const validAlbumKeys = new Set(
+            fetchedGalleries.map((g: any) => g.AlbumKey),
+          );
 
-            // Filter out galleries that no longer exist
-            const cleanedIndex = currentIndex.filter((item: any) =>
-              validAlbumKeys.has(item.albumKey),
-            );
-
-            if (cleanedIndex.length !== currentIndex.length) {
-              console.log(
-                `🧹 Cleaned up ${currentIndex.length - cleanedIndex.length} deleted galleries from index`,
-              );
-              localStorage.setItem(
-                "photo-organizer-index",
-                JSON.stringify(cleanedIndex),
-              );
-              setGalleryIndex(cleanedIndex);
+          let removedCount = 0;
+          cachedGalleries.forEach(cached => {
+            if (!validAlbumKeys.has(cached.albumKey)) {
+              galleryCache.removeGallery(cached.albumKey);
+              removedCount++;
             }
-          } catch (_error) {
-            console.error("Error cleaning gallery index:", _error);
+          });
+
+          if (removedCount > 0) {
+            console.log(
+              `🧹 Cleaned up ${removedCount} deleted galleries from cache`,
+            );
+            // Reload the gallery index to reflect changes
+            loadGalleryIndex();
           }
+        } catch (_error) {
+          console.error("Error cleaning gallery cache:", _error);
         }
       }
     } catch (_error) {
@@ -329,18 +331,38 @@ export default function PhotoOrganizer() {
   };
 
   const loadGalleryIndex = () => {
-    const saved = localStorage.getItem("photo-organizer-index");
-    if (saved) {
-      try {
-        setGalleryIndex(JSON.parse(saved));
-      } catch (_error) {
-        console.error("Error loading index:", _error);
-      }
+    try {
+      // Load from unified cache
+      const cachedGalleries = galleryCache.getAllGalleries();
+
+      // Map CachedGallery to GalleryIndex format
+      const index: GalleryIndex[] = cachedGalleries
+        .filter(g => g.metadata?.themes) // Only galleries with AI analysis
+        .map(g => ({
+          albumKey: g.albumKey,
+          name: g.albumName,
+          nodeId: g.metadata?.nodeId || '',
+          themes: g.metadata?.themes || [],
+          dateRange: g.metadata?.dateRange || '',
+          location: g.metadata?.location,
+          imageCount: g.imageCount,
+          lastIndexed: new Date(g.lastRefreshed).toISOString(),
+          sampleImages: g.metadata?.sampleImages || [],
+          summary: g.metadata?.summary,
+          photoStyle: g.metadata?.photoStyle,
+          subjects: g.metadata?.subjects,
+          tokensUsed: g.metadata?.tokensUsed,
+        }));
+
+      setGalleryIndex(index);
+    } catch (_error) {
+      console.error("Error loading index:", _error);
     }
   };
 
   const saveGalleryIndex = (index: GalleryIndex[]) => {
-    localStorage.setItem("photo-organizer-index", JSON.stringify(index));
+    // Note: Individual galleries are now saved directly to cache during indexing
+    // This function just updates the React state for UI
     setGalleryIndex(index);
   };
 
@@ -944,6 +966,40 @@ export default function PhotoOrganizer() {
           tokensUsed: analysisData.tokensUsed || 0,
         };
 
+        // Save complete gallery data to unified cache
+        const cachedGallery: CachedGallery = {
+          albumKey: albumKey,
+          albumName: gallery.Name,
+          albumUri: gallery.Uri,
+          imageCount: images.length,
+          images: images.map((img: any) => ({
+            ImageKey: img.ImageKey,
+            FileName: img.FileName,
+            Title: img.Title,
+            Caption: img.Caption,
+            Keywords: img.Keywords,
+            ArchivedUri: img.ArchivedUri,
+            ThumbnailUrl: img.ThumbnailUrl,
+            WebUri: img.WebUri,
+          })),
+          cachedAt: Date.now(),
+          lastRefreshed: Date.now(),
+          metadata: {
+            nodeId: gallery.NodeID || "",
+            themes: indexEntry.themes,
+            dateRange: indexEntry.dateRange,
+            location: indexEntry.location,
+            sampleImages: indexEntry.sampleImages,
+            summary: indexEntry.summary,
+            photoStyle: indexEntry.photoStyle,
+            subjects: indexEntry.subjects,
+            tokensUsed: indexEntry.tokensUsed,
+          },
+        };
+
+        galleryCache.setGallery(cachedGallery);
+        addLog(`   💾 Saved to unified cache`);
+
         addLog(`   ✓ Gallery "${gallery.Name}" indexed successfully`);
         addLog(`   📝 Themes: ${indexEntry.themes.join(", ")}`);
         if (indexEntry.subjects && indexEntry.subjects.length > 0) {
@@ -953,7 +1009,7 @@ export default function PhotoOrganizer() {
         newIndexEntries.push(indexEntry);
       }
 
-      addLog("\n💾 Saving index to localStorage...");
+      addLog("\n💾 Updating index state...");
 
       // Merge with existing index (update if exists, add if new)
       const updatedIndex = [...galleryIndex];
@@ -984,6 +1040,80 @@ export default function PhotoOrganizer() {
     } finally {
       setIsIndexing(false);
       setIndexingProgress(null);
+    }
+  };
+
+  const handleDeleteGalleries = async () => {
+    if (selectedGalleries.length === 0) {
+      alert("Please select at least one gallery to delete");
+      return;
+    }
+
+    // Show confirmation dialog
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    setShowDeleteConfirm(false);
+    setIsDeleting(true);
+    setTerminalLogs([]);
+
+    addLog(`🗑️  Starting deletion of ${selectedGalleries.length} galleries`);
+    addLog(`⚠️  This action cannot be undone!`);
+
+    try {
+      const response = await fetch('/api/smugmug/albums/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          albumKeys: selectedGalleries,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete galleries');
+      }
+
+      const result = await response.json();
+
+      addLog(`\n✅ Successfully deleted: ${result.deleted} galleries`);
+      if (result.failed > 0) {
+        addLog(`❌ Failed to delete: ${result.failed} galleries`);
+      }
+
+      // Log details for each gallery
+      result.results.forEach((r: any) => {
+        const gallery = galleries.find((g) => g.AlbumKey === r.albumKey);
+        const galleryName = gallery?.Name || r.albumKey;
+        if (r.success) {
+          addLog(`   ✓ Deleted: ${galleryName}`);
+        } else {
+          addLog(`   ✗ Failed: ${galleryName} - ${r.error}`);
+        }
+      });
+
+      // Remove deleted galleries from the local state
+      const deletedKeys = result.results
+        .filter((r: any) => r.success)
+        .map((r: any) => r.albumKey);
+
+      setGalleries((prev) => prev.filter((g) => !deletedKeys.includes(g.AlbumKey)));
+      setSelectedGalleries([]);
+
+      // Remove from cache and index
+      deletedKeys.forEach(key => galleryCache.removeGallery(key));
+      setGalleryIndex((prev) => prev.filter((g) => !deletedKeys.includes(g.albumKey)));
+
+      alert(`✅ Deleted ${result.deleted} of ${selectedGalleries.length} galleries`);
+    } catch (error) {
+      addLog(`\n❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error deleting galleries:', error);
+      alert('Failed to delete galleries. Check console for details.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -2897,25 +3027,45 @@ export default function PhotoOrganizer() {
                     </div>
                   )}
 
-                  {/* Build Button */}
-                  <button
-                    onClick={handleBuildIndex}
-                    disabled={isIndexing || selectedGalleries.length === 0}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 text-white px-6 py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg"
-                  >
-                    {isIndexing ? (
-                      <>
-                        <Loader className="w-5 h-5 animate-spin" />
-                        Building Index...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-5 h-5" />
-                        Build Index ({selectedGalleries.length} galleries
-                        selected)
-                      </>
-                    )}
-                  </button>
+                  {/* Action Buttons */}
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleBuildIndex}
+                      disabled={isIndexing || isDeleting || selectedGalleries.length === 0}
+                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 text-white px-6 py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      {isIndexing ? (
+                        <>
+                          <Loader className="w-5 h-5 animate-spin" />
+                          Building Index...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5" />
+                          Build Index ({selectedGalleries.length} galleries
+                          selected)
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={handleDeleteGalleries}
+                      disabled={isIndexing || isDeleting || selectedGalleries.length === 0}
+                      className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-300 disabled:to-gray-400 text-white px-6 py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader className="w-5 h-5 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-5 h-5" />
+                          Delete Selected ({selectedGalleries.length} galleries)
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -3167,10 +3317,13 @@ export default function PhotoOrganizer() {
 
                 {galleryIndex.length > 0 && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                    <div className="flex items-center gap-2 text-sm text-green-800">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      <span className="font-semibold">Index ready!</span>
-                      <span>{galleryIndex.length} galleries indexed</span>
+                    <div className="flex items-center justify-between gap-2 text-sm text-green-800">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                        <span className="font-semibold">Index ready!</span>
+                        <span>{galleryIndex.length} galleries indexed</span>
+                      </div>
+                      <CacheFreshnessIndicator showAll={true} compact={false} />
                     </div>
                   </div>
                 )}
@@ -3649,13 +3802,16 @@ export default function PhotoOrganizer() {
 
                 {galleryIndex.length > 0 && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                    <div className="flex items-center gap-2 text-sm text-green-800">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      <span className="font-semibold">Index ready!</span>
-                      <span>
-                        {galleryIndex.length} galleries available for AI
-                        matching
-                      </span>
+                    <div className="flex items-center justify-between gap-2 text-sm text-green-800">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                        <span className="font-semibold">Index ready!</span>
+                        <span>
+                          {galleryIndex.length} galleries available for AI
+                          matching
+                        </span>
+                      </div>
+                      <CacheFreshnessIndicator showAll={true} compact={false} />
                     </div>
                   </div>
                 )}
@@ -4819,6 +4975,57 @@ export default function PhotoOrganizer() {
                   ).length
                 }
                 )
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Delete {selectedGalleries.length} {selectedGalleries.length === 1 ? 'Gallery' : 'Galleries'}?
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  This action cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-red-800 font-medium mb-2">
+                ⚠️ Warning: This will permanently delete:
+              </p>
+              <ul className="text-sm text-red-700 space-y-1 ml-4">
+                <li>• {selectedGalleries.length} {selectedGalleries.length === 1 ? 'gallery' : 'galleries'}</li>
+                <li>• All photos in {selectedGalleries.length === 1 ? 'this gallery' : 'these galleries'}</li>
+                <li>• All metadata and settings</li>
+              </ul>
+              <p className="text-sm text-red-800 font-semibold mt-3">
+                This action is irreversible!
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-5 h-5" />
+                Delete Permanently
               </button>
             </div>
           </div>

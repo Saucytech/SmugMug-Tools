@@ -88,7 +88,7 @@ In Claude Code, you should now be able to ask:
 
 ## Project-Specific .mcprc (Optional)
 
-For this specific project, create a `.mcprc` file to configure Playwright for SmugMug Toolbox testing:
+For this specific project, create a `.mcprc` file to configure Playwright for Smugtools testing:
 
 ```json
 {
@@ -106,7 +106,7 @@ For this specific project, create a `.mcprc` file to configure Playwright for Sm
 
 ---
 
-## Test Scenarios for SmugMug Toolbox
+## Test Scenarios for Smugtools
 
 Once Playwright MCP is set up, you can test:
 

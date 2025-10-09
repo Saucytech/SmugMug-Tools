@@ -1,4 +1,4 @@
-# SmugMug Toolbox Accessibility Report
+# Smugtools Accessibility Report
 
 ## Instructions Banner Colors & Contrast
 
