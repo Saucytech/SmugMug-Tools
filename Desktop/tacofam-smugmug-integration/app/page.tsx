@@ -79,95 +79,246 @@ export default function Home() {
 
 
   if (!isAuthenticated) {
+    const testimonials = [
+      {
+        before: "Before SmugTools I spent hours manually writing titles and captions for each photo",
+        after: "Now I can generate professional metadata for 100+ photos in minutes with AI!",
+        author: "Sarah M., Wedding Photographer"
+      },
+      {
+        before: "Before SmugTools my clients had to email me their favorite photos",
+        after: "Now they just click hearts on a beautiful gallery and I get instant notifications!",
+        author: "James K., Portrait Photographer"
+      },
+      {
+        before: "Before SmugTools I manually organized thousands of photos into folders",
+        after: "With SmugTools I can auto-sort new uploads into the right galleries with AI confidence scoring!",
+        author: "Maria L., Event Photographer"
+      },
+      {
+        before: "Before SmugTools I had no analytics on my AI usage",
+        after: "Now I track every coin spent and optimize my workflows with real-time dashboards!",
+        author: "David R., Commercial Photographer"
+      },
+      {
+        before: "Before SmugTools creating complex folder structures took days",
+        after: "With SmugTools I just chat with AI and my entire SmugMug organization is built automatically!",
+        author: "Emily T., Stock Photographer"
+      },
+      {
+        before: "Before SmugTools I wasted hours checking for duplicate photos and missing metadata",
+        after: "Now the Sanity Checker finds and fixes issues across my entire library in one click!",
+        author: "Michael P., Nature Photographer"
+      }
+    ];
+
     return (
       <>
         <ToolboxHeader />
-        <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-gradient-to-br from-purple-900 via-purple-800 to-pink-900 text-white relative overflow-hidden">
+        <main className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-pink-900 text-white relative overflow-hidden">
           {/* Background Animation */}
           <div className="absolute inset-0 opacity-20">
             <div className="absolute top-20 left-10 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
-            <div className="absolute top-40 right-10 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-2000"></div>
-            <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-4000"></div>
+            <div className="absolute top-40 right-10 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse" style={{animationDelay: '2s'}}></div>
+            <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse" style={{animationDelay: '4s'}}></div>
           </div>
 
-          <div className="text-center max-w-4xl w-full px-4 relative z-10">
-            {/* Logo */}
-            <div className="mb-8">
-              <Wrench className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 mx-auto mb-6 text-white drop-shadow-2xl animate-pulse" />
-            </div>
+          {/* Hero Section */}
+          <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
+            <div className="text-center max-w-5xl w-full px-4">
+              {/* Logo */}
+              <div className="mb-8">
+                <Wrench className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto mb-6 text-white drop-shadow-2xl animate-bounce" />
+              </div>
 
-            {/* Main Heading */}
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-200">
-              Smugtools
-            </h1>
+              {/* Main Heading with Sparkle */}
+              <div className="relative inline-block mb-6">
+                <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 animate-pulse">
+                  Smugtools
+                </h1>
+                <Sparkles className="absolute -top-4 -right-4 w-8 h-8 text-yellow-400 animate-spin" style={{animationDuration: '3s'}} />
+                <Sparkles className="absolute -bottom-2 -left-4 w-6 h-6 text-pink-400 animate-spin" style={{animationDuration: '4s'}} />
+              </div>
 
-            {/* Coming Soon Badge */}
-            <div className="inline-block mb-8">
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 px-6 py-3 rounded-full">
-                <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">
-                  Coming Soon
+              {/* Coming Soon Badge with Animation */}
+              <div className="inline-block mb-8 animate-bounce">
+                <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 px-8 py-4 rounded-full shadow-2xl transform hover:scale-110 transition-transform">
+                  <p className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900">
+                    🚀 COMING SOON 🚀
+                  </p>
+                </div>
+              </div>
+
+              {/* Hype Description */}
+              <p className="text-2xl sm:text-3xl md:text-4xl mb-4 text-yellow-300 font-bold">
+                The Ultimate SmugMug Powerhouse!
+              </p>
+              <p className="text-lg sm:text-xl md:text-2xl mb-8 text-purple-100 max-w-3xl mx-auto leading-relaxed">
+                Revolutionize your photography workflow with <span className="text-yellow-300 font-bold">AI-powered automation</span>,
+                <span className="text-pink-300 font-bold"> stunning client galleries</span>, and
+                <span className="text-green-300 font-bold"> intelligent organization</span> that saves you HOURS every week!
+              </p>
+
+              {/* Feature Highlights Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 max-w-4xl mx-auto">
+                <div className="bg-gradient-to-br from-purple-600/30 to-purple-800/30 backdrop-blur-sm rounded-xl p-4 border-2 border-purple-400/50 hover:scale-105 transition-transform">
+                  <div className="text-4xl mb-2">🤖</div>
+                  <div className="font-bold text-sm">AI Metadata Generation</div>
+                </div>
+                <div className="bg-gradient-to-br from-pink-600/30 to-pink-800/30 backdrop-blur-sm rounded-xl p-4 border-2 border-pink-400/50 hover:scale-105 transition-transform">
+                  <div className="text-4xl mb-2">❤️</div>
+                  <div className="font-bold text-sm">Client Favorites</div>
+                </div>
+                <div className="bg-gradient-to-br from-green-600/30 to-green-800/30 backdrop-blur-sm rounded-xl p-4 border-2 border-green-400/50 hover:scale-105 transition-transform">
+                  <div className="text-4xl mb-2">🧠</div>
+                  <div className="font-bold text-sm">Smart Organization</div>
+                </div>
+                <div className="bg-gradient-to-br from-blue-600/30 to-blue-800/30 backdrop-blur-sm rounded-xl p-4 border-2 border-blue-400/50 hover:scale-105 transition-transform">
+                  <div className="text-4xl mb-2">📊</div>
+                  <div className="font-bold text-sm">Usage Analytics</div>
+                </div>
+              </div>
+
+              {/* Email Signup with More Excitement */}
+              <div className="bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-md rounded-3xl p-8 border-2 border-yellow-400/50 max-w-2xl mx-auto mb-12 shadow-2xl">
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Sparkles className="w-6 h-6 text-yellow-400" />
+                  <h3 className="text-2xl sm:text-3xl font-black">GET EARLY ACCESS!</h3>
+                  <Sparkles className="w-6 h-6 text-yellow-400" />
+                </div>
+                <p className="text-base sm:text-lg text-purple-100 mb-6">
+                  Join the waitlist and be among the FIRST to experience the future of SmugMug automation!
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="email"
+                    placeholder="your.email@example.com"
+                    className="flex-1 px-6 py-4 text-lg rounded-xl bg-white/30 border-2 border-white/50 text-white placeholder-purple-200 focus:outline-none focus:ring-4 focus:ring-yellow-400/50 backdrop-blur-sm font-semibold"
+                  />
+                  <button className="px-8 py-4 text-lg bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 hover:from-yellow-500 hover:via-orange-600 hover:to-red-600 text-gray-900 rounded-xl font-black transition-all transform hover:scale-105 active:scale-95 shadow-2xl whitespace-nowrap">
+                    NOTIFY ME! 🔥
+                  </button>
+                </div>
+                <p className="text-xs text-purple-200 mt-4">
+                  🎁 Early subscribers get <span className="text-yellow-300 font-bold">BONUS COINS</span> at launch!
                 </p>
               </div>
             </div>
+          </div>
 
-            {/* Description */}
-            <p className="text-xl sm:text-2xl md:text-3xl mb-4 text-purple-100 font-light">
-              Professional SmugMug Tools
-            </p>
-            <p className="text-base sm:text-lg md:text-xl mb-12 text-purple-200 max-w-2xl mx-auto">
-              AI-powered metadata generation, client galleries, photo organization, and more. Built for professional photographers.
-            </p>
-
-            {/* Feature Pills */}
-            <div className="flex flex-wrap justify-center gap-3 mb-12">
-              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
-                <span className="text-sm sm:text-base text-white">🤖 AI-Powered</span>
-              </div>
-              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
-                <span className="text-sm sm:text-base text-white">📊 Analytics</span>
-              </div>
-              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
-                <span className="text-sm sm:text-base text-white">👥 Client Galleries</span>
-              </div>
-              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
-                <span className="text-sm sm:text-base text-white">⚡ Automation</span>
-              </div>
+          {/* Scrolling Testimonials Section */}
+          <div className="relative z-10 py-16 overflow-hidden">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-4 text-yellow-300">
+                What Photographers Are Saying 🎉
+              </h2>
+              <p className="text-lg text-purple-200">Real stories from real photographers (coming soon!)</p>
             </div>
 
-            {/* Notification Box */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 max-w-md mx-auto">
-              <h3 className="text-xl font-semibold mb-4">Get Notified at Launch</h3>
-              <p className="text-sm text-purple-200 mb-6">
-                Be the first to know when Smugtools launches. Sign up for early access.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  className="flex-1 px-4 py-3 rounded-lg bg-white/20 border border-white/30 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-white/50 backdrop-blur-sm"
-                />
-                <button className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 whitespace-nowrap">
-                  Notify Me
-                </button>
-              </div>
-            </div>
-
-            {/* Footer Links */}
-            <div className="mt-12 pt-8 border-t border-white/20">
-              <p className="text-sm text-purple-300 mb-4">
-                Professional tools for SmugMug photographers
-              </p>
-              <div className="flex flex-wrap justify-center gap-4 text-sm">
-                <a href="mailto:support@smugtools.com" className="text-purple-200 hover:text-white transition-colors">
-                  Contact Us
-                </a>
-                <span className="text-purple-400">•</span>
-                <a href="https://github.com/Saucytech/smugtools" target="_blank" rel="noopener noreferrer" className="text-purple-200 hover:text-white transition-colors">
-                  GitHub
-                </a>
+            {/* Scrolling Container */}
+            <div className="relative">
+              <div className="flex gap-6 animate-scroll">
+                {[...testimonials, ...testimonials].map((testimonial, index) => (
+                  <div
+                    key={index}
+                    className="flex-shrink-0 w-96 bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-md rounded-2xl p-6 border-2 border-purple-400/50 shadow-2xl"
+                  >
+                    <div className="mb-4">
+                      <div className="text-red-400 font-semibold mb-2 flex items-center gap-2">
+                        <span className="text-2xl">😤</span>
+                        <span>BEFORE:</span>
+                      </div>
+                      <p className="text-sm text-purple-100 italic">&ldquo;{testimonial.before}&rdquo;</p>
+                    </div>
+                    <div className="mb-4">
+                      <div className="text-green-400 font-semibold mb-2 flex items-center gap-2">
+                        <span className="text-2xl">🎉</span>
+                        <span>NOW:</span>
+                      </div>
+                      <p className="text-sm text-purple-100 italic">&ldquo;{testimonial.after}&rdquo;</p>
+                    </div>
+                    <div className="text-xs text-yellow-300 font-semibold pt-4 border-t border-white/20">
+                      — {testimonial.author}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
+
+          {/* Tools Preview Grid */}
+          <div className="relative z-10 py-16 px-4">
+            <div className="max-w-6xl mx-auto">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-4 text-yellow-300">
+                  🛠️ Powerful Tools Inside 🛠️
+                </h2>
+                <p className="text-lg text-purple-200">Everything you need to supercharge your SmugMug workflow</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[
+                  { icon: "🤖", name: "MetaData Monster", desc: "AI generates titles, captions & keywords in bulk!" },
+                  { icon: "❤️", name: "Favorites Manager", desc: "Let clients pick favorites with beautiful galleries!" },
+                  { icon: "🧠", name: "Photo Organizer", desc: "AI auto-sorts photos into the right albums!" },
+                  { icon: "✨", name: "AI Gallery Creator", desc: "Chat with AI to build folder structures instantly!" },
+                  { icon: "📤", name: "Guest Upload Manager", desc: "Shareable upload links for clients & guests!" },
+                  { icon: "🔍", name: "Sanity Checker", desc: "Find & fix issues across your entire library!" },
+                  { icon: "💰", name: "Coin System", desc: "Flexible credit-based AI usage tracking!" },
+                  { icon: "📊", name: "Analytics Dashboard", desc: "Track usage, costs & client engagement!" },
+                  { icon: "📥", name: "Folder Downloader", desc: "Bulk download with preserved structure!" }
+                ].map((tool, index) => (
+                  <div
+                    key={index}
+                    className="bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-md rounded-2xl p-6 border-2 border-purple-400/50 hover:border-yellow-400/50 hover:scale-105 transition-all shadow-xl"
+                  >
+                    <div className="text-5xl mb-3">{tool.icon}</div>
+                    <h3 className="text-xl font-bold mb-2 text-yellow-300">{tool.name}</h3>
+                    <p className="text-sm text-purple-100">{tool.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="relative z-10 py-12 px-4 border-t border-white/20">
+            <div className="max-w-4xl mx-auto text-center">
+              <p className="text-sm text-purple-300 mb-4">
+                Professional tools built by photographers, for photographers
+              </p>
+              <div className="flex flex-wrap justify-center gap-4 text-sm">
+                <a href="mailto:support@smugtools.com" className="text-purple-200 hover:text-yellow-300 transition-colors">
+                  📧 Contact Us
+                </a>
+                <span className="text-purple-400">•</span>
+                <a href="https://github.com/Saucytech/smugtools" target="_blank" rel="noopener noreferrer" className="text-purple-200 hover:text-yellow-300 transition-colors">
+                  💻 GitHub
+                </a>
+              </div>
+              <p className="text-xs text-purple-400 mt-6">
+                Not affiliated with SmugMug, Inc. Built with ❤️ by Saucytech
+              </p>
+            </div>
+          </div>
+
+          {/* CSS for scrolling animation */}
+          <style jsx>{`
+            @keyframes scroll {
+              0% {
+                transform: translateX(0);
+              }
+              100% {
+                transform: translateX(-50%);
+              }
+            }
+            .animate-scroll {
+              animation: scroll 30s linear infinite;
+            }
+            .animate-scroll:hover {
+              animation-play-state: paused;
+            }
+          `}</style>
         </main>
       </>
     );
