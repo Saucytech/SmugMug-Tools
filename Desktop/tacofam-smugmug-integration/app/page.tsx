@@ -11,6 +11,10 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
 
   // Use centralized albums store
   const { albums, loading, error, fetchAlbums } = useAlbumsStore();
@@ -36,10 +40,34 @@ export default function Home() {
       }
     };
     checkAuth();
+
+    // Check if password was previously verified
+    const verified = localStorage.getItem('smugtools_early_access');
+    if (verified === 'true') {
+      setIsPasswordVerified(true);
+    }
   }, []);
 
-  const handleAuth = () => {
-    window.location.href = '/api/auth/smugmug';
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === 'comingsoon') {
+      setIsPasswordVerified(true);
+      localStorage.setItem('smugtools_early_access', 'true');
+      setShowPasswordModal(false);
+      setPasswordError('');
+      // Now proceed to SmugMug OAuth
+      window.location.href = '/api/auth/smugmug';
+    } else {
+      setPasswordError('Incorrect password. Contact support@smugtools.com for early access.');
+    }
+  };
+
+  const handleToolClick = (toolPath?: string) => {
+    if (!isPasswordVerified) {
+      setShowPasswordModal(true);
+    } else if (toolPath) {
+      router.push(toolPath);
+    }
   };
 
   const _handleLogout = async () => {
@@ -324,11 +352,86 @@ export default function Home() {
     );
   }
 
+  // Password Modal
+  const PasswordModal = () => (
+    <>
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Early Access Required</h2>
+              <p className="text-gray-600 text-sm">
+                Smugtools is currently in private beta. Enter your early access password to connect your SmugMug account.
+              </p>
+            </div>
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="access-password" className="block text-sm font-medium text-gray-700 mb-2">
+                  Early Access Password
+                </label>
+                <input
+                  id="access-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setPasswordError('');
+                  }}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors"
+                  placeholder="Enter password"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              {passwordError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-900">{passwordError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPassword('');
+                    setPasswordError('');
+                  }}
+                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105 active:scale-95"
+                >
+                  Continue
+                </button>
+              </div>
+
+              <p className="text-xs text-center text-gray-500 mt-4">
+                Don't have access? <a href="mailto:support@smugtools.com" className="text-purple-600 hover:underline">Request early access</a>
+              </p>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // If no tool selected, show toolbox dashboard
   if (!selectedTool) {
     return (
       <>
         <ToolboxHeader />
+        <PasswordModal />
 
         {/* Disclaimer Banner */}
         <div className="bg-orange-50 border-b-2 border-orange-200">
@@ -386,7 +489,7 @@ export default function Home() {
 
             {/* Favorites Selector Tool */}
             <button
-              onClick={() => router.push('/favorites-manager')}
+              onClick={() => handleToolClick('/favorites-manager')}
               className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-200 focus:border-pink-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
               aria-label="Launch Favorites Selector for client photo selection and approvals"
             >
@@ -410,7 +513,7 @@ export default function Home() {
 
             {/* MetaData Monster Tool */}
             <button
-              onClick={() => router.push('/metadata-monster')}
+              onClick={() => handleToolClick('/metadata-monster')}
               className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-green-500 focus:outline-none focus:ring-4 focus:ring-green-200 focus:border-green-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
               aria-label="Launch MetaData Monster for AI-powered metadata generation"
             >
@@ -438,7 +541,7 @@ export default function Home() {
 
             {/* AI Gallery Creator Tool */}
             <button
-              onClick={() => router.push('/ai-gallery-creator')}
+              onClick={() => handleToolClick('/ai-gallery-creator')}
               className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-200 focus:border-teal-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
               aria-label="Launch AI Gallery Creator to build folder structures with AI assistance"
             >
@@ -466,7 +569,7 @@ export default function Home() {
 
             {/* Photo Organizer Tool */}
             <button
-              onClick={() => router.push('/photo-organizer')}
+              onClick={() => handleToolClick('/photo-organizer')}
               className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
               aria-label="Launch Photo Organizer for AI-powered smart photo organization"
             >
@@ -494,7 +597,7 @@ export default function Home() {
 
             {/* Guest Upload Manager Tool */}
             <button
-              onClick={() => router.push('/guest-upload-manager')}
+              onClick={() => handleToolClick('/guest-upload-manager')}
               className="group bg-white rounded-lg sm:rounded-xl p-3 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 text-left min-h-[100px] sm:min-h-[160px] touch-manipulation"
               aria-label="Launch Guest Upload Manager to create shareable upload links for clients"
             >
@@ -518,7 +621,7 @@ export default function Home() {
 
             {/* Folder Downloader Tool */}
             <button
-              onClick={() => router.push('/downloader')}
+              onClick={() => handleToolClick('/downloader')}
               className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 text-left min-h-[160px] touch-manipulation"
               aria-label="Launch Folder Downloader to download photos with preserved folder hierarchy"
             >
@@ -542,7 +645,7 @@ export default function Home() {
 
             {/* Sanity Checker Tool */}
             <button
-              onClick={() => router.push('/sanity-checker')}
+              onClick={() => handleToolClick('/sanity-checker')}
               className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-orange-500 focus:outline-none focus:ring-4 focus:ring-orange-200 focus:border-orange-500 text-left min-h-[160px] touch-manipulation"
               aria-label="Launch Sanity Checker for comprehensive account analysis and optimization"
             >
