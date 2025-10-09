@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FolderIcon, Book, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck, Coins, Download } from 'lucide-react';
+import { FolderIcon, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck, Coins, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import { useAlbumsStore } from '@/stores/albumsStore';
@@ -82,44 +82,88 @@ export default function Home() {
     return (
       <>
         <ToolboxHeader />
-        <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-          <div className="text-center max-w-2xl w-full px-4">
-            <Wrench className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 text-blue-400" />
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">Smugtools</h1>
-            <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8 text-gray-300 px-2">
-              Professional tools to enhance your SmugMug workflow
+        <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-gradient-to-br from-purple-900 via-purple-800 to-pink-900 text-white relative overflow-hidden">
+          {/* Background Animation */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-20 left-10 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
+            <div className="absolute top-40 right-10 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-2000"></div>
+            <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-4000"></div>
+          </div>
+
+          <div className="text-center max-w-4xl w-full px-4 relative z-10">
+            {/* Logo */}
+            <div className="mb-8">
+              <Wrench className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 mx-auto mb-6 text-white drop-shadow-2xl animate-pulse" />
+            </div>
+
+            {/* Main Heading */}
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-200">
+              Smugtools
+            </h1>
+
+            {/* Coming Soon Badge */}
+            <div className="inline-block mb-8">
+              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 px-6 py-3 rounded-full">
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">
+                  Coming Soon
+                </p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <p className="text-xl sm:text-2xl md:text-3xl mb-4 text-purple-100 font-light">
+              Professional SmugMug Tools
             </p>
-            <button
-              onClick={handleAuth}
-              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-[0.98] text-white font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-lg text-base sm:text-lg transition-all shadow-lg hover:shadow-xl min-h-[48px] touch-manipulation"
-              aria-label="Connect your SmugMug account to access all tools"
-            >
-              Connect SmugMug Account
-            </button>
-            <p className="mt-4 sm:mt-6 text-base sm:text-sm text-gray-400">
-              Don&apos;t have an API key yet?{' '}
-              <a
-                href="https://api.smugmug.com/api/developer/apply"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline min-h-[44px] inline-block py-2 active:text-blue-300"
-                aria-label="Apply for SmugMug API key"
-              >
-                Apply here
-              </a>
+            <p className="text-base sm:text-lg md:text-xl mb-12 text-purple-200 max-w-2xl mx-auto">
+              AI-powered metadata generation, client galleries, photo organization, and more. Built for professional photographers.
             </p>
 
-            {/* Developer Tools */}
-            <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-700">
-              <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Developer Tools</h3>
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-                <a
-                  href="/api-reference"
-                  className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 active:scale-[0.98] text-white font-semibold py-3 px-5 sm:px-6 rounded-lg transition-all flex items-center justify-center gap-2 min-h-[48px] touch-manipulation"
-                  aria-label="Browse SmugMug API Reference documentation"
-                >
-                  <Book className="w-5 h-5" />
-                  <span className="text-base">API Reference</span>
+            {/* Feature Pills */}
+            <div className="flex flex-wrap justify-center gap-3 mb-12">
+              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                <span className="text-sm sm:text-base text-white">🤖 AI-Powered</span>
+              </div>
+              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                <span className="text-sm sm:text-base text-white">📊 Analytics</span>
+              </div>
+              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                <span className="text-sm sm:text-base text-white">👥 Client Galleries</span>
+              </div>
+              <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                <span className="text-sm sm:text-base text-white">⚡ Automation</span>
+              </div>
+            </div>
+
+            {/* Notification Box */}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 max-w-md mx-auto">
+              <h3 className="text-xl font-semibold mb-4">Get Notified at Launch</h3>
+              <p className="text-sm text-purple-200 mb-6">
+                Be the first to know when Smugtools launches. Sign up for early access.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  className="flex-1 px-4 py-3 rounded-lg bg-white/20 border border-white/30 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-white/50 backdrop-blur-sm"
+                />
+                <button className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 whitespace-nowrap">
+                  Notify Me
+                </button>
+              </div>
+            </div>
+
+            {/* Footer Links */}
+            <div className="mt-12 pt-8 border-t border-white/20">
+              <p className="text-sm text-purple-300 mb-4">
+                Professional tools for SmugMug photographers
+              </p>
+              <div className="flex flex-wrap justify-center gap-4 text-sm">
+                <a href="mailto:support@smugtools.com" className="text-purple-200 hover:text-white transition-colors">
+                  Contact Us
+                </a>
+                <span className="text-purple-400">•</span>
+                <a href="https://github.com/Saucytech/smugtools" target="_blank" rel="noopener noreferrer" className="text-purple-200 hover:text-white transition-colors">
+                  GitHub
                 </a>
               </div>
             </div>
@@ -316,30 +360,6 @@ export default function Home() {
                 <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">Direct Upload</span>
               </div>
               <div className="mt-2 sm:mt-5 md:mt-6 text-blue-600 font-semibold flex items-center gap-2 text-base">
-                Launch Tool
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </button>
-
-            {/* API Reference Tool */}
-            <button
-              onClick={() => router.push('/api-reference')}
-              className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 md:p-8 shadow-lg hover:shadow-2xl active:shadow-xl active:scale-[0.98] transition-all border-2 border-gray-200 hover:border-amber-500 focus:outline-none focus:ring-4 focus:ring-amber-200 focus:border-amber-500 text-left min-h-[160px] touch-manipulation"
-              aria-label="Launch API Reference to browse SmugMug API documentation"
-            >
-              <div className="bg-gradient-to-br from-amber-500 to-orange-600 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-5 md:mb-6 group-hover:scale-110 transition-transform">
-                <Book className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
-              </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-3">API Reference</h2>
-              <p className="text-sm sm:text-base text-gray-600 mb-2 sm:mb-4 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                Interactive SmugMug API documentation browser. Search endpoints, view examples, and test API calls directly in your browser.
-              </p>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">Interactive</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">Examples</span>
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">Search</span>
-              </div>
-              <div className="mt-2 sm:mt-5 md:mt-6 text-amber-600 font-semibold flex items-center gap-2 text-base">
                 Launch Tool
                 <span className="group-hover:translate-x-1 transition-transform">→</span>
               </div>
