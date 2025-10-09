@@ -3,7 +3,7 @@ import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { decrypt } from '@/lib/encryption';
+import { encryption } from '@/lib/encryption';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -47,8 +47,8 @@ export async function GET() {
     }
 
     // Decrypt tokens
-    const accessToken = decrypt(tokenData.access_token_encrypted);
-    const accessTokenSecret = decrypt(tokenData.token_secret_encrypted);
+    const accessToken = encryption.decrypt(tokenData.access_token_encrypted);
+    const accessTokenSecret = encryption.decrypt(tokenData.token_secret_encrypted);
 
     // Get authenticated user's info first
     const userUrl = 'https://api.smugmug.com/api/v2!authuser';

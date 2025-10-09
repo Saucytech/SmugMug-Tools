@@ -3,7 +3,7 @@ import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { encrypt } from '@/lib/encryption';
+import { encryption } from '@/lib/encryption';
 import db from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -116,8 +116,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Encrypt tokens before storing in database
-    const encryptedAccessToken = encrypt(accessToken);
-    const encryptedTokenSecret = encrypt(accessTokenSecret);
+    const encryptedAccessToken = encryption.encrypt(accessToken);
+    const encryptedTokenSecret = encryption.encrypt(accessTokenSecret);
 
     // Store encrypted tokens in database
     const userId = (session.user as any).id;
