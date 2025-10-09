@@ -510,7 +510,7 @@ export default function Home() {
           {/* Tools Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {/* Embed and Sell Tool */}
-            {!isToolHidden('embed-sell') && (
+            {(!isToolHidden('embed-sell') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -574,7 +574,7 @@ export default function Home() {
             )}
 
             {/* Favorites Selector Tool */}
-            {!isToolHidden('favorites-manager') && (
+            {(!isToolHidden('favorites-manager') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -619,7 +619,7 @@ export default function Home() {
             )}
 
             {/* MetaData Monster Tool */}
-            {!isToolHidden('metadata-monster') && (
+            {(!isToolHidden('metadata-monster') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -667,7 +667,7 @@ export default function Home() {
             )}
 
             {/* AI Gallery Creator Tool */}
-            {!isToolHidden('ai-gallery-creator') && (
+            {(!isToolHidden('ai-gallery-creator') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -715,7 +715,7 @@ export default function Home() {
             )}
 
             {/* Photo Organizer Tool */}
-            {!isToolHidden('photo-organizer') && (
+            {(!isToolHidden('photo-organizer') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -763,7 +763,7 @@ export default function Home() {
             )}
 
             {/* Guest Upload Manager Tool */}
-            {!isToolHidden('guest-upload-manager') && (
+            {(!isToolHidden('guest-upload-manager') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -808,7 +808,7 @@ export default function Home() {
             )}
 
             {/* Folder Downloader Tool */}
-            {!isToolHidden('downloader') && (
+            {(!isToolHidden('downloader') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
@@ -853,7 +853,7 @@ export default function Home() {
             )}
 
             {/* Sanity Checker Tool */}
-            {!isToolHidden('sanity-checker') && (
+            {(!isToolHidden('sanity-checker') || isAdmin) && (
               <div className="relative">
                 <button
                   onClick={() => {
