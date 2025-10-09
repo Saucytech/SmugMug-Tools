@@ -120,23 +120,22 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
   };
 
   const loadSmugmugUser = async () => {
-    const tokens = tokenStorage.getTokens();
-    if (!tokens) return;
-
     try {
+      // Fetch SmugMug user info (tokens are in HTTP-only cookies)
       const response = await fetch('/api/smugmug/user', {
-        headers: {
-          'X-Access-Token': tokens.accessToken,
-          'X-Access-Token-Secret': tokens.accessTokenSecret,
-        },
+        credentials: 'include', // Send cookies
       });
 
       if (response.ok) {
         const data = await response.json();
         setSmugmugUser(data.user);
+      } else if (response.status === 401) {
+        // Not connected to SmugMug
+        setSmugmugUser(null);
       }
     } catch (err) {
       console.error('Error loading SmugMug user:', err);
+      setSmugmugUser(null);
     }
   };
 
