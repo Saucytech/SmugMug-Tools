@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { encrypt } from '@/lib/encryption';
+import db from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +26,15 @@ const ACCESS_TOKEN_URL = 'https://secure.smugmug.com/services/oauth/1.0a/getAcce
 
 export async function GET(request: NextRequest) {
   try {
+    // Check if user is authenticated with NextAuth
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
+      return NextResponse.redirect(
+        new URL('/auth/signin?error=not_logged_in', process.env.NEXT_PUBLIC_APP_URL!)
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const oauthToken = searchParams.get('oauth_token');
     const oauthVerifier = searchParams.get('oauth_verifier');
@@ -73,26 +86,57 @@ export async function GET(request: NextRequest) {
       throw new Error('Failed to get access token');
     }
 
-    // Store tokens in secure HTTP-only cookies
+    // Get SmugMug user info to store nickname and domain
+    const userInfoRequest = {
+      url: 'https://api.smugmug.com/api/v2!authuser',
+      method: 'GET',
+    };
+
+    const userInfoAuthHeader = oauth.toHeader(
+      oauth.authorize(userInfoRequest, {
+        key: accessToken,
+        secret: accessTokenSecret,
+      })
+    );
+
+    const userInfoResponse = await fetch(userInfoRequest.url, {
+      headers: {
+        ...userInfoAuthHeader,
+        Accept: 'application/json',
+      },
+    });
+
+    let smugmugNickname = null;
+    let smugmugDomain = null;
+
+    if (userInfoResponse.ok) {
+      const userData = await userInfoResponse.json();
+      smugmugNickname = userData.Response?.User?.NickName || null;
+      smugmugDomain = userData.Response?.User?.Domain || null;
+    }
+
+    // Encrypt tokens before storing in database
+    const encryptedAccessToken = encrypt(accessToken);
+    const encryptedTokenSecret = encrypt(accessTokenSecret);
+
+    // Store encrypted tokens in database
+    const userId = (session.user as any).id;
+
+    await db.query(
+      `INSERT INTO smugmug_tokens (user_id, access_token_encrypted, token_secret_encrypted, smugmug_nickname, smugmug_domain, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         access_token_encrypted = $2,
+         token_secret_encrypted = $3,
+         smugmug_nickname = $4,
+         smugmug_domain = $5,
+         updated_at = NOW()`,
+      [userId, encryptedAccessToken, encryptedTokenSecret, smugmugNickname, smugmugDomain]
+    );
+
+    // Redirect back to homepage
     const redirectResponse = NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_APP_URL!));
-
-    // Set access token in HTTP-only, secure cookie
-    redirectResponse.cookies.set('smugmug_access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      path: '/',
-    });
-
-    // Set token secret in HTTP-only, secure cookie
-    redirectResponse.cookies.set('smugmug_access_token_secret', accessTokenSecret, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      path: '/',
-    });
 
     // Clear the temporary OAuth cookie
     redirectResponse.cookies.delete('oauth_token_secret');
