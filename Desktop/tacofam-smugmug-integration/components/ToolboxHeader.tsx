@@ -119,6 +119,30 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
     window.location.href = '/api/auth/smugmug';
   };
 
+  const handleDisconnectSmugMug = async () => {
+    if (!confirm('Are you sure you want to disconnect your SmugMug account? You can reconnect anytime.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/smugmug/disconnect', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        setSmugmugUser(null);
+        // Optionally reload the page to clear any cached data
+        window.location.reload();
+      } else {
+        alert('Failed to disconnect SmugMug account. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error disconnecting SmugMug:', error);
+      alert('Failed to disconnect SmugMug account. Please try again.');
+    }
+  };
+
   const loadSmugmugUser = async () => {
     try {
       // Fetch SmugMug user info (tokens are in HTTP-only cookies)
@@ -412,15 +436,28 @@ export default function ToolboxHeader({ currentTool }: ToolboxHeaderProps) {
                           </div>
                         </button>
                       ) : (
-                        <div className="px-4 py-3 bg-green-50 rounded-lg">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Link2 className="w-4 h-4 text-green-600" />
-                            <div className="text-sm font-medium text-gray-900">Connected to SmugMug</div>
+                        <>
+                          <div className="px-4 py-3 bg-green-50 rounded-lg">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Link2 className="w-4 h-4 text-green-600" />
+                              <div className="text-sm font-medium text-gray-900">Connected to SmugMug</div>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {smugmugUser.NickName}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {smugmugUser.NickName}
-                          </div>
-                        </div>
+
+                          <button
+                            onClick={handleDisconnectSmugMug}
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 rounded-lg transition-colors text-left text-orange-600 mt-2"
+                          >
+                            <Link2 className="w-4 h-4" />
+                            <div>
+                              <div className="font-medium">Disconnect SmugMug</div>
+                              <div className="text-xs text-orange-500">Switch to a different account</div>
+                            </div>
+                          </button>
+                        </>
                       )}
 
                       <div className="h-px bg-gray-200 my-2" />
