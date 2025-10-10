@@ -129,6 +129,8 @@ export async function GET(request: NextRequest) {
     // Store encrypted tokens in database
     const userId = (session.user as any).id;
 
+    // Save tokens to database
+    console.log('💾 Saving SmugMug tokens to database...', { userId, smugmugNickname });
     await db.saveSmugMugTokens(
       userId,
       encryptedAccessToken,
@@ -136,6 +138,15 @@ export async function GET(request: NextRequest) {
       smugmugNickname,
       smugmugDomain
     );
+    console.log('✅ SmugMug tokens saved successfully');
+
+    // Verify immediate database read (for race condition debugging)
+    const verification = await db.getSmugMugTokens(userId);
+    if (verification) {
+      console.log('🔍 Immediate verification: SUCCESS - Tokens readable from database');
+    } else {
+      console.error('⚠️ Immediate verification: FAILED - Tokens not found after save!');
+    }
 
     // Redirect back to homepage
     const redirectResponse = NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_APP_URL!));

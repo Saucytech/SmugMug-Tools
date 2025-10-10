@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
+      console.warn('🔍 SmugMug user check: No NextAuth session found');
       return NextResponse.json(
         { error: 'Not authenticated. Please log in again.' },
         { status: 401 }
@@ -33,14 +34,19 @@ export async function GET(request: NextRequest) {
 
     // Get encrypted tokens from database
     const userId = (session.user as any).id;
+    console.log('🔍 Checking SmugMug tokens for user:', userId);
+
     const tokenData = await db.getSmugMugTokens(userId);
 
     if (!tokenData) {
+      console.warn('⚠️ SmugMug user check: No tokens found in database for user:', userId);
       return NextResponse.json(
         { error: 'SmugMug account not connected. Please connect your SmugMug account.' },
         { status: 401 }
       );
     }
+
+    console.log('✅ SmugMug tokens found for user:', userId);
 
     // Decrypt tokens
     const accessToken = encryption.decrypt(tokenData.access_token_encrypted);

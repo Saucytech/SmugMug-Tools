@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import { useAlbumsStore } from '@/stores/albumsStore';
+import { withRetry } from '@/lib/retry';
 
 interface ToolState {
   tool_id: string;
@@ -58,12 +59,35 @@ export default function Home() {
 
   const checkSmugMugConnection = async () => {
     try {
-      const response = await fetch('/api/smugmug/user', {
-        credentials: 'include',
+      console.log('🔍 Checking SmugMug connection with retry logic...');
+
+      // Use retry logic to handle race conditions after OAuth callback
+      const response = await withRetry(
+        () => fetch('/api/smugmug/user', { credentials: 'include' }),
+        {
+          retries: 4,
+          initialDelayMs: 500,
+          backoffFactor: 1.8,
+          onRetry: (attempt, error) => {
+            console.warn(`⚠️ SmugMug connection check attempt ${attempt} failed, retrying...`, error);
+          },
+        }
+      );
+
+      console.log('📡 SmugMug check response:', {
+        status: response.status,
+        ok: response.ok,
       });
+
       setIsSmugMugConnected(response.ok);
+
+      if (response.ok) {
+        console.log('✅ SmugMug connection verified successfully');
+      } else {
+        console.warn('⚠️ SmugMug connection check failed with status:', response.status);
+      }
     } catch (error) {
-      console.error('Error checking SmugMug connection:', error);
+      console.error('❌ SmugMug connection check failed after all retries:', error);
       setIsSmugMugConnected(false);
     } finally {
       setCheckingSmugMug(false);
