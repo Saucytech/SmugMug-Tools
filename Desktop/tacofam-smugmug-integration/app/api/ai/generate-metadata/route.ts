@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
       generateCaption,
       generateKeywords,
       promptStyle,
-      model
+      model,
+      metadataMode // 'replace' or 'build-upon'
     } = body;
 
     // Use Claude AI with vision to analyze the image
@@ -83,7 +84,8 @@ export async function POST(request: NextRequest) {
         generateCaption,
         generateKeywords,
         promptStyle,
-        model
+        model,
+        metadataMode
       );
     } else {
       // Fallback to filename-based generation if no API key
@@ -132,7 +134,8 @@ async function generateWithClaude(
   generateCaption?: boolean,
   generateKeywords?: boolean,
   _promptStyle?: string,
-  model?: string
+  model?: string,
+  metadataMode: string = 'replace'
 ) {
   // Fetch the image and convert to base64
   const imageResponse = await fetch(imageUrl);
@@ -144,15 +147,43 @@ async function generateWithClaude(
 
   // Build prompt based on which fields to generate
   const fieldsToGenerate = [];
-  if (generateTitle) fieldsToGenerate.push(`1. A compelling, professional title`);
-  if (generateCaption) fieldsToGenerate.push(`2. A descriptive caption (1-2 sentences)`);
-  if (generateKeywords) fieldsToGenerate.push(`3. Relevant keywords (8-12 keywords, semicolon-separated)`);
+  const buildUponMode = metadataMode === 'build-upon';
+
+  if (generateTitle) {
+    if (buildUponMode && existingTitle) {
+      fieldsToGenerate.push(`1. Enhance the existing title: "${existingTitle}" - improve it while keeping the core concept`);
+    } else {
+      fieldsToGenerate.push(`1. A compelling, professional title`);
+    }
+  }
+
+  if (generateCaption) {
+    if (buildUponMode && existingCaption) {
+      fieldsToGenerate.push(`2. Expand the existing caption: "${existingCaption}" - add more detail and context`);
+    } else {
+      fieldsToGenerate.push(`2. A descriptive caption (1-2 sentences)`);
+    }
+  }
+
+  if (generateKeywords) {
+    if (buildUponMode && existingKeywords) {
+      fieldsToGenerate.push(`3. Add to the existing keywords: "${existingKeywords}" - add 5-8 more relevant keywords, semicolon-separated`);
+    } else {
+      fieldsToGenerate.push(`3. Relevant keywords (8-12 keywords, semicolon-separated)`);
+    }
+  }
+
+  const modeInstruction = buildUponMode
+    ? 'IMPORTANT: Build upon and enhance the existing metadata. Keep the core concepts but improve and expand them.'
+    : 'Generate completely new metadata from scratch.';
 
   const prompt = `Analyze this photograph and generate professional metadata for it.
 
-${existingTitle && !generateTitle ? `Current Title (DO NOT MODIFY): ${existingTitle}` : ''}
-${existingCaption && !generateCaption ? `Current Caption (DO NOT MODIFY): ${existingCaption}` : ''}
-${existingKeywords && !generateKeywords ? `Current Keywords (DO NOT MODIFY): ${existingKeywords}` : ''}
+${modeInstruction}
+
+${existingTitle && !generateTitle ? `Current Title (KEEP AS IS): ${existingTitle}` : ''}
+${existingCaption && !generateCaption ? `Current Caption (KEEP AS IS): ${existingCaption}` : ''}
+${existingKeywords && !generateKeywords ? `Current Keywords (KEEP AS IS): ${existingKeywords}` : ''}
 
 Please provide ONLY the following fields:
 ${fieldsToGenerate.join('\n')}

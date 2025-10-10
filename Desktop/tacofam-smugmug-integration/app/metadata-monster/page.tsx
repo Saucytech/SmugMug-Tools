@@ -52,6 +52,7 @@ interface ProcessingOptions {
   generateKeywords: boolean;
   promptStyle: PromptStyle;
   saveToSmugMug: boolean;
+  metadataMode: 'replace' | 'build-upon';
 }
 
 type Mode = 'normal' | 'seek-and-capture';
@@ -98,6 +99,7 @@ export default function MetaDataMonster() {
     generateKeywords: true,
     promptStyle: 'professional',
     saveToSmugMug: true,
+    metadataMode: 'replace',
   });
 
   // Multi-select
@@ -244,6 +246,7 @@ export default function MetaDataMonster() {
           generateCaption: options.generateCaption,
           generateKeywords: options.generateKeywords,
           model: selectedModel,
+          metadataMode: options.metadataMode,
         }),
       });
 
@@ -972,8 +975,24 @@ export default function MetaDataMonster() {
                   </div>
                 </div>
 
-                {/* Right Column - Style & Save */}
+                {/* Right Column - Style & Mode */}
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Metadata Mode</label>
+                    <select
+                      value={options.metadataMode}
+                      onChange={(e) => setOptions({ ...options, metadataMode: e.target.value as 'replace' | 'build-upon' })}
+                      className="w-full px-4 py-3 sm:px-3 sm:py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-base sm:text-sm text-gray-900 bg-white min-h-[48px]"
+                    >
+                      <option value="replace">Replace - Generate completely new metadata</option>
+                      <option value="build-upon">Build Upon - Enhance existing metadata</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-2 hidden sm:block">
+                      {options.metadataMode === 'replace'
+                        ? 'AI will create fresh metadata from scratch, ignoring any existing content'
+                        : 'AI will improve and expand existing metadata while keeping the core concepts'}
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Prompt Style</label>
                     <select
