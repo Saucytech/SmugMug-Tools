@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { encryption } from '@/lib/encryption';
-import { db } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 // Global request queue to prevent concurrent OAuth requests and nonce collisions
 let lastRequestTime = 0;
@@ -31,42 +26,31 @@ export async function PATCH(
 ) {
   const maxRetries = 3;
   let lastError: any = null;
+  let cachedBody: any = null;
+  let accessToken: string;
+  let accessTokenSecret: string;
 
-  // Parse body once before the retry loop
-  const requestBody = await request.json();
-
-  // Get user session once before the retry loop
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user) {
-    return NextResponse.json(
-      { error: 'Not authenticated. Please log in again.' },
-      { status: 401 }
-    );
+  try {
+    ({ accessToken, accessTokenSecret } = await requireSmugMugTokens());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load SmugMug credentials';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  // Get encrypted tokens from database
-  const userId = (session.user as any).id;
-  const tokenData = await db.getSmugMugTokens(userId);
-
-  if (!tokenData) {
-    return NextResponse.json(
-      { error: 'SmugMug account not connected. Please connect your SmugMug account.' },
-      { status: 401 }
-    );
-  }
-
-  // Decrypt tokens once
-  const accessToken = encryption.decrypt(tokenData.access_token_encrypted);
-  const accessTokenSecret = encryption.decrypt(tokenData.token_secret_encrypted);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-
       const { albumKey, imageKey } = params;
 
-      // Use the stored request body for all attempts
-      const body = requestBody;
+      // Parse body only once on first attempt
+      let body;
+      if (attempt === 1) {
+        cachedBody = await request.json();
+        body = cachedBody;
+      } else {
+        // For retries, use stored body
+        body = cachedBody ?? {};
+      }
 
       // Build update payload - only include non-empty fields
       const updatePayload: any = {};
@@ -91,8 +75,7 @@ export async function PATCH(
       // Wait for global request slot
       await waitForRequestSlot();
 
-      // Use AlbumImage endpoint with versioned image key (e.g., MLB2MBL-0)
-      // This prevents redirects and OAuth nonce issues
+      // Use AlbumImage endpoint instead of Image endpoint
       const url = `https://api.smugmug.com/api/v2/album/${albumKey}/image/${imageKey}`;
 
       const requestData = {
@@ -183,15 +166,27 @@ export async function PATCH(
         endpoint: 'AlbumImage'
       });
 
-    } catch (_error) {
-      console.error(`❌ Error on attempt ${attempt}:`, _error);
-      lastError = _error;
+    } catch (error) {
+      console.error(`❌ Error on attempt ${attempt}:`, error);
+      lastError = error;
+
+      if (error instanceof Error && (error.message === 'Unauthorized' || error.message === 'SmugMug account not connected')) {
+        const status = error.message === 'Unauthorized' ? 401 : 409;
+        return NextResponse.json(
+          {
+            error: error.message,
+            attempts: attempt,
+            endpoint: 'AlbumImage',
+          },
+          { status }
+        );
+      }
 
       if (attempt === maxRetries) {
         return NextResponse.json(
           {
             error: 'Failed to update AlbumImage metadata after retries',
-            details: _error instanceof Error ? _error.message : 'Unknown error',
+            details: error instanceof Error ? error.message : 'Unknown error',
             attempts: maxRetries,
             endpoint: 'AlbumImage'
           },

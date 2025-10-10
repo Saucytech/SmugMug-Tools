@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -15,15 +16,7 @@ const oauth = new OAuth({
 
 export async function POST(request: NextRequest) {
   try {
-    const accessToken = request.headers.get('x-access-token');
-    const accessTokenSecret = request.headers.get('x-access-token-secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Missing authentication tokens' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const { imageUri, sourceAlbumKey, destinationAlbumKey } = await request.json();
 
@@ -120,10 +113,17 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
+    const message = error?.message ?? 'Failed to move image';
+    const status =
+      message === 'Unauthorized'
+        ? 401
+        : message === 'SmugMug account not connected'
+        ? 409
+        : 500;
     console.error('Error moving image:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to move image' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

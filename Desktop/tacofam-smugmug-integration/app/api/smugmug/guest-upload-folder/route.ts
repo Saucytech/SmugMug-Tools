@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { encryption } from '@/lib/encryption';
-import { db } from '@/lib/db';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -19,30 +16,7 @@ const oauth = new OAuth({
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user session
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Not authenticated. Please log in again.' },
-        { status: 401 }
-      );
-    }
-
-    // Get encrypted tokens from database
-    const userId = (session.user as any).id;
-    const tokenData = await db.getSmugMugTokens(userId);
-
-    if (!tokenData) {
-      return NextResponse.json(
-        { error: 'SmugMug account not connected. Please connect your SmugMug account.' },
-        { status: 401 }
-      );
-    }
-
-    // Decrypt tokens
-    const accessToken = encryption.decrypt(tokenData.access_token_encrypted);
-    const accessTokenSecret = encryption.decrypt(tokenData.token_secret_encrypted);
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     // Get authenticated user info
     const userUrl = 'https://api.smugmug.com/api/v2!authuser';
@@ -178,10 +152,17 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
+    const message = error?.message ?? 'Failed to manage folder';
+    const status =
+      message === 'Unauthorized'
+        ? 401
+        : message === 'SmugMug account not connected'
+        ? 409
+        : 500;
     console.error('Error managing guest upload folder:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to manage folder' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { encryption } from '@/lib/encryption';
-import { db } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -20,31 +15,14 @@ const oauth = new OAuth({
 });
 
 export async function GET(request: NextRequest) {
+  const logContext = {
+    requestId: crypto.randomUUID(),
+    path: '/api/smugmug/user',
+  };
+
   try {
-    // Get user session
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Not authenticated. Please log in again.' },
-        { status: 401 }
-      );
-    }
-
-    // Get encrypted tokens from database
-    const userId = (session.user as any).id;
-    const tokenData = await db.getSmugMugTokens(userId);
-
-    if (!tokenData) {
-      return NextResponse.json(
-        { error: 'SmugMug account not connected. Please connect your SmugMug account.' },
-        { status: 401 }
-      );
-    }
-
-    // Decrypt tokens
-    const accessToken = encryption.decrypt(tokenData.access_token_encrypted);
-    const accessTokenSecret = encryption.decrypt(tokenData.token_secret_encrypted);
+    const { accessToken, accessTokenSecret, userId } = await requireSmugMugTokens();
+    console.info('SmugMug verify: tokens loaded', { ...logContext, userId });
 
     const url = 'https://api.smugmug.com/api/v2!authuser';
 
@@ -70,7 +48,12 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('SmugMug API error:', errorText);
+      console.error('SmugMug API error', {
+        ...logContext,
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
       throw new Error(`SmugMug API error: ${response.statusText}`);
     }
 
@@ -80,11 +63,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       user: data.Response?.User || null,
     });
-  } catch (_error) {
-    console.error('Error fetching user:', _error);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const status =
+      message === 'Unauthorized'
+        ? 401
+        : message === 'SmugMug account not connected'
+        ? 409
+        : 500;
+
+    console.error('Error verifying SmugMug connection', {
+      ...logContext,
+      error,
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch user information' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -15,15 +16,7 @@ const oauth = new OAuth({
 
 export async function POST(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get('smugmug_access_token')?.value;
-    const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const body = await request.json();
     const { parentFolderUri, folderName, folderUrlName } = body;
@@ -38,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create folder in the specified parent folder using Node API
+    // Create folder in the specified parent folder
     const createFolderUrl = `https://api.smugmug.com${parentFolderUri}!children`;
     const createFolderRequestData = {
       url: createFolderUrl,
@@ -52,21 +45,6 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // SmugMug requires UrlName to start with a capital letter
-    const baseUrlName = folderUrlName || folderName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
-    const capitalizedUrlName = baseUrlName.charAt(0).toUpperCase() + baseUrlName.slice(1);
-
-    // Try with exactly the structure SmugMug expects
-    const requestBody = {
-      Type: 'Folder',
-      Name: folderName,
-      UrlName: capitalizedUrlName,
-      Privacy: 'Unlisted'
-    };
-
-    console.log('Sending request to:', createFolderUrl);
-    console.log('Request body:', JSON.stringify(requestBody, null, 2));
-
     const createFolderResponse = await fetch(createFolderUrl, {
       method: 'POST',
       headers: {
@@ -74,7 +52,12 @@ export async function POST(request: NextRequest) {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        Type: 'Folder',
+        Name: folderName,
+        UrlName: folderUrlName || folderName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, ''),
+        Privacy: 'Unlisted',
+      }),
     });
 
     const createFolderData = await createFolderResponse.json();
@@ -124,16 +107,18 @@ export async function POST(request: NextRequest) {
       console.error('Failed to create folder:', createFolderData);
       console.error('Request was:', {
         url: createFolderUrl,
-        body: requestBody
+        body: {
+          Type: 'Folder',
+          Name: folderName,
+          UrlName: folderUrlName || folderName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, ''),
+          Privacy: 'Unlisted',
+        }
       });
 
       // Log available parameters if present
       if (createFolderData.Options?.Parameters?.POST) {
         console.error('Available POST parameters:', JSON.stringify(createFolderData.Options.Parameters.POST, null, 2));
       }
-
-      // Log the full error response for debugging
-      console.error('Full error response:', JSON.stringify(createFolderData, null, 2));
 
       return NextResponse.json(
         { error: createFolderData.Message || 'Failed to create folder', details: createFolderData },
@@ -143,44 +128,23 @@ export async function POST(request: NextRequest) {
 
     const folder = createFolderData.Response.Node || createFolderData.Response.Folder;
 
-    // Optional: Verify the folder was created (like AI Gallery Creator does)
-    if (folder && folder.Uri) {
-      console.log(`Folder created successfully: ${folderName} (URI: ${folder.Uri})`);
-
-      // Wait a moment for SmugMug to process
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Verify the folder exists
-      const verifyUrl = `https://api.smugmug.com${folder.Uri}`;
-      const verifyRequestData = { url: verifyUrl, method: 'GET' };
-      const verifyAuthHeader = oauth.toHeader(
-        oauth.authorize(verifyRequestData, {
-          key: accessToken,
-          secret: accessTokenSecret,
-        })
-      );
-
-      const verifyResponse = await fetch(verifyUrl, {
-        headers: { ...verifyAuthHeader, Accept: 'application/json' },
-      });
-
-      if (verifyResponse.ok) {
-        console.log(`✓ Folder verified: "${folderName}" exists at ${folder.Uri}`);
-      } else {
-        console.warn(`Warning: Could not verify folder "${folderName}" - it may take a moment to appear`);
-      }
-    }
-
     return NextResponse.json({
       success: true,
       folder,
     });
 
   } catch (error: any) {
+    const message = error?.message ?? 'Failed to create folder';
+    const status =
+      message === 'Unauthorized'
+        ? 401
+        : message === 'SmugMug account not connected'
+        ? 409
+        : 500;
     console.error('Error creating folder:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create folder' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

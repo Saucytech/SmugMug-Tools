@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -15,18 +16,10 @@ const oauth = new OAuth({
 
 export async function PATCH(
   request: NextRequest,
-  { params: _params }: { params: { albumKey: string } }
+  { params }: { params: { albumKey: string } }
 ) {
   try {
-    const accessToken = request.cookies.get('smugmug_access_token')?.value;
-    const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const { albumUri, updates } = await request.json();
 
@@ -72,11 +65,13 @@ export async function PATCH(
 
     const data = await response.json();
     return NextResponse.json(data);
-  } catch (_error) {
-    console.error('Error updating album:', _error);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update album';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
+    console.error('Error updating album:', error);
     return NextResponse.json(
-      { error: 'Failed to update album', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

@@ -1,64 +1,40 @@
-// Encryption utility for SmugMug OAuth tokens
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '';
 const ALGORITHM = 'aes-256-cbc';
+const IV_LENGTH = 16;
 
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
-  console.warn(
-    'ENCRYPTION_KEY not set or invalid. Tokens will not be properly encrypted. ' +
-    'Generate a key with: openssl rand -hex 32'
-  );
+function getKey(): Buffer {
+  const key = process.env.SMUGMUG_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error('SMUGMUG_ENCRYPTION_KEY is not configured');
+  }
+
+  const buffer = Buffer.from(key, key.length === 64 ? 'hex' : 'utf8');
+  if (buffer.length !== 32) {
+    throw new Error('SMUGMUG_ENCRYPTION_KEY must be 32 bytes');
+  }
+
+  return buffer;
 }
 
-export const encryption = {
-  /**
-   * Encrypt a string value
-   */
-  encrypt(text: string): string {
-    if (!ENCRYPTION_KEY) {
-      throw new Error('ENCRYPTION_KEY is not set');
-    }
+export function encrypt(value: string): string {
+  const key = getKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${encrypted.toString('hex')}`;
+}
 
-    const iv = crypto.randomBytes(16);
-    const key = Buffer.from(ENCRYPTION_KEY, 'hex');
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+export function decrypt(value: string): string {
+  const key = getKey();
+  const [ivHex, encryptedHex] = value.split(':');
+  if (!ivHex || !encryptedHex) {
+    throw new Error('Invalid encrypted value');
+  }
 
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-
-    // Return IV + encrypted text (both in hex)
-    return iv.toString('hex') + ':' + encrypted;
-  },
-
-  /**
-   * Decrypt an encrypted string
-   */
-  decrypt(encrypted: string): string {
-    if (!ENCRYPTION_KEY) {
-      throw new Error('ENCRYPTION_KEY is not set');
-    }
-
-    const parts = encrypted.split(':');
-    if (parts.length !== 2) {
-      throw new Error('Invalid encrypted data format');
-    }
-
-    const iv = Buffer.from(parts[0], 'hex');
-    const encryptedText = parts[1];
-    const key = Buffer.from(ENCRYPTION_KEY, 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
-  },
-
-  /**
-   * Check if encryption is properly configured
-   */
-  isConfigured(): boolean {
-    return !!ENCRYPTION_KEY && ENCRYPTION_KEY.length === 64;
-  },
-};
+  const iv = Buffer.from(ivHex, 'hex');
+  const encrypted = Buffer.from(encryptedHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return decrypted.toString('utf8');
+}

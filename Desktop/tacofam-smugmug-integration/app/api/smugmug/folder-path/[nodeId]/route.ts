@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -18,15 +19,7 @@ export async function GET(
   { params }: { params: { nodeId: string } }
 ) {
   try {
-    const accessToken = request.headers.get('x-access-token');
-    const accessTokenSecret = request.headers.get('x-access-token-secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Missing authentication tokens' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const { nodeId } = params;
 
@@ -94,10 +87,17 @@ export async function GET(
     });
 
   } catch (error: any) {
+    const message = error?.message ?? 'Failed to get folder path';
+    const status =
+      message === 'Unauthorized'
+        ? 401
+        : message === 'SmugMug account not connected'
+        ? 409
+        : 500;
     console.error('Error getting folder path:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to get folder path' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

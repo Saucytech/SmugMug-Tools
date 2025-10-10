@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { encryption } from '@/lib/encryption';
-import { db } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 // Custom nonce generator to ensure uniqueness
 function generateNonce(): string {
@@ -37,30 +32,7 @@ export async function GET(
   { params }: { params: { albumKey: string } }
 ) {
   try {
-    // Get user session
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Not authenticated. Please log in again.' },
-        { status: 401 }
-      );
-    }
-
-    // Get encrypted tokens from database
-    const userId = (session.user as any).id;
-    const tokenData = await db.getSmugMugTokens(userId);
-
-    if (!tokenData) {
-      return NextResponse.json(
-        { error: 'SmugMug account not connected. Please connect your SmugMug account.' },
-        { status: 401 }
-      );
-    }
-
-    // Decrypt tokens
-    const accessToken = encryption.decrypt(tokenData.access_token_encrypted);
-    const accessTokenSecret = encryption.decrypt(tokenData.token_secret_encrypted);
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const albumKey = params.albumKey;
     const imagesUrl = `https://api.smugmug.com/api/v2/album/${albumKey}!images`;
@@ -74,7 +46,7 @@ export async function GET(
       oauth.authorize(requestData, {
         key: accessToken,
         secret: accessTokenSecret,
-      })
+      }, generateNonce())
     );
 
     const response = await fetch(imagesUrl, {
@@ -89,11 +61,13 @@ export async function GET(
     return NextResponse.json({
       images: data.Response.AlbumImage || [],
     });
-  } catch (_error) {
-    console.error('Error fetching images:', _error);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch images';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
+    console.error('Error fetching images:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch images' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }
