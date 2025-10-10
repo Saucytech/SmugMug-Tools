@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { encryption } from '@/lib/encryption';
-import db from '@/lib/db';
+import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,13 +77,20 @@ export async function GET(request: NextRequest) {
       }
     );
 
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(
+        `SmugMug token exchange failed: ${response.status} ${response.statusText}. Body: ${errorBody}`
+      );
+    }
+
     const data = await response.text();
     const params = new URLSearchParams(data);
     const accessToken = params.get('oauth_token');
     const accessTokenSecret = params.get('oauth_token_secret');
 
     if (!accessToken || !accessTokenSecret) {
-      throw new Error('Failed to get access token');
+      throw new Error(`Failed to get access token from SmugMug. Response: ${data}`);
     }
 
     // Get SmugMug user info to store nickname and domain
@@ -122,17 +129,12 @@ export async function GET(request: NextRequest) {
     // Store encrypted tokens in database
     const userId = (session.user as any).id;
 
-    await db.query(
-      `INSERT INTO smugmug_tokens (user_id, access_token_encrypted, token_secret_encrypted, smugmug_nickname, smugmug_domain, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-       ON CONFLICT (user_id)
-       DO UPDATE SET
-         access_token_encrypted = $2,
-         token_secret_encrypted = $3,
-         smugmug_nickname = $4,
-         smugmug_domain = $5,
-         updated_at = NOW()`,
-      [userId, encryptedAccessToken, encryptedTokenSecret, smugmugNickname, smugmugDomain]
+    await db.saveSmugMugTokens(
+      userId,
+      encryptedAccessToken,
+      encryptedTokenSecret,
+      smugmugNickname,
+      smugmugDomain
     );
 
     // Redirect back to homepage
@@ -143,9 +145,17 @@ export async function GET(request: NextRequest) {
 
     return redirectResponse;
   } catch (_error) {
-    console.error('SmugMug callback error:', _error);
+    const error = _error as Error;
+    console.error('==========================================');
+    console.error('❌ SmugMug OAuth Callback Error:');
+    console.error('Message:', error.message);
+    console.error('Name:', error.name);
+    console.error('Stack:', error.stack);
+    console.error('Full Error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error('==========================================');
+
     return NextResponse.redirect(
-      new URL('/?error=auth_failed', process.env.NEXT_PUBLIC_APP_URL!)
+      new URL(`/?error=auth_failed&detail=${encodeURIComponent(error.message)}`, process.env.NEXT_PUBLIC_APP_URL!)
     );
   }
 }

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { encryption } from '@/lib/encryption';
+import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +21,30 @@ const oauth = new OAuth({
 
 export async function GET(request: NextRequest) {
   try {
-    // Read tokens from cookies instead of headers
-    const accessToken = request.cookies.get('smugmug_access_token')?.value;
-    const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
+    // Get user session
+    const session = await getServerSession(authOptions);
 
-    if (!accessToken || !accessTokenSecret) {
+    if (!session?.user) {
       return NextResponse.json(
-        { error: 'Missing authentication tokens' },
+        { error: 'Not authenticated. Please log in again.' },
         { status: 401 }
       );
     }
+
+    // Get encrypted tokens from database
+    const userId = (session.user as any).id;
+    const tokenData = await db.getSmugMugTokens(userId);
+
+    if (!tokenData) {
+      return NextResponse.json(
+        { error: 'SmugMug account not connected. Please connect your SmugMug account.' },
+        { status: 401 }
+      );
+    }
+
+    // Decrypt tokens
+    const accessToken = encryption.decrypt(tokenData.access_token_encrypted);
+    const accessTokenSecret = encryption.decrypt(tokenData.token_secret_encrypted);
 
     const url = 'https://api.smugmug.com/api/v2!authuser';
 
