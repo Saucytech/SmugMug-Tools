@@ -14,11 +14,17 @@ const oauth = new OAuth({
 });
 
 export async function GET(request: NextRequest) {
+  const logContext = {
+    requestId: crypto.randomUUID(),
+    path: '/api/smugmug/user',
+  };
+
   try {
     const accessToken = request.headers.get('X-Access-Token');
     const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
 
     if (!accessToken || !accessTokenSecret) {
+      console.warn('SmugMug verify: missing tokens', logContext);
       return NextResponse.json(
         { error: 'Missing authentication tokens' },
         { status: 401 }
@@ -49,7 +55,12 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('SmugMug API error:', errorText);
+      console.error('SmugMug API error', {
+        ...logContext,
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
       throw new Error(`SmugMug API error: ${response.statusText}`);
     }
 
@@ -60,7 +71,10 @@ export async function GET(request: NextRequest) {
       user: data.Response?.User || null,
     });
   } catch (error) {
-    console.error('Error fetching user:', error);
+    console.error('Error verifying SmugMug connection', {
+      ...logContext,
+      error,
+    });
     return NextResponse.json(
       { error: 'Failed to fetch user information' },
       { status: 500 }

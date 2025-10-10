@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ImageIcon, FolderIcon, LogOut, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
 import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
 import { useRouter } from 'next/navigation';
 import ToolboxHeader from '@/components/ToolboxHeader';
+import { withRetry } from '@/lib/retry';
 
 interface Album {
   AlbumKey: string;
@@ -21,6 +22,10 @@ export default function Home() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectionChecking, setConnectionChecking] = useState(false);
+  const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const [isConnectionVerified, setIsConnectionVerified] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
 
   // Pagination, filtering, and sorting state
@@ -39,11 +44,52 @@ export default function Home() {
       tokenStorage.setTokens(accessToken, accessTokenSecret);
       // Clean URL
       window.history.replaceState({}, '', '/');
+      setIsConnectionVerified(false);
+      setVerificationAttempts(0);
+      setConnectionError(null);
       setIsAuthenticated(true);
     } else if (tokenStorage.hasTokens()) {
+      setIsConnectionVerified(false);
+      setVerificationAttempts(0);
+      setConnectionError(null);
       setIsAuthenticated(true);
     }
   }, []);
+
+  const verifySmugMugConnection = useCallback(async () => {
+    setVerificationAttempts((count) => count + 1);
+    setConnectionChecking(true);
+    setConnectionError(null);
+
+    try {
+      await withRetry(() => smugmugApi.verifyConnection(), {
+        retries: 4,
+        initialDelayMs: 400,
+        backoffFactor: 1.8,
+        onRetry: (attempt, retryError) => {
+          console.warn('Retrying SmugMug connection check', {
+            attempt,
+            error: retryError,
+          });
+        },
+      });
+      setIsConnectionVerified(true);
+    } catch (err) {
+      console.error('Unable to confirm SmugMug connection', err);
+      setConnectionError('We could not confirm your SmugMug connection. Please try reconnecting.');
+      setIsConnectionVerified(false);
+    } finally {
+      setConnectionChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || isConnectionVerified || connectionChecking || verificationAttempts > 0) {
+      return;
+    }
+
+    verifySmugMugConnection();
+  }, [isAuthenticated, isConnectionVerified, connectionChecking, verificationAttempts, verifySmugMugConnection]);
 
   const handleAuth = () => {
     window.location.href = '/api/auth/smugmug';
@@ -54,6 +100,9 @@ export default function Home() {
     // Clear photo organizer index when logging out
     localStorage.removeItem('photo-organizer-index');
     setIsAuthenticated(false);
+    setIsConnectionVerified(false);
+    setVerificationAttempts(0);
+    setConnectionError(null);
     setAlbums([]);
   };
 
@@ -139,6 +188,39 @@ export default function Home() {
                 Metadata Viewer
               </a>
             </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isConnectionVerified) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-50 text-gray-900">
+        <div className="max-w-xl w-full bg-white shadow-xl rounded-2xl p-8 text-center">
+          <Wrench className="w-16 h-16 text-purple-600 mx-auto mb-4" />
+          <h1 className="text-3xl font-semibold mb-2">
+            {connectionChecking ? 'Finalizing SmugMug Connection' : 'SmugMug Connection Required'}
+          </h1>
+          <p className="text-gray-600 mb-6">
+            {connectionChecking
+              ? 'Hang tight while we confirm your SmugMug connection. This can take a few seconds.'
+              : connectionError || 'We could not confirm your SmugMug connection. Please try again.'}
+          </p>
+          <div className="flex flex-col gap-3 items-center">
+            <button
+              onClick={verifySmugMugConnection}
+              disabled={connectionChecking}
+              className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            >
+              {connectionChecking ? 'Checking Connection…' : 'Retry Connection Check'}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Use a different SmugMug account
+            </button>
           </div>
         </div>
       </main>

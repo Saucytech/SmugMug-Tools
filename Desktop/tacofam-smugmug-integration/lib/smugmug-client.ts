@@ -62,6 +62,15 @@ export const smugmugApi = {
     return response.json();
   },
 
+  verifyConnection: async () => {
+    const response = await smugmugApi.fetchWithAuth('/api/smugmug/user');
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to verify SmugMug connection: ${error}`);
+    }
+    return response.json();
+  },
+
   getAlbumImages: async (albumKey: string) => {
     const response = await smugmugApi.fetchWithAuth(
       `/api/smugmug/albums/${albumKey}/images`
