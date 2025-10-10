@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { saveSmugMugTokens } from '@/lib/smugmug-tokens';
 
 const oauth = new OAuth({
   consumer: {
@@ -71,11 +74,18 @@ export async function GET(request: NextRequest) {
       throw new Error('Failed to get access token');
     }
 
-    // In production, store these securely in a database or secure session
-    // For now, we'll redirect with the tokens (NOT SECURE, just for demo)
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      throw new Error('No authenticated user session found');
+    }
+
+    await saveSmugMugTokens(session.user.id, {
+      accessToken,
+      accessTokenSecret,
+    });
+
     const redirectUrl = new URL('/', process.env.NEXT_PUBLIC_APP_URL!);
-    redirectUrl.searchParams.set('access_token', accessToken);
-    redirectUrl.searchParams.set('access_token_secret', accessTokenSecret);
+    redirectUrl.searchParams.set('connected', '1');
 
     const redirectResponse = NextResponse.redirect(redirectUrl);
     // Clear the temporary cookie

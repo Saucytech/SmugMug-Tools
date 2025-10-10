@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -42,15 +43,7 @@ interface CreationPlan {
 
 export async function POST(request: NextRequest) {
   try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const { plan }: { plan: CreationPlan } = await request.json();
 
@@ -182,10 +175,12 @@ export async function POST(request: NextRequest) {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create structure';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
     console.error('Error creating structure:', error);
     return NextResponse.json(
-      { error: 'Failed to create structure', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

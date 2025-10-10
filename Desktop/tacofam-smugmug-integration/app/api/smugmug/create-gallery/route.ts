@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -15,15 +16,7 @@ const oauth = new OAuth({
 
 export async function POST(request: NextRequest) {
   try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const body = await request.json();
     const { folderUri, galleryName, galleryUrlName } = body;
@@ -85,10 +78,17 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
+    const message = error?.message ?? 'Failed to create gallery';
+    const status =
+      message === 'Unauthorized'
+        ? 401
+        : message === 'SmugMug account not connected'
+        ? 409
+        : 500;
     console.error('Error creating gallery:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create gallery' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

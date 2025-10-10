@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 // Custom nonce generator to ensure uniqueness
 function generateNonce(): string {
@@ -28,16 +29,7 @@ const oauth = new OAuth({
 
 export async function GET(request: NextRequest) {
   try {
-    // Get access tokens from headers (in production, get from secure session)
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret, userId } = await requireSmugMugTokens();
 
     // Get authenticated user's info first
     const userUrl = 'https://api.smugmug.com/api/v2!authuser';
@@ -81,9 +73,9 @@ export async function GET(request: NextRequest) {
       const authHeader = oauth.toHeader(
         oauth.authorize(requestData, {
           key: accessToken,
-          secret: accessTokenSecret,
-        }, generateNonce())
-      );
+        secret: accessTokenSecret,
+      }, generateNonce())
+    );
 
       const response = await fetch(albumsUrl, {
         headers: {
@@ -106,10 +98,12 @@ export async function GET(request: NextRequest) {
       albums: allAlbums,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch albums';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
     console.error('Error fetching albums:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch albums' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

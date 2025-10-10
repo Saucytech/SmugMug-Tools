@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -20,16 +21,8 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      console.warn('SmugMug verify: missing tokens', logContext);
-      return NextResponse.json(
-        { error: 'Missing authentication tokens' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret, userId } = await requireSmugMugTokens();
+    console.info('SmugMug verify: tokens loaded', { ...logContext, userId });
 
     const url = 'https://api.smugmug.com/api/v2!authuser';
 
@@ -71,13 +64,21 @@ export async function GET(request: NextRequest) {
       user: data.Response?.User || null,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const status =
+      message === 'Unauthorized'
+        ? 401
+        : message === 'SmugMug account not connected'
+        ? 409
+        : 500;
+
     console.error('Error verifying SmugMug connection', {
       ...logContext,
       error,
     });
     return NextResponse.json(
-      { error: 'Failed to fetch user information' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

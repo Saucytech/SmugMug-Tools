@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -15,15 +16,7 @@ const oauth = new OAuth({
 
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     // First get authenticated user
     const userUrl = 'https://api.smugmug.com/api/v2!authuser';
@@ -87,10 +80,12 @@ export async function GET(request: NextRequest) {
       templates: data.Response?.AlbumTemplate || [],
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch album templates';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
     console.error('Error fetching album templates:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch album templates', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

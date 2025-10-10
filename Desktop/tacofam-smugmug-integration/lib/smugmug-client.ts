@@ -1,55 +1,46 @@
-// Simple client-side storage for OAuth tokens
-// In production, these should be stored server-side in a secure session
+// API client helper
+const CONNECTION_KEY = 'smugmug_connection_state';
 
-export const tokenStorage = {
-  setTokens: (accessToken: string, accessTokenSecret: string) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('smugmug_access_token', accessToken);
-      localStorage.setItem('smugmug_access_token_secret', accessTokenSecret);
-    }
-  },
-
-  getTokens: (): { accessToken: string | null; accessTokenSecret: string | null } => {
-    if (typeof window === 'undefined') {
-      return { accessToken: null, accessTokenSecret: null };
-    }
-
-    return {
-      accessToken: localStorage.getItem('smugmug_access_token'),
-      accessTokenSecret: localStorage.getItem('smugmug_access_token_secret'),
-    };
-  },
-
-  clearTokens: () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('smugmug_access_token');
-      localStorage.removeItem('smugmug_access_token_secret');
-    }
-  },
-
-  hasTokens: (): boolean => {
-    const { accessToken, accessTokenSecret } = tokenStorage.getTokens();
-    return !!(accessToken && accessTokenSecret);
-  },
+const markConnected = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(CONNECTION_KEY, 'connected');
+  }
 };
 
-// API client helper
+const clearConnection = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(CONNECTION_KEY);
+  }
+};
+
+const isConnected = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return localStorage.getItem(CONNECTION_KEY) === 'connected';
+};
+
+export const tokenStorage = {
+  setConnected: markConnected,
+  clear: clearConnection,
+  isConnected,
+  // Backwards-compatible helpers for legacy code paths
+  setTokens: markConnected,
+  clearTokens: clearConnection,
+  hasTokens: isConnected,
+  getTokens: () => (isConnected() ? { accessToken: null, accessTokenSecret: null } : null),
+};
+
 export const smugmugApi = {
   fetchWithAuth: async (url: string, options: RequestInit = {}) => {
-    const { accessToken, accessTokenSecret } = tokenStorage.getTokens();
-
-    if (!accessToken || !accessTokenSecret) {
-      throw new Error('Not authenticated');
+    const headers = new Headers(options.headers);
+    if (options.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
     }
-
-    const headers = {
-      ...options.headers,
-      'X-Access-Token': accessToken,
-      'X-Access-Token-Secret': accessTokenSecret,
-    };
 
     return fetch(url, {
       ...options,
+      credentials: 'include',
       headers,
     });
   },

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ImageIcon, FolderIcon, LogOut, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
+import { ImageIcon, FolderIcon, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
 import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ToolboxHeader from '@/components/ToolboxHeader';
 import { withRetry } from '@/lib/retry';
+import { useSession, signOut } from 'next-auth/react';
 
 interface Album {
   AlbumKey: string;
@@ -17,7 +18,9 @@ interface Album {
 
 export default function Home() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const searchParams = useSearchParams();
+  const { status } = useSession();
+  const isAuthenticated = status === 'authenticated';
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,27 +37,20 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // Check for OAuth callback tokens in URL
+  // Initialize connection state from persisted flag or callback
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const accessToken = params.get('access_token');
-    const accessTokenSecret = params.get('access_token_secret');
-
-    if (accessToken && accessTokenSecret) {
-      tokenStorage.setTokens(accessToken, accessTokenSecret);
-      // Clean URL
-      window.history.replaceState({}, '', '/');
+    if (searchParams?.get('connected') === '1') {
+      router.replace('/');
       setIsConnectionVerified(false);
       setVerificationAttempts(0);
       setConnectionError(null);
-      setIsAuthenticated(true);
-    } else if (tokenStorage.hasTokens()) {
+      tokenStorage.setConnected();
+    } else if (tokenStorage.isConnected()) {
       setIsConnectionVerified(false);
       setVerificationAttempts(0);
       setConnectionError(null);
-      setIsAuthenticated(true);
     }
-  }, []);
+  }, [router, searchParams]);
 
   const verifySmugMugConnection = useCallback(async () => {
     setVerificationAttempts((count) => count + 1);
@@ -74,6 +70,7 @@ export default function Home() {
         },
       });
       setIsConnectionVerified(true);
+      tokenStorage.setConnected();
     } catch (err) {
       console.error('Unable to confirm SmugMug connection', err);
       setConnectionError('We could not confirm your SmugMug connection. Please try reconnecting.');
@@ -99,7 +96,7 @@ export default function Home() {
     tokenStorage.clearTokens();
     // Clear photo organizer index when logging out
     localStorage.removeItem('photo-organizer-index');
-    setIsAuthenticated(false);
+    signOut({ callbackUrl: '/' });
     setIsConnectionVerified(false);
     setVerificationAttempts(0);
     setConnectionError(null);

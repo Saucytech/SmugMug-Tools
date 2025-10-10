@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 // Global request queue to prevent concurrent OAuth requests and nonce collisions
 let lastRequestTime = 0;
@@ -25,28 +26,30 @@ export async function PATCH(
 ) {
   const maxRetries = 3;
   let lastError: any = null;
+  let cachedBody: any = null;
+  let accessToken: string;
+  let accessTokenSecret: string;
+
+  try {
+    ({ accessToken, accessTokenSecret } = await requireSmugMugTokens());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load SmugMug credentials';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const accessToken = request.headers.get('X-Access-Token');
-      const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-      if (!accessToken || !accessTokenSecret) {
-        return NextResponse.json(
-          { error: 'Missing authentication tokens' },
-          { status: 401 }
-        );
-      }
-
       const { albumKey, imageKey } = params;
 
       // Parse body only once on first attempt
       let body;
       if (attempt === 1) {
-        body = await request.json();
+        cachedBody = await request.json();
+        body = cachedBody;
       } else {
         // For retries, use stored body
-        body = lastError?.body || {};
+        body = cachedBody ?? {};
       }
 
       // Build update payload - only include non-empty fields
@@ -166,6 +169,18 @@ export async function PATCH(
     } catch (error) {
       console.error(`❌ Error on attempt ${attempt}:`, error);
       lastError = error;
+
+      if (error instanceof Error && (error.message === 'Unauthorized' || error.message === 'SmugMug account not connected')) {
+        const status = error.message === 'Unauthorized' ? 401 : 409;
+        return NextResponse.json(
+          {
+            error: error.message,
+            attempts: attempt,
+            endpoint: 'AlbumImage',
+          },
+          { status }
+        );
+      }
 
       if (attempt === maxRetries) {
         return NextResponse.json(

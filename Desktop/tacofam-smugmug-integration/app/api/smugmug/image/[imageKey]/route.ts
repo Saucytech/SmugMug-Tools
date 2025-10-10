@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 // Global request queue to prevent concurrent OAuth requests and nonce collisions
 let lastRequestTime = 0;
@@ -39,15 +40,7 @@ export async function GET(
   { params }: { params: { imageKey: string } }
 ) {
   try {
-    const accessToken = request.headers.get('X-Access-Token');
-    const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-    if (!accessToken || !accessTokenSecret) {
-      return NextResponse.json(
-        { error: 'Missing authentication tokens' },
-        { status: 401 }
-      );
-    }
+    const { accessToken, accessTokenSecret } = await requireSmugMugTokens();
 
     const imageKey = params.imageKey;
     // Try without _expand first to see if that's the issue
@@ -104,10 +97,12 @@ export async function GET(
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch image metadata';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
     console.error('Error fetching image metadata:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch image metadata' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }
@@ -118,29 +113,31 @@ export async function PATCH(
 ) {
   const maxRetries = 3;
   let lastError: any = null;
+  let cachedBody: any = null;
+  let accessToken: string;
+  let accessTokenSecret: string;
+
+  try {
+    ({ accessToken, accessTokenSecret } = await requireSmugMugTokens());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load SmugMug credentials';
+    const status = message === 'Unauthorized' ? 401 : message === 'SmugMug account not connected' ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const accessToken = request.headers.get('X-Access-Token');
-      const accessTokenSecret = request.headers.get('X-Access-Token-Secret');
-
-      if (!accessToken || !accessTokenSecret) {
-        return NextResponse.json(
-          { error: 'Missing authentication tokens' },
-          { status: 401 }
-        );
-      }
-
       const imageKey = params.imageKey;
 
       // Parse body only once on first attempt
       let body;
       if (attempt === 1) {
-        body = await request.json();
+        cachedBody = await request.json();
+        body = cachedBody;
       } else {
         // For retries, we need to get the body from the original request clone
         // This is a limitation - we'll need to pass it differently
-        body = lastError?.body || {};
+        body = cachedBody ?? {};
       }
 
       // Build update payload - only include non-empty fields
@@ -166,36 +163,36 @@ export async function PATCH(
       // Wait for global request slot (ensures 5 second gap between ALL requests)
       await waitForRequestSlot();
 
-    const url = `https://api.smugmug.com/api/v2/image/${imageKey}`;
+      const url = `https://api.smugmug.com/api/v2/image/${imageKey}`;
 
-    const requestData = {
-      url,
-      method: 'PATCH',
-    };
+      const requestData = {
+        url,
+        method: 'PATCH',
+      };
 
-    // Create completely fresh OAuth instance with extended nonce
-    const freshOAuth = new OAuth({
-      consumer: {
-        key: process.env.SMUGMUG_API_KEY!,
-        secret: process.env.SMUGMUG_API_SECRET!,
-      },
-      signature_method: 'HMAC-SHA1',
-      hash_function(base_string, key) {
-        return crypto
-          .createHmac('sha1', key)
-          .update(base_string)
-          .digest('base64');
-      },
-      nonce_length: 96, // Very long nonce
-    });
+      // Create completely fresh OAuth instance with extended nonce
+      const freshOAuth = new OAuth({
+        consumer: {
+          key: process.env.SMUGMUG_API_KEY!,
+          secret: process.env.SMUGMUG_API_SECRET!,
+        },
+        signature_method: 'HMAC-SHA1',
+        hash_function(base_string, key) {
+          return crypto
+            .createHmac('sha1', key)
+            .update(base_string)
+            .digest('base64');
+        },
+        nonce_length: 96, // Very long nonce
+      });
 
-    // Generate auth with fresh instance (don't include body in OAuth signature for JSON PATCH)
-    const authHeader = freshOAuth.toHeader(
-      freshOAuth.authorize(requestData, {
-        key: accessToken,
-        secret: accessTokenSecret,
-      })
-    );
+      // Generate auth with fresh instance (don't include body in OAuth signature for JSON PATCH)
+      const authHeader = freshOAuth.toHeader(
+        freshOAuth.authorize(requestData, {
+          key: accessToken,
+          secret: accessTokenSecret,
+        })
+      );
 
       console.log(`Updating image metadata (attempt ${attempt}/${maxRetries}):`, {
         imageKey,
@@ -250,6 +247,17 @@ export async function PATCH(
     } catch (error) {
       console.error(`Error on attempt ${attempt}:`, error);
       lastError = error;
+
+      if (error instanceof Error && (error.message === 'Unauthorized' || error.message === 'SmugMug account not connected')) {
+        const status = error.message === 'Unauthorized' ? 401 : 409;
+        return NextResponse.json(
+          {
+            error: error.message,
+            attempts: attempt,
+          },
+          { status }
+        );
+      }
 
       if (attempt === maxRetries) {
         return NextResponse.json(
