@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { encryption } from '@/lib/encryption';
+import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,17 +35,33 @@ export async function PATCH(
   // Parse body once before the retry loop
   const requestBody = await request.json();
 
+  // Get user session once before the retry loop
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return NextResponse.json(
+      { error: 'Not authenticated. Please log in again.' },
+      { status: 401 }
+    );
+  }
+
+  // Get encrypted tokens from database
+  const userId = (session.user as any).id;
+  const tokenData = await db.getSmugMugTokens(userId);
+
+  if (!tokenData) {
+    return NextResponse.json(
+      { error: 'SmugMug account not connected. Please connect your SmugMug account.' },
+      { status: 401 }
+    );
+  }
+
+  // Decrypt tokens once
+  const accessToken = encryption.decrypt(tokenData.access_token_encrypted);
+  const accessTokenSecret = encryption.decrypt(tokenData.token_secret_encrypted);
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const accessToken = request.cookies.get('smugmug_access_token')?.value;
-      const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
-
-      if (!accessToken || !accessTokenSecret) {
-        return NextResponse.json(
-          { error: 'Missing authentication tokens' },
-          { status: 401 }
-        );
-      }
 
       const { albumKey, imageKey } = params;
 
