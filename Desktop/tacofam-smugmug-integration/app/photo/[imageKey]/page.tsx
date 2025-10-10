@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Download, Copy, Check, Edit2, Save, X, Code } from 'lucide-react';
+import { escapeHtml, sanitizeUrl } from '@/lib/html-sanitizer';
 
 interface ImageMetadata {
   Response?: {
@@ -181,19 +182,22 @@ export default function PhotoDetailPage() {
     const image = metadata?.Response?.Image;
     if (!image) return '';
 
-    const imageUrl = image.ArchivedUri || image.ThumbnailUrl || '';
-    const webUri = image.WebUri || '';
-    const buyUrl = webUri ? `${webUri}/buy` : '';
-    const photoTitle = image.Title || image.FileName || 'Photo';
+    const rawImageUrl = sanitizeUrl(image.ArchivedUri || image.ThumbnailUrl || '');
+    const rawWebUri = sanitizeUrl(image.WebUri || '');
+    const rawBuyUrl = rawWebUri ? sanitizeUrl(`${rawWebUri.replace(/\/$/, '')}/buy`) : '';
+    const photoTitle = escapeHtml(image.Title || image.FileName || 'Photo');
+    const safeCaption = caption ? escapeHtml(caption) : '';
+    const safeImageUrl = escapeHtml(rawImageUrl);
+    const safeBuyUrl = escapeHtml(rawBuyUrl);
 
     // Generate HTML embed code
     const embedHtml = `<!-- SmugMug Photo Embed with Buy Button -->
 <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-  <img src="${imageUrl}" alt="${photoTitle}" style="width: 100%; height: auto; display: block;">
+  <img src="${safeImageUrl}" alt="${photoTitle}" style="width: 100%; height: auto; display: block;">
   <div style="padding: 16px; background: #f9fafb;">
     <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #111827;">${photoTitle}</h3>
-    ${caption ? `<p style="margin: 0 0 12px 0; font-size: 14px; color: #6b7280;">${caption}</p>` : ''}
-    <a href="${buyUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">Buy This Photo</a>
+    ${safeCaption ? `<p style="margin: 0 0 12px 0; font-size: 14px; color: #6b7280;">${safeCaption}</p>` : ''}
+    <a href="${safeBuyUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">Buy This Photo</a>
   </div>
 </div>`;
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Image as ImageIcon, Check, Grid, LayoutGrid, Columns, X, Copy } from 'lucide-react';
 import { tokenStorage } from '@/lib/smugmug-client';
+import { escapeHtml, sanitizeUrl } from '@/lib/html-sanitizer';
 
 interface Photo {
   ImageKey: string;
@@ -105,17 +106,26 @@ export default function AlbumPage() {
 
   const generateGridEmbed = () => {
     const selected = getSelectedPhotoData();
-    const photosHtml = selected.map(photo => {
-      const buyUrl = photo.WebUri ? `${photo.WebUri}/buy` : '';
-      return `    <div class="photo-card">
-      <img src="${photo.ThumbnailUrl}" alt="${photo.Title || photo.FileName}">
+    const photosHtml = selected
+      .map(photo => {
+        const title = escapeHtml(photo.Title || photo.FileName || 'Photo');
+        const caption = photo.Caption ? escapeHtml(photo.Caption) : '';
+        const thumbnailUrl = escapeHtml(sanitizeUrl(photo.ThumbnailUrl || ''));
+        const webUri = sanitizeUrl(photo.WebUri || '');
+        const buyUrl = webUri
+          ? escapeHtml(sanitizeUrl(`${webUri.replace(/\/$/, '')}/buy`))
+          : '';
+
+        return `    <div class="photo-card">
+      <img src="${thumbnailUrl}" alt="${title}">
       <div class="photo-info">
-        <h3>${photo.Title || photo.FileName}</h3>
-        ${photo.Caption ? `<p>${photo.Caption}</p>` : ''}
+        <h3>${title}</h3>
+        ${caption ? `<p>${caption}</p>` : ''}
         <a href="${buyUrl}" target="_blank" rel="noopener noreferrer" class="buy-btn">Buy Photo</a>
       </div>
     </div>`;
-    }).join('\n');
+      })
+      .join('\n');
 
     return `<!-- SmugMug Gallery Grid -->
 <style>
@@ -136,17 +146,28 @@ ${photosHtml}
 
   const generateCarouselEmbed = () => {
     const selected = getSelectedPhotoData();
-    const photosHtml = selected.map((photo, idx) => {
-      const buyUrl = photo.WebUri ? `${photo.WebUri}/buy` : '';
-      return `    <div class="carousel-slide ${idx === 0 ? 'active' : ''}">
-      <img src="${photo.ArchivedUri || photo.ThumbnailUrl}" alt="${photo.Title || photo.FileName}">
+    const photosHtml = selected
+      .map((photo, idx) => {
+        const title = escapeHtml(photo.Title || photo.FileName || 'Photo');
+        const caption = photo.Caption ? escapeHtml(photo.Caption) : '';
+        const imageUrl = escapeHtml(
+          sanitizeUrl(photo.ArchivedUri || photo.ThumbnailUrl || '')
+        );
+        const webUri = sanitizeUrl(photo.WebUri || '');
+        const buyUrl = webUri
+          ? escapeHtml(sanitizeUrl(`${webUri.replace(/\/$/, '')}/buy`))
+          : '';
+
+        return `    <div class="carousel-slide ${idx === 0 ? 'active' : ''}">
+      <img src="${imageUrl}" alt="${title}">
       <div class="carousel-caption">
-        <h3>${photo.Title || photo.FileName}</h3>
-        ${photo.Caption ? `<p>${photo.Caption}</p>` : ''}
+        <h3>${title}</h3>
+        ${caption ? `<p>${caption}</p>` : ''}
         <a href="${buyUrl}" target="_blank" rel="noopener noreferrer" class="buy-btn">Buy This Photo</a>
       </div>
     </div>`;
-    }).join('\n');
+      })
+      .join('\n');
 
     return `<!-- SmugMug Carousel -->
 <style>
@@ -173,16 +194,26 @@ ${photosHtml}
 
   const generateMasonryEmbed = () => {
     const selected = getSelectedPhotoData();
-    const photosHtml = selected.map(photo => {
-      const buyUrl = photo.WebUri ? `${photo.WebUri}/buy` : '';
-      return `    <div class="masonry-item">
-      <img src="${photo.ArchivedUri || photo.ThumbnailUrl}" alt="${photo.Title || photo.FileName}">
+    const photosHtml = selected
+      .map(photo => {
+        const title = escapeHtml(photo.Title || photo.FileName || 'Photo');
+        const imageUrl = escapeHtml(
+          sanitizeUrl(photo.ArchivedUri || photo.ThumbnailUrl || '')
+        );
+        const webUri = sanitizeUrl(photo.WebUri || '');
+        const buyUrl = webUri
+          ? escapeHtml(sanitizeUrl(`${webUri.replace(/\/$/, '')}/buy`))
+          : '';
+
+        return `    <div class="masonry-item">
+      <img src="${imageUrl}" alt="${title}">
       <div class="masonry-overlay">
-        <h3>${photo.Title || photo.FileName}</h3>
+        <h3>${title}</h3>
         <a href="${buyUrl}" target="_blank" rel="noopener noreferrer" class="buy-btn">Buy</a>
       </div>
     </div>`;
-    }).join('\n');
+      })
+      .join('\n');
 
     return `<!-- SmugMug Masonry Gallery -->
 <style>
