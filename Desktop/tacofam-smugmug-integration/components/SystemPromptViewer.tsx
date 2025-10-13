@@ -128,66 +128,111 @@ export default function SystemPromptViewer({ toolName, apiEndpoint, toolId }: Sy
 
   const currentPrompt = editedPrompt || defaultPrompt;
 
+  const [showMenu, setShowMenu] = useState(false);
+
   return (
     <>
-      {/* Fixed bottom-right button group */}
-      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
-        {/* Model Selector Card - Only show if toolId is provided */}
-        {toolId && modelInfo && (
-          <div className="bg-white rounded-lg shadow-lg border-2 border-purple-200 p-3 min-w-[200px]">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-4 h-4 text-purple-600" />
-              <span className="text-xs font-bold text-gray-700">AI Model</span>
+      {/* Fixed bottom-right circular button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        {/* Expanded Menu - Only show when button is clicked */}
+        {showMenu && (
+          <>
+            {/* Backdrop to close menu */}
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowMenu(false)}
+            />
+
+            {/* Menu Card */}
+            <div className="absolute bottom-16 right-0 bg-white rounded-xl shadow-2xl border-2 border-purple-200 p-4 min-w-[280px] z-50 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  <span className="text-sm font-bold text-gray-900">AI Settings</span>
+                </div>
+                <button
+                  onClick={() => setShowMenu(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                  aria-label="Close menu"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Model Selector - Only show if toolId is provided */}
+              {toolId && modelInfo && (
+                <div className="mb-3 pb-3 border-b border-gray-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4 text-purple-600" />
+                    <span className="text-xs font-bold text-gray-700">AI Model</span>
+                  </div>
+
+                  <select
+                    value={selectedModel || undefined}
+                    onChange={(e) => handleModelChange(e.target.value as ModelId)}
+                    className="w-full text-xs border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                  >
+                    {Object.entries(AVAILABLE_MODELS).map(([id, info]) => (
+                      <option key={id} value={id}>
+                        {info.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {modelInfo && (
+                    <div className="mt-2 space-y-2">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-purple-50 px-2 py-1.5 rounded">
+                          <div className="text-gray-500 text-[10px]">Speed</div>
+                          <div className="font-semibold text-purple-700">{modelInfo.speed}</div>
+                        </div>
+                        <div className="bg-purple-50 px-2 py-1.5 rounded">
+                          <div className="text-gray-500 text-[10px]">Quality</div>
+                          <div className="font-semibold text-purple-700">{modelInfo.quality}</div>
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-600 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-yellow-600" />
+                        <span className="font-semibold">~{modelInfo.coinsPerOperation} coins</span> per op
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* System Prompt Button */}
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  handleOpen();
+                }}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg transition-all flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="text-xs font-semibold">
+                  {hasCustomPrompt ? 'View Custom Prompt' : 'View AI Prompt'}
+                </span>
+                {hasCustomPrompt && (
+                  <span className="bg-yellow-400 text-[10px] font-bold text-gray-900 rounded-full w-4 h-4 flex items-center justify-center">
+                    !
+                  </span>
+                )}
+              </button>
             </div>
-
-            <select
-              value={selectedModel || undefined}
-              onChange={(e) => handleModelChange(e.target.value as ModelId)}
-              className="w-full text-xs border border-gray-300 rounded px-2 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-            >
-              {Object.entries(AVAILABLE_MODELS).map(([id, info]) => (
-                <option key={id} value={id}>
-                  {info.name} - {info.description}
-                </option>
-              ))}
-            </select>
-
-            {modelInfo && (
-              <>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-purple-50 px-2 py-1 rounded">
-                    <div className="text-gray-500">Speed</div>
-                    <div className="font-semibold text-purple-700">{modelInfo.speed}</div>
-                  </div>
-                  <div className="bg-purple-50 px-2 py-1 rounded">
-                    <div className="text-gray-500">Quality</div>
-                    <div className="font-semibold text-purple-700">{modelInfo.quality}</div>
-                  </div>
-                </div>
-
-                <div className="mt-2 text-xs text-gray-600 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-yellow-600" />
-                  <span className="font-semibold">~{modelInfo.coinsPerOperation} coins</span> per operation
-                </div>
-              </>
-            )}
-          </div>
+          </>
         )}
 
-        {/* System Prompt Button */}
+        {/* Circular Toggle Button */}
         <button
-          onClick={handleOpen}
-          className={`bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg shadow-lg transition-all hover:scale-105 group ${
+          onClick={() => setShowMenu(!showMenu)}
+          className={`bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white w-14 h-14 rounded-full shadow-xl transition-all hover:scale-110 flex items-center justify-center relative ${
             hasCustomPrompt ? 'ring-2 ring-yellow-400 ring-offset-2' : ''
-          }`}
-          title={hasCustomPrompt ? 'View Custom AI Prompt' : 'View AI System Prompt'}
+          } ${showMenu ? 'scale-110' : ''}`}
+          title="AI Settings"
         >
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5" />
-            <span className="text-sm font-semibold">AI Prompt</span>
-          </div>
-          {hasCustomPrompt && (
-            <span className="absolute -top-1 -left-1 bg-yellow-400 text-xs font-bold text-gray-900 rounded-full w-5 h-5 flex items-center justify-center">
+          <Sparkles className="w-6 h-6" />
+          {hasCustomPrompt && !showMenu && (
+            <span className="absolute -top-1 -right-1 bg-yellow-400 text-xs font-bold text-gray-900 rounded-full w-5 h-5 flex items-center justify-center">
               !
             </span>
           )}
