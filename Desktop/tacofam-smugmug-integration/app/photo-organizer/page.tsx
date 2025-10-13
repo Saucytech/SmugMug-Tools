@@ -72,6 +72,8 @@ interface OrganizeTask {
     | "skipped"
     | "approved"
     | "rejected";
+  manualGallery?: string; // User's manual override
+  isSelected?: boolean; // For bulk operations
 }
 
 interface UploadedFile {
@@ -94,7 +96,9 @@ interface UploadSortTask {
   confidence: number;
   reasoning: string;
   visualAnalysis: string;
-  status: "auto-approved" | "needs-review" | "skipped";
+  status: "auto-approved" | "needs-review" | "skipped" | "rejected";
+  manualGallery?: string; // User's manual override
+  isSelected?: boolean; // For bulk operations
 }
 
 // Intelligent Culling interfaces
@@ -209,6 +213,16 @@ export default function PhotoOrganizer() {
 
   // Analysis session state
   const [currentAnalysisSession, setCurrentAnalysisSession] = useState<string | null>(null);
+  const [currentSessionData, setCurrentSessionData] = useState<AnalysisSession | null>(null);
+  const [currentSessionStats, setCurrentSessionStats] = useState<{
+    total: number;
+    pending: number;
+    moved: number;
+    copied: number;
+    ignored: number;
+    percentComplete: number;
+  } | null>(null);
+  const [allAnalysisSessions, setAllAnalysisSessions] = useState<AnalysisSession[]>([]);
   const [selectedPhotoKeys, setSelectedPhotoKeys] = useState<Set<string>>(new Set());
   const [refreshCounter, setRefreshCounter] = useState(0); // Force re-render when photo actions taken
 
@@ -256,6 +270,41 @@ export default function PhotoOrganizer() {
   useEffect(() => {
     checkAuthAndInitialize();
   }, [router]); // Add router as dependency since we use it
+
+  // Load all analysis sessions
+  useEffect(() => {
+    const loadAllSessions = async () => {
+      const sessions = await analysisStorage.getAllSessions();
+      setAllAnalysisSessions(sessions);
+    };
+
+    loadAllSessions();
+  }, [refreshCounter]); // Reload when refresh is triggered
+
+  // Load analysis session data when currentAnalysisSession changes
+  useEffect(() => {
+    const loadSessionData = async () => {
+      if (!currentAnalysisSession) {
+        setCurrentSessionData(null);
+        setCurrentSessionStats(null);
+        return;
+      }
+
+      const session = await analysisStorage.getSession(currentAnalysisSession);
+      if (!session) {
+        setCurrentAnalysisSession(null);
+        setCurrentSessionData(null);
+        setCurrentSessionStats(null);
+        return;
+      }
+
+      const stats = await analysisStorage.getSessionStats(currentAnalysisSession);
+      setCurrentSessionData(session);
+      setCurrentSessionStats(stats);
+    };
+
+    loadSessionData();
+  }, [currentAnalysisSession, refreshCounter]); // Reload when session changes or refresh is triggered
 
   const checkAuthAndInitialize = async () => {
     try {
@@ -790,7 +839,7 @@ export default function PhotoOrganizer() {
 
   const handleExecuteUploadSort = async () => {
     const tasksToExecute = uploadSortTasks.filter(
-      (t) => t.status === "auto-approved" || t.status === "needs-review",
+      (t) => (t.status === "auto-approved" || t.status === "needs-review") && t.status !== "rejected",
     );
 
     if (tasksToExecute.length === 0) {
@@ -798,8 +847,15 @@ export default function PhotoOrganizer() {
       return;
     }
 
+    // Build task summary showing manual overrides
+    const summary = tasksToExecute.map(t => {
+      const finalGallery = t.manualGallery || t.suggestedGallery;
+      const isOverridden = t.manualGallery && t.manualGallery !== t.suggestedGallery;
+      return `• ${t.fileName} → ${finalGallery}${isOverridden ? ' (manual override)' : ''}`;
+    }).join('\n');
+
     alert(
-      `Upload to SmugMug feature coming soon!\n\nThis will:\n1. Upload ${tasksToExecute.length} photos to SmugMug\n2. Place each in the suggested gallery\n3. Apply any metadata from the analysis`,
+      `Upload to SmugMug feature coming soon!\n\nThis will upload ${tasksToExecute.length} photos:\n\n${summary}\n\nNote: Manual overrides will be respected!`,
     );
 
     // For now, just close the modal
@@ -1133,17 +1189,17 @@ export default function PhotoOrganizer() {
 
     // Check for existing incomplete analysis for these galleries
     const galleryKeys = Array.from(selectedSourceGalleries);
-    const existingSession = analysisStorage.getRecentIncompleteSession(galleryKeys);
+    const existingSession = await analysisStorage.getRecentIncompleteSession(galleryKeys);
 
     if (existingSession) {
       const resumeAnalysis = confirm(
-        `You have an incomplete analysis for these galleries from ${new Date(existingSession.analyzedAt).toLocaleString()}.\n\n` +
-        `Progress: ${existingSession.totalPhotos - existingSession.pendingCount}/${existingSession.totalPhotos} photos processed\n\n` +
+        `You have an incomplete analysis for these galleries from ${new Date(existingSession.analyzed_at).toLocaleString()}.\n\n` +
+        `Progress: ${existingSession.total_photos - existingSession.pending_count}/${existingSession.total_photos} photos processed\n\n` +
         `Would you like to resume that analysis instead of starting a new one?`
       );
 
       if (resumeAnalysis) {
-        setCurrentAnalysisSession(existingSession.id);
+        setCurrentAnalysisSession(existingSession.session_id);
         return;
       }
     }
@@ -1375,21 +1431,25 @@ export default function PhotoOrganizer() {
         return gallery?.Name || 'Unknown';
       });
 
-      // Save analysis session to localStorage
-      addLog("💾 Saving analysis to localStorage...");
-      const analysisSession = analysisStorage.createSession({
-        sourceGalleryKeys,
-        sourceGalleryNames,
-        analysisType: 'sort',
+      // Save analysis session to database
+      addLog("💾 Saving analysis to database...");
+      const analysisSession = await analysisStorage.createSession({
+        source_gallery_keys: sourceGalleryKeys,
+        source_gallery_names: sourceGalleryNames,
+        analysis_type: 'sort',
         photos: analyzedPhotos,
-        totalPhotos: analyzedPhotos.length,
+        total_photos: analyzedPhotos.length,
       });
 
-      addLog(`✅ Analysis saved with ID: ${analysisSession.id}`);
+      if (!analysisSession) {
+        throw new Error('Failed to create analysis session');
+      }
+
+      addLog(`✅ Analysis saved with ID: ${analysisSession.session_id}`);
       addLog("🎨 Opening photo-by-photo review interface...");
 
       // Set current session and show review interface
-      setCurrentAnalysisSession(analysisSession.id);
+      setCurrentAnalysisSession(analysisSession.session_id);
       setOrganizeTasks(tasks); // Keep for backward compatibility with dry run modal
       setShowDryRun(false); // Don't show old dry run modal
     } catch (_error) {
@@ -2027,10 +2087,10 @@ export default function PhotoOrganizer() {
     : null;
 
   // Helper function to get gallery analysis status
-  const getGalleryAnalysisStatus = (albumKey: string) => {
-    const sessions = analysisStorage.getAllSessions();
+  const getGalleryAnalysisStatus = async (albumKey: string) => {
+    const sessions = await analysisStorage.getAllSessions();
     const gallerySessions = sessions.filter(s =>
-      s.sourceGalleryKeys.includes(albumKey)
+      s.source_gallery_keys.includes(albumKey)
     );
 
     if (gallerySessions.length === 0) {
@@ -2039,46 +2099,41 @@ export default function PhotoOrganizer() {
 
     // Find most recent session
     const mostRecentSession = gallerySessions.sort((a, b) =>
-      new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime()
+      new Date(b.analyzed_at).getTime() - new Date(a.analyzed_at).getTime()
     )[0];
 
-    const stats = analysisStorage.getSessionStats(mostRecentSession.id);
+    const stats = await analysisStorage.getSessionStats(mostRecentSession.session_id);
     if (!stats) return null;
 
     return {
-      sessionId: mostRecentSession.id,
-      isComplete: !!mostRecentSession.completedAt,
+      sessionId: mostRecentSession.session_id,
+      isComplete: !!mostRecentSession.completed_at,
       percentComplete: stats.percentComplete,
       totalPhotos: stats.total,
       pendingPhotos: stats.pending,
-      analyzedAt: new Date(mostRecentSession.analyzedAt),
+      analyzedAt: new Date(mostRecentSession.analyzed_at),
     };
   };
 
   // Render photo review interface when analysis session exists
   const renderPhotoReviewInterface = () => {
-    if (!currentAnalysisSession) return null;
+    if (!currentAnalysisSession || !currentSessionData) return null;
 
-    const session = analysisStorage.getSession(currentAnalysisSession);
-    if (!session) {
-      setCurrentAnalysisSession(null);
-      return null;
-    }
+    const session = currentSessionData;
+    const stats = currentSessionStats;
 
-    const stats = analysisStorage.getSessionStats(currentAnalysisSession);
-
-    const handlePhotoAction = (imageKey: string, action: 'move' | 'copy' | 'ignore') => {
+    const handlePhotoAction = async (imageKey: string, action: 'move' | 'copy' | 'ignore') => {
       const status = action === 'ignore' ? 'ignored' : (action === 'copy' ? 'copied' : 'moved');
-      analysisStorage.updatePhotoStatus(currentAnalysisSession!, imageKey, status);
-      analysisStorage.touchSession(currentAnalysisSession!);
+      await analysisStorage.updatePhotoStatus(currentAnalysisSession!, imageKey, status);
+      await analysisStorage.touchSession(currentAnalysisSession!);
       // Trigger re-render
       setRefreshCounter(prev => prev + 1);
     };
 
-    const handleBulkAction = (action: 'move' | 'copy' | 'ignore') => {
+    const handleBulkAction = async (action: 'move' | 'copy' | 'ignore') => {
       if (selectedPhotoKeys.size === 0) return;
       const status = action === 'ignore' ? 'ignored' : (action === 'copy' ? 'copied' : 'moved');
-      analysisStorage.updatePhotoStatusBulk(
+      await analysisStorage.updatePhotoStatusBulk(
         currentAnalysisSession!,
         Array.from(selectedPhotoKeys),
         status
@@ -2116,7 +2171,7 @@ export default function PhotoOrganizer() {
               Review Analysis Results
             </h2>
             <p className="text-gray-600">
-              From: {session.sourceGalleryNames.join(', ')}
+              From: {session.source_gallery_names.join(', ')}
             </p>
           </div>
           <button
@@ -2482,98 +2537,16 @@ export default function PhotoOrganizer() {
       )}
 
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
-        {/* Header */}
-        <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
-                  <Brain className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-600" />
-                  Photo Organizer
-                </h1>
-                <p className="text-gray-600 mt-2">
-                  AI-powered photo organization with smart gallery indexing
-                </p>
-              </div>
-
-              {/* Settings */}
-              <div className="bg-white rounded-lg sm:rounded-xl border-2 border-gray-200 p-3 sm:p-4">
-                <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                  <Settings className="w-4 h-4 text-gray-600" />
-                  <span className="font-semibold text-sm text-gray-900">
-                    Settings
-                  </span>
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <div>
-                    <label className="text-xs text-gray-600">
-                      Auto-approve threshold
-                    </label>
-                    <select
-                      value={confidenceThreshold}
-                      onChange={(e) =>
-                        setConfidenceThreshold(Number(e.target.value))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-base min-h-[44px] mt-1"
-                      disabled={manualReview}
-                    >
-                      <option value={95}>95%+ (Very Conservative)</option>
-                      <option value={90}>90%+ (Recommended)</option>
-                      <option value={85}>85%+ (Balanced)</option>
-                      <option value={80}>80%+ (Aggressive)</option>
-                    </select>
-                  </div>
-                  <label className="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
-                    <input
-                      type="checkbox"
-                      checked={manualReview}
-                      onChange={(e) => setManualReview(e.target.checked)}
-                      className="w-5 h-5 min-w-[20px] min-h-[20px] rounded flex-shrink-0"
-                    />
-                    <span className="text-gray-700">
-                      Review all moves manually
-                    </span>
-                  </label>
-                  <div className="pt-2 mt-2 border-t border-gray-200">
-                    <label className="text-xs text-gray-600 mb-1 block">
-                      Operation mode
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCopyMode(true)}
-                        className={`flex-1 px-4 py-2 text-sm min-h-[44px] rounded font-medium transition-all ${
-                          copyMode
-                            ? "bg-indigo-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
-                        }`}
-                      >
-                        📋 Copy
-                      </button>
-                      <button
-                        onClick={() => setCopyMode(false)}
-                        className={`flex-1 px-4 py-2 text-sm min-h-[44px] rounded font-medium transition-all ${
-                          !copyMode
-                            ? "bg-indigo-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
-                        }`}
-                      >
-                        ↔️ Move
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {copyMode
-                        ? "Create collected copies in suggested galleries"
-                        : "Move photos to suggested galleries"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Compact Header */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Photo Organizer</h1>
+          <p className="text-sm sm:text-base text-gray-600 mb-6">
+            AI-powered photo organization with smart gallery indexing
+          </p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8">
           <div className="flex gap-2 border-b border-gray-200 overflow-x-auto pb-px">
             <button
               onClick={() => setActiveTab("build-index")}
@@ -2627,6 +2600,82 @@ export default function PhotoOrganizer() {
                 Intelligent Culling
               </div>
             </button>
+          </div>
+
+          {/* Settings Panel - Below Tabs */}
+          <div className="mt-4">
+            <div className="bg-white rounded-lg border-2 border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Settings className="w-4 h-4 text-gray-600" />
+                <span className="font-semibold text-sm text-gray-900">Settings</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Auto-approve threshold */}
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">
+                    Auto-approve threshold
+                  </label>
+                  <select
+                    value={confidenceThreshold}
+                    onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm min-h-[44px]"
+                    disabled={manualReview}
+                  >
+                    <option value={95}>95%+ (Very Conservative)</option>
+                    <option value={90}>90%+ (Recommended)</option>
+                    <option value={85}>85%+ (Balanced)</option>
+                    <option value={80}>80%+ (Aggressive)</option>
+                  </select>
+                </div>
+
+                {/* Manual review checkbox */}
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-xs cursor-pointer min-h-[44px] pb-2">
+                    <input
+                      type="checkbox"
+                      checked={manualReview}
+                      onChange={(e) => setManualReview(e.target.checked)}
+                      className="w-5 h-5 min-w-[20px] min-h-[20px] rounded flex-shrink-0"
+                    />
+                    <span className="text-gray-700">Review all moves manually</span>
+                  </label>
+                </div>
+
+                {/* Operation mode */}
+                <div>
+                  <label className="text-xs text-gray-600 block mb-1">
+                    Operation mode
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCopyMode(true)}
+                      className={`flex-1 px-4 py-2 text-sm min-h-[44px] rounded font-medium transition-all ${
+                        copyMode
+                          ? "bg-indigo-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
+                      }`}
+                    >
+                      📋 Copy
+                    </button>
+                    <button
+                      onClick={() => setCopyMode(false)}
+                      className={`flex-1 px-4 py-2 text-sm min-h-[44px] rounded font-medium transition-all ${
+                        !copyMode
+                          ? "bg-indigo-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
+                      }`}
+                    >
+                      ↔️ Move
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {copyMode
+                      ? "Create collected copies in suggested galleries"
+                      : "Move photos to suggested galleries"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3090,11 +3139,10 @@ export default function PhotoOrganizer() {
 
                 {/* Analysis History */}
                 {(() => {
-                  const allSessions = analysisStorage.getAllSessions();
-                  const incompleteSessions = allSessions.filter(s => !s.completedAt);
-                  const completedSessions = allSessions.filter(s => s.completedAt);
+                  const incompleteSessions = allAnalysisSessions.filter(s => !s.completed_at);
+                  const completedSessions = allAnalysisSessions.filter(s => s.completed_at);
 
-                  if (allSessions.length === 0) return null;
+                  if (allAnalysisSessions.length === 0) return null;
 
                   return (
                     <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-lg sm:rounded-xl p-4 sm:p-6">
@@ -3126,22 +3174,32 @@ export default function PhotoOrganizer() {
                           <h4 className="text-sm font-semibold text-blue-700 mb-2">📋 In Progress</h4>
                           <div className="space-y-2">
                             {incompleteSessions
-                              .sort((a, b) => new Date(b.lastViewedAt).getTime() - new Date(a.lastViewedAt).getTime())
+                              .sort((a, b) => new Date(b.last_viewed_at).getTime() - new Date(a.last_viewed_at).getTime())
                               .slice(0, 3)
                               .map(session => {
-                                const stats = analysisStorage.getSessionStats(session.id);
+                                // Calculate stats inline from session data
+                                const stats = {
+                                  total: session.total_photos,
+                                  pending: session.pending_count,
+                                  moved: session.moved_count,
+                                  copied: session.copied_count,
+                                  ignored: session.ignored_count,
+                                  percentComplete: Math.round(
+                                    ((session.moved_count + session.copied_count + session.ignored_count) / session.total_photos) * 100
+                                  ),
+                                };
                                 return (
                                   <div
-                                    key={session.id}
+                                    key={session.session_id}
                                     className="bg-white border border-blue-200 rounded-lg p-3 hover:shadow-md transition-shadow"
                                   >
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="flex-1 min-w-0">
                                         <div className="font-medium text-gray-900 text-sm mb-1">
-                                          {session.sourceGalleryNames.join(', ')}
+                                          {session.source_gallery_names.join(', ')}
                                         </div>
                                         <div className="text-xs text-gray-600 mb-2">
-                                          Started {new Date(session.analyzedAt).toLocaleDateString()} at {new Date(session.analyzedAt).toLocaleTimeString()}
+                                          Started {new Date(session.analyzed_at).toLocaleDateString()} at {new Date(session.analyzed_at).toLocaleTimeString()}
                                         </div>
                                         {stats && (
                                           <div className="space-y-1">
@@ -3169,19 +3227,24 @@ export default function PhotoOrganizer() {
                                       </div>
                                       <div className="flex gap-1">
                                         <button
-                                          onClick={() => {
-                                            setCurrentAnalysisSession(session.id);
-                                            analysisStorage.touchSession(session.id);
+                                          onClick={async () => {
+                                            setCurrentAnalysisSession(session.session_id);
+                                            await analysisStorage.touchSession(session.session_id);
                                           }}
                                           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors"
                                         >
                                           Resume
                                         </button>
                                         <button
-                                          onClick={() => {
-                                            if (confirm(`Delete this analysis session?\n\nThis will remove all analysis data for:\n${session.sourceGalleryNames.join(', ')}\n\nThis action cannot be undone.`)) {
-                                              analysisStorage.deleteSession(session.id);
-                                              setCurrentAnalysisSession(null);
+                                          onClick={async () => {
+                                            if (confirm(`Delete this analysis session?\n\nThis will remove all analysis data for:\n${session.source_gallery_names.join(', ')}\n\nThis action cannot be undone.`)) {
+                                              const success = await analysisStorage.deleteSession(session.session_id);
+                                              if (success) {
+                                                setCurrentAnalysisSession(null);
+                                                setRefreshCounter(prev => prev + 1);
+                                              } else {
+                                                alert('Failed to delete session. Please try again.');
+                                              }
                                             }
                                           }}
                                           className="px-2 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded transition-colors"
@@ -3203,22 +3266,29 @@ export default function PhotoOrganizer() {
                           <h4 className="text-sm font-semibold text-purple-700 mb-2">✅ Completed</h4>
                           <div className="space-y-2">
                             {completedSessions
-                              .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())
+                              .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime())
                               .slice(0, 3)
                               .map(session => {
-                                const stats = analysisStorage.getSessionStats(session.id);
+                                // Calculate stats inline from session data
+                                const stats = {
+                                  total: session.total_photos,
+                                  pending: session.pending_count,
+                                  moved: session.moved_count,
+                                  copied: session.copied_count,
+                                  ignored: session.ignored_count,
+                                };
                                 return (
                                   <div
-                                    key={session.id}
+                                    key={session.session_id}
                                     className="bg-white border border-purple-200 rounded-lg p-3 hover:shadow-md transition-shadow"
                                   >
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="flex-1 min-w-0">
                                         <div className="font-medium text-gray-900 text-sm mb-1">
-                                          {session.sourceGalleryNames.join(', ')}
+                                          {session.source_gallery_names.join(', ')}
                                         </div>
                                         <div className="text-xs text-gray-600 mb-1">
-                                          Completed {new Date(session.completedAt!).toLocaleDateString()} at {new Date(session.completedAt!).toLocaleTimeString()}
+                                          Completed {new Date(session.completed_at!).toLocaleDateString()} at {new Date(session.completed_at!).toLocaleTimeString()}
                                         </div>
                                         {stats && (
                                           <div className="text-xs text-gray-600">
@@ -3243,19 +3313,24 @@ export default function PhotoOrganizer() {
                                       </div>
                                       <div className="flex gap-1">
                                         <button
-                                          onClick={() => {
-                                            setCurrentAnalysisSession(session.id);
-                                            analysisStorage.touchSession(session.id);
+                                          onClick={async () => {
+                                            setCurrentAnalysisSession(session.session_id);
+                                            await analysisStorage.touchSession(session.session_id);
                                           }}
                                           className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded transition-colors"
                                         >
                                           View
                                         </button>
                                         <button
-                                          onClick={() => {
-                                            if (confirm(`Delete this completed analysis?\n\nThis will remove all analysis data for:\n${session.sourceGalleryNames.join(', ')}\n\nThis action cannot be undone.`)) {
-                                              analysisStorage.deleteSession(session.id);
-                                              setCurrentAnalysisSession(null);
+                                          onClick={async () => {
+                                            if (confirm(`Delete this completed analysis?\n\nThis will remove all analysis data for:\n${session.source_gallery_names.join(', ')}\n\nThis action cannot be undone.`)) {
+                                              const success = await analysisStorage.deleteSession(session.session_id);
+                                              if (success) {
+                                                setCurrentAnalysisSession(null);
+                                                setRefreshCounter(prev => prev + 1);
+                                              } else {
+                                                alert('Failed to delete session. Please try again.');
+                                              }
                                             }
                                           }}
                                           className="px-2 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded transition-colors"
@@ -3272,24 +3347,25 @@ export default function PhotoOrganizer() {
                       )}
 
                       {/* Show All Button */}
-                      {allSessions.length > 6 && (
+                      {allAnalysisSessions.length > 6 && (
                         <button
                           onClick={() => {
                             alert('Full analysis history browser coming soon!');
                           }}
                           className="w-full mt-3 px-4 py-2 bg-white hover:bg-gray-50 border border-purple-300 text-purple-700 text-sm font-medium rounded-lg transition-colors"
                         >
-                          View All {allSessions.length} Sessions
+                          View All {allAnalysisSessions.length} Sessions
                         </button>
                       )}
 
                       {/* Cleanup Button */}
                       {completedSessions.length > 10 && (
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm(`Clean up old completed sessions?\n\nThis will keep the 10 most recent completed sessions and delete ${completedSessions.length - 10} older ones.\n\nIncomplete sessions will not be affected.`)) {
-                              analysisStorage.cleanupOldSessions();
+                              await analysisStorage.cleanupOldSessions();
                               setCurrentAnalysisSession(null);
+                              setRefreshCounter(prev => prev + 1);
                             }
                           }}
                           className="w-full mt-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-300 text-orange-700 text-sm font-medium rounded-lg transition-colors"
@@ -4878,6 +4954,38 @@ export default function PhotoOrganizer() {
 
             {/* Task List */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {/* Select All Control */}
+              <div className="flex items-center justify-between bg-gray-100 rounded-lg p-3 mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={uploadSortTasks.every(t => t.isSelected)}
+                    onChange={(e) => {
+                      setUploadSortTasks(uploadSortTasks.map(t => ({
+                        ...t,
+                        isSelected: e.target.checked
+                      })));
+                    }}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="font-medium text-gray-700">Select All ({uploadSortTasks.filter(t => t.isSelected).length}/{uploadSortTasks.length})</span>
+                </label>
+                <button
+                  onClick={() => {
+                    const selectedTasks = uploadSortTasks.filter(t => t.isSelected);
+                    if (selectedTasks.length > 0) {
+                      setUploadSortTasks(uploadSortTasks.map(t =>
+                        t.isSelected ? { ...t, status: "auto-approved" as const } : t
+                      ));
+                    }
+                  }}
+                  disabled={!uploadSortTasks.some(t => t.isSelected)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Approve Selected
+                </button>
+              </div>
+
               {uploadSortTasks.map((task, idx) => (
                 <div
                   key={idx}
@@ -4886,10 +4994,24 @@ export default function PhotoOrganizer() {
                       ? "border-green-300 bg-green-50"
                       : task.status === "needs-review"
                         ? "border-yellow-300 bg-yellow-50"
-                        : "border-gray-300 bg-gray-50"
+                        : task.status === "rejected"
+                          ? "border-red-300 bg-red-50"
+                          : "border-gray-300 bg-gray-50"
                   }`}
                 >
                   <div className="flex items-start gap-3 sm:gap-4">
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={task.isSelected || false}
+                      onChange={(e) => {
+                        setUploadSortTasks(uploadSortTasks.map((t, i) =>
+                          i === idx ? { ...t, isSelected: e.target.checked } : t
+                        ));
+                      }}
+                      className="w-5 h-5 mt-1 rounded border-gray-300"
+                    />
+
                     {/* Thumbnail */}
                     <img
                       src={task.preview}
@@ -4911,21 +5033,49 @@ export default function PhotoOrganizer() {
                             {task.visualAnalysis}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500 font-medium">
-                            Suggested Gallery:
-                          </span>
-                          <span className="font-semibold text-indigo-600">
-                            {task.suggestedGallery}
-                          </span>
+
+                        {/* Gallery Selection - AI Suggestion + Manual Override */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 font-medium">
+                              AI Suggested:
+                            </span>
+                            <span className="font-semibold text-indigo-600">
+                              {task.suggestedGallery}
+                            </span>
+                          </div>
+
+                          {/* Manual Gallery Selection Dropdown */}
+                          <div className="flex items-center gap-2">
+                            <label className="text-gray-500 font-medium text-xs">
+                              Override:
+                            </label>
+                            <select
+                              value={task.manualGallery || ''}
+                              onChange={(e) => {
+                                setUploadSortTasks(uploadSortTasks.map((t, i) =>
+                                  i === idx ? { ...t, manualGallery: e.target.value, status: e.target.value ? "auto-approved" as const : t.status } : t
+                                ));
+                              }}
+                              className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1 bg-white"
+                            >
+                              <option value="">Use AI suggestion</option>
+                              {galleryIndex.map((g) => (
+                                <option key={g.albumKey} value={g.name}>
+                                  {g.name} ({g.imageCount} photos)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
+
                         <div className="text-xs text-gray-600">
                           {task.reasoning}
                         </div>
                       </div>
                     </div>
 
-                    {/* Confidence Badge */}
+                    {/* Controls */}
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <div
                         className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -4938,15 +5088,65 @@ export default function PhotoOrganizer() {
                       >
                         {task.confidence}% confidence
                       </div>
-                      {task.status === "auto-approved" && (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                      )}
-                      {task.status === "needs-review" && (
-                        <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                      )}
-                      {task.status === "skipped" && (
-                        <XCircle className="w-5 h-5 text-gray-400" />
-                      )}
+
+                      {/* Status Icons */}
+                      <div className="flex items-center gap-1">
+                        {task.status === "auto-approved" && (
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        )}
+                        {task.status === "needs-review" && (
+                          <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                        )}
+                        {task.status === "skipped" && (
+                          <XCircle className="w-5 h-5 text-gray-400" />
+                        )}
+                        {task.status === "rejected" && (
+                          <XCircle className="w-5 h-5 text-red-600" />
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-col gap-1 w-full">
+                        {task.status !== "rejected" && (
+                          <button
+                            onClick={() => {
+                              setUploadSortTasks(uploadSortTasks.map((t, i) =>
+                                i === idx ? { ...t, status: "rejected" as const } : t
+                              ));
+                            }}
+                            className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-medium transition-colors"
+                          >
+                            Reject
+                          </button>
+                        )}
+                        {task.status === "rejected" && (
+                          <button
+                            onClick={() => {
+                              setUploadSortTasks(uploadSortTasks.map((t, i) =>
+                                i === idx ? { ...t, status: "auto-approved" as const } : t
+                              ));
+                            }}
+                            className="px-3 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs font-medium transition-colors"
+                          >
+                            Approve
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            // Individual upload for this photo
+                            const finalGallery = task.manualGallery || task.suggestedGallery;
+                            const destGallery = galleryIndex.find(g => g.name === finalGallery);
+                            if (destGallery) {
+                              // Handle individual upload
+                              alert(`Uploading ${task.fileName} to ${finalGallery}`);
+                            }
+                          }}
+                          disabled={task.status === "rejected"}
+                          className="px-3 py-1 bg-indigo-100 hover:bg-indigo-200 disabled:bg-gray-200 disabled:text-gray-400 text-indigo-700 rounded text-xs font-medium transition-colors"
+                        >
+                          Upload Now
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4970,8 +5170,9 @@ export default function PhotoOrganizer() {
                 {
                   uploadSortTasks.filter(
                     (t) =>
-                      t.status === "auto-approved" ||
-                      t.status === "needs-review",
+                      (t.status === "auto-approved" ||
+                      t.status === "needs-review") &&
+                      t.status !== "rejected"
                   ).length
                 }
                 )

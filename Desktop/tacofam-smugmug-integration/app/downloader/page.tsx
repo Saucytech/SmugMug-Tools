@@ -535,8 +535,11 @@ export default function Downloader() {
                   <option value="Original">Original (Full Resolution)</option>
                   <option value="X3Large">X3Large (3000px)</option>
                   <option value="X2Large">X2Large (1600px)</option>
-                  <option value="XLarge">XLarge (1024px)</option>
-                  <option value="Large">Large (800px)</option>
+                  <option value="XLarge">XLarge (1280px)</option>
+                  <option value="Large">Large (1280px)</option>
+                  <option value="Medium">Medium (800px)</option>
+                  <option value="Small">Small (1 MegaPixel)</option>
+                  <option value="Thumb">Thumbnail (150px)</option>
                 </select>
               </div>
 

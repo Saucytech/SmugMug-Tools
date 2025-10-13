@@ -3,6 +3,7 @@ import OAuth from 'oauth-1.0a';
 import crypto from 'crypto';
 import archiver from 'archiver';
 import { Readable } from 'stream';
+import { requireSmugMugTokens } from '@/lib/smugmug-auth';
 
 const oauth = new OAuth({
   consumer: {
@@ -24,15 +25,16 @@ export const maxDuration = 300; // 5 minutes max
  */
 export async function POST(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get('smugmug_access_token')?.value;
-    const accessTokenSecret = request.cookies.get('smugmug_access_token_secret')?.value;
-
-    if (!accessToken || !accessTokenSecret) {
+    // Get SmugMug tokens from session
+    const tokens = await requireSmugMugTokens();
+    if (!tokens) {
       return NextResponse.json(
         { error: 'Not authenticated with SmugMug' },
         { status: 401 }
       );
     }
+
+    const { accessToken, accessTokenSecret } = tokens;
 
     const body = await request.json();
     const { albumKeys, imageSize = 'Original' } = body;
@@ -157,31 +159,56 @@ export async function POST(request: NextRequest) {
           // Download and add each image to ZIP
           for (const image of images) {
             try {
-              // Get image URL based on requested size
+              // For non-original sizes, we need to fetch ImageSizeDetails
               let imageUrl: string | null = null;
 
-              // Map requested size to SmugMug URL structure
               if (imageSize === 'Original') {
-                // Try archived URI first (best for originals), then fall back to Original URL
-                imageUrl = image.ArchivedUri || image.Uris?.OriginalImage?.Url || null;
-              } else if (imageSize === 'Large') {
-                imageUrl = image.Uris?.LargeImage?.Url || null;
-              } else if (imageSize === 'Medium') {
-                imageUrl = image.Uris?.MediumImage?.Url || null;
-              } else if (imageSize === 'Small') {
-                imageUrl = image.Uris?.SmallImage?.Url || null;
-              } else if (imageSize === 'Thumb') {
-                imageUrl = image.Uris?.ThumbImage?.Url || image.ThumbnailUrl || null;
-              }
+                // For Original, use ArchivedUri directly
+                imageUrl = image.ArchivedUri || null;
+              } else {
+                // For other sizes, fetch the ImageSizeDetails endpoint
+                const imageSizesResponse = await fetchWithAuth(
+                  `https://api.smugmug.com${image.Uris.ImageSizeDetails.Uri}`,
+                  accessToken,
+                  accessTokenSecret
+                );
 
-              // Final fallback: try largest available
-              if (!imageUrl) {
-                imageUrl = image.ArchivedUri ||
-                          image.Uris?.OriginalImage?.Url ||
-                          image.Uris?.LargeImage?.Url ||
-                          image.Uris?.MediumImage?.Url ||
-                          image.ThumbnailUrl ||
-                          null;
+                if (imageSizesResponse?.Response?.ImageSizeDetails) {
+                  const sizeDetails = imageSizesResponse.Response.ImageSizeDetails;
+
+                  // Map requested size to SmugMug ImageSizeDetails structure
+                  if (imageSize === 'X3Large' && sizeDetails.X3LargeImageUrl) {
+                    imageUrl = sizeDetails.X3LargeImageUrl;
+                  } else if (imageSize === 'X2Large' && sizeDetails.X2LargeImageUrl) {
+                    imageUrl = sizeDetails.X2LargeImageUrl;
+                  } else if (imageSize === 'XLarge' && sizeDetails.XLargeImageUrl) {
+                    imageUrl = sizeDetails.XLargeImageUrl;
+                  } else if (imageSize === 'Large' && sizeDetails.LargeImageUrl) {
+                    imageUrl = sizeDetails.LargeImageUrl;
+                  } else if (imageSize === 'Medium' && sizeDetails.MediumImageUrl) {
+                    imageUrl = sizeDetails.MediumImageUrl;
+                  } else if (imageSize === 'Small' && sizeDetails.SmallImageUrl) {
+                    imageUrl = sizeDetails.SmallImageUrl;
+                  } else if (imageSize === 'Thumb' && sizeDetails.ThumbImageUrl) {
+                    imageUrl = sizeDetails.ThumbImageUrl;
+                  }
+
+                  // Fallback to largest available size if requested size not available
+                  if (!imageUrl) {
+                    imageUrl = sizeDetails.X3LargeImageUrl ||
+                              sizeDetails.X2LargeImageUrl ||
+                              sizeDetails.XLargeImageUrl ||
+                              sizeDetails.LargeImageUrl ||
+                              sizeDetails.MediumImageUrl ||
+                              sizeDetails.SmallImageUrl ||
+                              sizeDetails.ThumbImageUrl ||
+                              image.ArchivedUri ||
+                              null;
+                  }
+                } else {
+                  // If ImageSizeDetails fails, fall back to ArchivedUri
+                  imageUrl = image.ArchivedUri || null;
+                }
               }
 
               if (!imageUrl) {

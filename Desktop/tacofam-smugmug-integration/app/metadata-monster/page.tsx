@@ -42,6 +42,7 @@ interface PhotoWithMetadata extends Photo {
   generated?: GeneratedMetadata;
   status: 'pending' | 'generating' | 'generated' | 'saving' | 'saved' | 'error';
   error?: string;
+  albumKey?: string; // Track which album this photo belongs to (needed for Seek & Capture mode)
 }
 
 type PromptStyle = 'professional' | 'creative' | 'descriptive' | 'seo' | 'minimal';
@@ -286,19 +287,20 @@ export default function MetaDataMonster() {
   const saveMetadata = async (photo: PhotoWithMetadata): Promise<void> => {
     if (!photo.generated) return;
 
-    // Only include fields that were actually generated (and have values)
+    // Include fields that should be updated (based on checkboxes)
+    // This allows users to clear metadata by setting empty strings
     const updateData: any = {};
-    if (options.generateTitle && photo.generated.title) {
-      updateData.Title = photo.generated.title;
+    if (options.generateTitle) {
+      updateData.Title = photo.generated.title || ''; // Empty string will clear the field
     }
-    if (options.generateCaption && photo.generated.caption) {
-      updateData.Caption = photo.generated.caption;
+    if (options.generateCaption) {
+      updateData.Caption = photo.generated.caption || ''; // Empty string will clear the field
     }
-    if (options.generateKeywords && photo.generated.keywords) {
-      updateData.Keywords = photo.generated.keywords;
+    if (options.generateKeywords) {
+      updateData.Keywords = photo.generated.keywords || ''; // Empty string will clear the field
     }
 
-    // Don't send request if no data to update
+    // Don't send request if no fields are enabled
     if (Object.keys(updateData).length === 0) {
       return;
     }
@@ -319,8 +321,17 @@ export default function MetaDataMonster() {
 
     console.log('Saving metadata for image:', versionedImageKey, updateData);
 
+    // Determine the actual album key to use
+    // For normal mode: use selectedAlbum
+    // For Seek & Capture mode: use the photo's albumKey property
+    const actualAlbumKey = photo.albumKey || selectedAlbum;
+
+    if (!actualAlbumKey || actualAlbumKey === 'mixed') {
+      throw new Error('Cannot save: No valid album key. This photo needs an album key set.');
+    }
+
     // Use AlbumImage endpoint with versioned image key to avoid redirect and nonce issues
-    const response = await fetch(`/api/smugmug/album/${selectedAlbum}/image/${versionedImageKey}`, {
+    const response = await fetch(`/api/smugmug/album/${actualAlbumKey}/image/${versionedImageKey}`, {
       method: 'PATCH',
       credentials: 'include',
       headers: {
