@@ -29,6 +29,7 @@ function HomeContent() {
   const [isConnectionVerified, setIsConnectionVerified] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
+  const [embedWorkflowStep, setEmbedWorkflowStep] = useState<'select-albums' | 'select-photos' | 'generate-embed'>('select-albums');
 
   // Pagination, filtering, and sorting state
   const [searchTerm, setSearchTerm] = useState('');
@@ -116,6 +117,20 @@ function HomeContent() {
     }
   };
 
+  // Auto-load albums when Embed & Sell tool is selected
+  useEffect(() => {
+    if (selectedTool === 'embed-sell') {
+      // Reset workflow to first step
+      setEmbedWorkflowStep('select-albums');
+      setSelectedAlbumsForEmbed(new Set());
+
+      // Auto-load albums
+      if (albums.length === 0 && !loading) {
+        fetchAlbums();
+      }
+    }
+  }, [selectedTool]);
+
   // Filter albums by search term
   const filteredAlbums = albums.filter((album) =>
     album.Name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -147,12 +162,12 @@ function HomeContent() {
           <p className="text-xl mb-8 text-gray-300">
             Professional SmugMug Tools for Photographers
           </p>
-          <button
-            onClick={() => router.push('/auth/signin')}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-xl"
+          <a
+            href="/auth/signin"
+            className="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-xl"
           >
             Sign In
-          </button>
+          </a>
         </div>
       </main>
     );
@@ -173,17 +188,26 @@ function HomeContent() {
           </p>
           <div className="flex flex-col gap-3 items-center">
             <button
-              onClick={verifySmugMugConnection}
+              onClick={handleAuth}
               disabled={connectionChecking}
               className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             >
-              {connectionChecking ? 'Checking Connection…' : 'Retry Connection Check'}
+              Connect SmugMug Account
             </button>
+            {verificationAttempts > 0 && (
+              <button
+                onClick={verifySmugMugConnection}
+                disabled={connectionChecking}
+                className="bg-gray-500 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+              >
+                {connectionChecking ? 'Checking Connection…' : 'Retry Connection Check'}
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
-              Use a different SmugMug account
+              Sign out
             </button>
           </div>
         </div>
@@ -388,11 +412,36 @@ function HomeContent() {
           </div>
         )}
 
-        {/* Albums Section */}
+        {/* Workflow Progress Indicator */}
+        <div className="mb-8 flex items-center justify-center gap-4">
+          <div className={`flex items-center gap-2 ${embedWorkflowStep === 'select-albums' ? 'text-purple-600 font-semibold' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${embedWorkflowStep === 'select-albums' ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-600'}`}>
+              1
+            </div>
+            <span>Select Albums</span>
+          </div>
+          <div className="w-12 h-1 bg-gray-300"></div>
+          <div className={`flex items-center gap-2 ${embedWorkflowStep === 'select-photos' ? 'text-purple-600 font-semibold' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${embedWorkflowStep === 'select-photos' ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-600'}`}>
+              2
+            </div>
+            <span>Select Photos</span>
+          </div>
+          <div className="w-12 h-1 bg-gray-300"></div>
+          <div className={`flex items-center gap-2 ${embedWorkflowStep === 'generate-embed' ? 'text-purple-600 font-semibold' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${embedWorkflowStep === 'generate-embed' ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-600'}`}>
+              3
+            </div>
+            <span>Generate Embed</span>
+          </div>
+        </div>
+
+        {/* Step 1: Albums Section */}
+        {embedWorkflowStep === 'select-albums' && (
         <div>
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-800">Select Albums</h2>
+              <h2 className="text-2xl font-semibold text-gray-800">Step 1: Select Albums</h2>
               <p className="text-sm text-gray-600 mt-1">
                 Choose one or more albums to select photos from
               </p>
@@ -401,9 +450,8 @@ function HomeContent() {
               {selectedAlbumsForEmbed.size > 0 && (
                 <button
                   onClick={() => {
-                    // Navigate to multi-album photo selector
-                    const albumKeys = Array.from(selectedAlbumsForEmbed).join(',');
-                    router.push(`/multi-album-selector?albums=${albumKeys}`);
+                    // Move to next step in Embed & Sell workflow
+                    setEmbedWorkflowStep('select-photos');
                   }}
                   className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors font-medium"
                 >
@@ -535,6 +583,53 @@ function HomeContent() {
             </>
           )}
         </div>
+        )}
+
+        {/* Step 2: Select Photos */}
+        {embedWorkflowStep === 'select-photos' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-800">Step 2: Select Photos</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Loading photos from selected albums... (Coming soon!)
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setEmbedWorkflowStep('select-albums')}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors font-medium"
+                >
+                  Back to Albums
+                </button>
+              </div>
+            </div>
+            <div className="text-center py-20 text-gray-500">
+              <ImageIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <p>Photo selection interface coming soon!</p>
+              <p className="text-sm mt-2">This step will show all photos from your selected albums</p>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Generate Embed Code */}
+        {embedWorkflowStep === 'generate-embed' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-800">Step 3: Generate Embed Code</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Generate embeddable gallery code (Coming soon!)
+                </p>
+              </div>
+            </div>
+            <div className="text-center py-20 text-gray-500">
+              <Code2 className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <p>Embed code generation coming soon!</p>
+              <p className="text-sm mt-2">This step will generate HTML, React, and JSON embed codes</p>
+            </div>
+          </div>
+        )}
 
       </div>
     </main>

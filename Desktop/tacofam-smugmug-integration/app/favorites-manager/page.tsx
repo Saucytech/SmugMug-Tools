@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Link2, Users, Heart, Trash2, Copy, Check, Eye, Upload, Image } from 'lucide-react';
+import { ArrowLeft, Plus, Link2, Users, Heart, Trash2, Copy, Check, Eye, Upload, Image, LayoutGrid, LayoutList } from 'lucide-react';
 import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
 import { favoritesStorage, FavoriteSession } from '@/lib/favorites-storage';
 import ToolboxHeader from '@/components/ToolboxHeader';
@@ -19,6 +19,7 @@ export default function FavoritesManagerPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
 
   // Create session form
   const [sessionName, setSessionName] = useState('');
@@ -62,7 +63,8 @@ export default function FavoritesManagerPage() {
 
   const loadSessions = () => {
     const allSessions = favoritesStorage.getAllSessions();
-    setSessions(allSessions);
+    // Reverse the array to show most recent sessions at the top
+    setSessions(allSessions.reverse());
   };
 
   const loadAlbums = async () => {
@@ -179,13 +181,44 @@ export default function FavoritesManagerPage() {
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">Favorites Manager</h1>
               <p className="text-sm sm:text-base text-gray-600">Create sessions for customers to select their favorite photos</p>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors min-h-[44px] font-semibold whitespace-nowrap"
-            >
-              <Plus className="w-5 h-5" />
-              <span>New Session</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* View Toggle */}
+              {sessions.length > 0 && (
+                <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('card')}
+                    className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+                      viewMode === 'card'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                    title="Card view"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    <span className="hidden sm:inline text-sm font-medium">Card</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`flex items-center gap-2 px-3 py-2 rounded transition-colors ${
+                      viewMode === 'list'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                    title="List view"
+                  >
+                    <LayoutList className="w-4 h-4" />
+                    <span className="hidden sm:inline text-sm font-medium">List</span>
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors min-h-[44px] font-semibold whitespace-nowrap"
+              >
+                <Plus className="w-5 h-5" />
+                <span>New Session</span>
+              </button>
+            </div>
           </div>
 
         {/* Sessions List */}
@@ -202,114 +235,172 @@ export default function FavoritesManagerPage() {
               <span>Create Your First Session</span>
             </button>
           </div>
+        ) : viewMode === 'list' ? (
+          /* List View - Compact */
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Session</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Albums</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Customers</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Favorites</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {sessions.map((session) => (
+                    <tr key={session.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-900">{session.name}</span>
+                          {session.description && (
+                            <span className="text-sm text-gray-600 mt-1">{session.description}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {session.albumKeys.length}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium text-gray-900">{getTotalCustomers(session)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-1.5">
+                          <Heart className="w-4 h-4 text-pink-600" />
+                          <span className="text-sm font-medium text-gray-900">{getTotalFavorites(session)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => copyLink(session.id)}
+                            className="p-2 hover:bg-purple-100 rounded-lg transition-colors text-purple-600"
+                            title="Copy link"
+                          >
+                            {copiedLink === session.id ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Link2 className="w-4 h-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => router.push(`/favorites-manager/${session.id}`)}
+                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
+                            title="View results"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSession(session.id)}
+                            className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600"
+                            title="Delete session"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
-          <div className="grid gap-4 sm:gap-6">
+          /* Card View - Grid */
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sessions.map((session) => (
-              <div key={session.id} className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-gray-200">
-                <div className="flex items-start justify-between gap-3 mb-4">
+              <div key={session.id} className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-shadow flex flex-col">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 break-words">{session.name}</h2>
+                    <h2 className="text-lg font-bold text-gray-900 mb-1 truncate">{session.name}</h2>
                     {session.description && (
-                      <p className="text-sm sm:text-base text-gray-600 mb-3 break-words">{session.description}</p>
+                      <p className="text-sm text-gray-600 line-clamp-2">{session.description}</p>
                     )}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <span className="px-2 sm:px-3 py-1 bg-purple-100 text-purple-700 text-xs sm:text-sm font-semibold rounded-full">
-                        {session.albumKeys.length} Album{session.albumKeys.length !== 1 ? 's' : ''}
-                      </span>
-                      <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 text-xs sm:text-sm font-semibold rounded-full flex items-center gap-1">
-                        <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                        {getTotalCustomers(session)} Customer{getTotalCustomers(session) !== 1 ? 's' : ''}
-                      </span>
-                      <span className="px-2 sm:px-3 py-1 bg-pink-100 text-pink-700 text-xs sm:text-sm font-semibold rounded-full flex items-center gap-1">
-                        <Heart className="w-3 h-3 sm:w-4 sm:h-4" />
-                        {getTotalFavorites(session)} Favorite{getTotalFavorites(session) !== 1 ? 's' : ''}
-                      </span>
-                    </div>
                   </div>
                   <button
                     onClick={() => handleDeleteSession(session.id)}
-                    className="p-3 hover:bg-red-100 rounded-lg transition-colors text-red-600 flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600 flex-shrink-0"
                     title="Delete session"
-                    aria-label="Delete session"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
+                {/* Stats */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
+                    {session.albumKeys.length} Album{session.albumKeys.length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    {getTotalCustomers(session)}
+                  </span>
+                  <span className="px-2 py-0.5 bg-pink-100 text-pink-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                    <Heart className="w-3 h-3" />
+                    {getTotalFavorites(session)}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 mt-auto">
                   <button
                     onClick={() => copyLink(session.id)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg transition-colors font-semibold min-h-[44px] text-sm sm:text-base"
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium"
+                    title="Copy share link"
                   >
                     {copiedLink === session.id ? (
                       <>
-                        <Check className="w-5 h-5" />
-                        <span>Link Copied!</span>
+                        <Check className="w-4 h-4" />
+                        <span>Copied!</span>
                       </>
                     ) : (
                       <>
-                        <Link2 className="w-5 h-5" />
-                        <span className="hidden sm:inline">Copy Share Link</span>
-                        <span className="sm:hidden">Copy Link</span>
+                        <Link2 className="w-4 h-4" />
+                        <span>Copy Link</span>
                       </>
                     )}
                   </button>
                   <button
                     onClick={() => router.push(`/favorites-manager/${session.id}`)}
-                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors font-semibold min-h-[44px] text-sm sm:text-base"
+                    className="flex items-center justify-center gap-1.5 bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium"
+                    title="View results"
                   >
-                    <Eye className="w-5 h-5" />
-                    <span>View Results</span>
+                    <Eye className="w-4 h-4" />
+                    <span>Results</span>
                   </button>
                 </div>
 
-                {/* Customer Details */}
+                {/* Customer List - Compact */}
                 {Object.keys(session.customerFavorites).length > 0 && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">Customer Selections:</p>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {Object.entries(session.customerFavorites).map(([email, data]) => (
-                        <div key={email} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-3 h-3 text-blue-600" />
-                            <span className="font-medium text-gray-800">
-                              {data.customerName || 'Unknown'}
-                            </span>
-                            <span className="text-gray-600">({email})</span>
-                          </div>
-                          <span className="text-blue-600 font-semibold">
-                            {data.photoKeys.length} photos
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Recent Customers:</p>
+                    <div className="space-y-1.5">
+                      {Object.entries(session.customerFavorites).slice(0, 2).map(([email, data]) => (
+                        <div key={email} className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-gray-800 truncate flex-1">
+                            {data.customerName || email}
+                          </span>
+                          <span className="text-blue-600 font-semibold ml-2">
+                            {data.photoKeys.length}
                           </span>
                         </div>
                       ))}
+                      {Object.keys(session.customerFavorites).length > 2 && (
+                        <p className="text-xs text-gray-500 italic">
+                          +{Object.keys(session.customerFavorites).length - 2} more...
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
-
-                {/* Customer Link Display */}
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-700 mb-1">Customer Link:</p>
-                      <a
-                        href={favoritesStorage.generateLink(session.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-700 underline break-all font-mono"
-                      >
-                        {favoritesStorage.generateLink(session.id)}
-                      </a>
-                    </div>
-                    <button
-                      onClick={() => window.open(favoritesStorage.generateLink(session.id), '_blank')}
-                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium flex-shrink-0"
-                      title="Preview customer view"
-                    >
-                      <Eye className="w-4 h-4" />
-                      Preview
-                    </button>
-                  </div>
-                </div>
               </div>
             ))}
           </div>
