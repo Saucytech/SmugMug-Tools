@@ -721,33 +721,49 @@ export default function AIGalleryCreatorPage() {
   };
 
   // Template management functions
-  const saveAsTemplate = () => {
+  const saveAsTemplate = async () => {
     if (!templateName.trim()) {
       alert('Please enter a template name');
       return;
     }
 
-    const newTemplate: Template = {
-      id: Date.now().toString(),
-      name: templateName,
-      description: templateDescription || `Custom template created on ${new Date().toLocaleDateString()}`,
-      category: templateCategory,
-      folders: manualFolders,
-      galleries: manualGalleries,
-      createdAt: new Date().toISOString(),
-      isPrebuilt: false,
-    };
+    const templateId = `template_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    const updated = [...userTemplates, newTemplate];
-    setUserTemplates(updated);
-    localStorage.setItem('ai-gallery-templates', JSON.stringify(updated));
+    try {
+      const response = await fetch('/api/gallery-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          templateId,
+          name: templateName,
+          description: templateDescription || `Custom template created on ${new Date().toLocaleDateString()}`,
+          category: templateCategory,
+          folders: manualFolders,
+          galleries: manualGalleries,
+        }),
+      });
 
-    setTemplateName('');
-    setTemplateDescription('');
-    setTemplateCategory('Custom');
-    setShowTemplateModal(false);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save template');
+      }
 
-    alert(`✅ Template "${newTemplate.name}" saved successfully!`);
+      const { template } = await response.json();
+
+      // Add to local state
+      setUserTemplates(prev => [...prev, template]);
+
+      setTemplateName('');
+      setTemplateDescription('');
+      setTemplateCategory('Custom');
+      setShowTemplateModal(false);
+
+      alert(`✅ Template "${template.name}" saved successfully!`);
+    } catch (error) {
+      console.error('Error saving template:', error);
+      alert(`❌ Failed to save template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const loadTemplate = (template: Template) => {
@@ -757,25 +773,50 @@ export default function AIGalleryCreatorPage() {
     alert(`✅ Template "${template.name}" loaded!`);
   };
 
-  const deleteTemplate = (templateId: string) => {
+  const deleteTemplate = async (templateId: string) => {
     if (!confirm('Are you sure you want to delete this template?')) return;
 
-    const updated = userTemplates.filter(t => t.id !== templateId);
-    setUserTemplates(updated);
-    localStorage.setItem('ai-gallery-templates', JSON.stringify(updated));
-    alert('✅ Template deleted');
+    try {
+      const response = await fetch(`/api/gallery-templates?templateId=${templateId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete template');
+      }
+
+      // Remove from local state
+      setUserTemplates(prev => prev.filter(t => t.id !== templateId));
+
+      alert('✅ Template deleted');
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      alert(`❌ Failed to delete template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
-  // Load user templates from localStorage on mount
+  // Load user templates from database on mount
   useEffect(() => {
-    const saved = localStorage.getItem('ai-gallery-templates');
-    if (saved) {
+    const loadUserTemplates = async () => {
       try {
-        setUserTemplates(JSON.parse(saved));
-      } catch (_error) {
-        console.error('Error loading templates:', _error);
+        const response = await fetch('/api/gallery-templates', {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserTemplates(data.templates || []);
+        } else {
+          console.error('Failed to load user templates');
+        }
+      } catch (error) {
+        console.error('Error loading user templates:', error);
       }
-    }
+    };
+
+    loadUserTemplates();
   }, []);
 
   const renderPlanPreview = (plan: CreationPlan) => {

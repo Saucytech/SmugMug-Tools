@@ -15,6 +15,22 @@ interface Album {
   UrlName?: string;
 }
 
+interface Photo {
+  ImageKey: string;
+  Title?: string;
+  Caption?: string;
+  FileName: string;
+  ArchivedUri: string;
+  ThumbnailUrl?: string;
+  AlbumKey: string;
+  Uri: string;
+  Uris?: {
+    LargestImage?: {
+      Uri: string;
+    };
+  };
+}
+
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,6 +46,15 @@ function HomeContent() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [selectedAlbumsForEmbed, setSelectedAlbumsForEmbed] = useState<Set<string>>(new Set());
   const [embedWorkflowStep, setEmbedWorkflowStep] = useState<'select-albums' | 'select-photos' | 'generate-embed'>('select-albums');
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [embedLayout, setEmbedLayout] = useState<'grid' | 'carousel' | 'masonry' | 'slideshow' | 'polaroid'>('grid');
+  const [embedFormat, setEmbedFormat] = useState<'html' | 'react' | 'json'>('html');
+  const [showBuyButtons, setShowBuyButtons] = useState(true);
+  const [buyButtonText, setBuyButtonText] = useState('Buy Now');
+  const [buyButtonColor, setBuyButtonColor] = useState('#8b5cf6');
+  const [showPreview, setShowPreview] = useState(false);
 
   // Pagination, filtering, and sorting state
   const [searchTerm, setSearchTerm] = useState('');
@@ -117,6 +142,317 @@ function HomeContent() {
     }
   };
 
+  const fetchPhotosFromAlbums = async () => {
+    setLoadingPhotos(true);
+    setError(null);
+    try {
+      const allPhotos: Photo[] = [];
+
+      // Fetch images from each selected album
+      for (const albumKey of Array.from(selectedAlbumsForEmbed)) {
+        const data = await smugmugApi.getAlbumImages(albumKey);
+        const albumPhotos = (data.images || []).map((img: any) => ({
+          ...img,
+          AlbumKey: albumKey,
+        }));
+        allPhotos.push(...albumPhotos);
+      }
+
+      setPhotos(allPhotos);
+    } catch (err) {
+      setError('Failed to load photos. Please try again.');
+      console.error('Error fetching photos:', err);
+    } finally {
+      setLoadingPhotos(false);
+    }
+  };
+
+  const generateEmbedCode = () => {
+    const selectedPhotosList = photos.filter(p => selectedPhotos.has(p.ImageKey));
+
+    if (embedFormat === 'json') {
+      return JSON.stringify(
+        {
+          layout: embedLayout,
+          showBuyButtons,
+          buyButtonText,
+          buyButtonColor,
+          photos: selectedPhotosList.map(p => ({
+            imageKey: p.ImageKey,
+            title: p.Title || p.FileName,
+            caption: p.Caption || '',
+            thumbnailUrl: p.ThumbnailUrl || p.ArchivedUri,
+            largeImageUrl: p.Uris?.LargestImage?.Uri || p.ArchivedUri,
+            fileName: p.FileName,
+          })),
+        },
+        null,
+        2
+      );
+    }
+
+    if (embedFormat === 'react') {
+      const layoutClass = embedLayout === 'grid' ? 'grid grid-cols-3 gap-4' :
+                         embedLayout === 'carousel' ? 'flex overflow-x-auto gap-4' :
+                         embedLayout === 'masonry' ? 'columns-3 gap-4' :
+                         embedLayout === 'slideshow' ? 'relative' :
+                         'grid grid-cols-3 gap-4';
+
+      return `import React, { useState } from 'react';
+
+const SmugMugGallery = () => {
+  const photos = ${JSON.stringify(
+    selectedPhotosList.map(p => ({
+      imageKey: p.ImageKey,
+      title: p.Title || p.FileName,
+      thumbnailUrl: p.ThumbnailUrl || p.ArchivedUri,
+      largeImageUrl: p.Uris?.LargestImage?.Uri || p.ArchivedUri,
+    })),
+    null,
+    2
+  )};
+  ${embedLayout === 'slideshow' ? `
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const nextSlide = () => setCurrentIndex((prev) => (prev + 1) % photos.length);
+  const prevSlide = () => setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
+  ` : ''}
+
+  return (
+    <div className="smugmug-gallery-${embedLayout}">
+      ${embedLayout === 'slideshow' ? `
+      <div className="slideshow-container">
+        <img src={photos[currentIndex].thumbnailUrl} alt={photos[currentIndex].title} />
+        <h3>{photos[currentIndex].title}</h3>
+        <button onClick={prevSlide}>Previous</button>
+        <button onClick={nextSlide}>Next</button>
+        ${showBuyButtons ? `<button style={{ backgroundColor: '${buyButtonColor}' }}>${buyButtonText}</button>` : ''}
+      </div>
+      ` : embedLayout === 'polaroid' ? `
+      <div className="polaroid-grid">
+        {photos.map((photo) => (
+          <div key={photo.imageKey} className="polaroid-frame">
+            <img src={photo.thumbnailUrl} alt={photo.title} />
+            <p className="polaroid-caption">{photo.title}</p>
+            ${showBuyButtons ? `<button style={{ backgroundColor: '${buyButtonColor}' }}>${buyButtonText}</button>` : ''}
+          </div>
+        ))}
+      </div>
+      ` : `
+      <div className="${layoutClass}">
+        {photos.map((photo) => (
+          <div key={photo.imageKey} className="photo-item">
+            <img src={photo.thumbnailUrl} alt={photo.title} />
+            <h3>{photo.title}</h3>
+            ${showBuyButtons ? `<button style={{ backgroundColor: '${buyButtonColor}' }}>${buyButtonText}</button>` : ''}
+          </div>
+        ))}
+      </div>
+      `}
+    </div>
+  );
+};
+
+export default SmugMugGallery;`;
+    }
+
+    // Determine hover color (darken by ~10%)
+    const hoverColor = buyButtonColor.replace(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i, (match, r, g, b) => {
+      const darken = (hex: string) => Math.max(0, parseInt(hex, 16) - 20).toString(16).padStart(2, '0');
+      return `#${darken(r)}${darken(g)}${darken(b)}`;
+    });
+
+    // HTML format with all layouts
+    const layoutStyles = {
+      grid: `
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 20px;
+    }`,
+      carousel: `
+    .gallery-carousel {
+      display: flex;
+      overflow-x: auto;
+      gap: 20px;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 10px;
+    }
+    .gallery-carousel .photo-item {
+      flex: 0 0 300px;
+      scroll-snap-align: start;
+    }`,
+      masonry: `
+    .gallery-masonry {
+      column-count: 3;
+      column-gap: 20px;
+    }
+    .gallery-masonry .photo-item {
+      break-inside: avoid;
+      margin-bottom: 30px;
+      padding-bottom: 10px;
+    }`,
+      slideshow: `
+    .gallery-slideshow {
+      position: relative;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .slideshow-image {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+    .slideshow-controls {
+      position: absolute;
+      top: 50%;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20px;
+      transform: translateY(-50%);
+    }
+    .slideshow-button {
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .slideshow-button:hover {
+      background: rgba(0, 0, 0, 0.7);
+    }`,
+      polaroid: `
+    .gallery-polaroid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 30px;
+    }
+    .polaroid-frame {
+      background: white;
+      padding: 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transform: rotate(-2deg);
+      transition: transform 0.3s;
+    }
+    .polaroid-frame:nth-child(even) {
+      transform: rotate(2deg);
+    }
+    .polaroid-frame:hover {
+      transform: rotate(0deg) scale(1.05);
+      z-index: 10;
+    }
+    .polaroid-frame img {
+      width: 100%;
+      height: auto;
+      border-radius: 0;
+    }
+    .polaroid-caption {
+      text-align: center;
+      margin-top: 10px;
+      font-family: 'Permanent Marker', cursive;
+      font-size: 16px;
+      color: #333;
+    }`
+    };
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmugMug Gallery</title>
+  ${embedLayout === 'polaroid' ? '<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap" rel="stylesheet">' : ''}
+  <style>
+    .smugmug-gallery-${embedLayout} {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    ${layoutStyles[embedLayout]}
+    .photo-item img {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .photo-title {
+      margin-top: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .buy-button {
+      margin-top: 8px;
+      padding: 8px 16px;
+      background-color: ${buyButtonColor};
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .buy-button:hover {
+      background-color: ${hoverColor};
+    }
+  </style>
+  ${embedLayout === 'slideshow' ? `
+  <script>
+    let currentSlide = 0;
+    const photos = ${JSON.stringify(selectedPhotosList.map(p => ({
+      src: p.ThumbnailUrl || p.ArchivedUri,
+      title: p.Title || p.FileName
+    })))};
+
+    function showSlide(n) {
+      currentSlide = (n + photos.length) % photos.length;
+      document.getElementById('slideshow-image').src = photos[currentSlide].src;
+      document.getElementById('slideshow-title').textContent = photos[currentSlide].title;
+    }
+
+    function nextSlide() { showSlide(currentSlide + 1); }
+    function prevSlide() { showSlide(currentSlide - 1); }
+  </script>` : ''}
+</head>
+<body>
+  <div class="smugmug-gallery-${embedLayout}">
+    ${embedLayout === 'slideshow' ? `
+    <div class="gallery-slideshow">
+      <img id="slideshow-image" src="${selectedPhotosList[0]?.ThumbnailUrl || selectedPhotosList[0]?.ArchivedUri}" alt="${selectedPhotosList[0]?.Title || selectedPhotosList[0]?.FileName}" class="slideshow-image" />
+      <div class="photo-title" id="slideshow-title">${selectedPhotosList[0]?.Title || selectedPhotosList[0]?.FileName}</div>
+      ${showBuyButtons ? `<button class="buy-button">${buyButtonText}</button>` : ''}
+      <div class="slideshow-controls">
+        <button onclick="prevSlide()" class="slideshow-button">← Previous</button>
+        <button onclick="nextSlide()" class="slideshow-button">Next →</button>
+      </div>
+    </div>` : `
+    <div class="gallery-${embedLayout}">
+${selectedPhotosList
+  .map(
+    p => embedLayout === 'polaroid' ?
+      `      <div class="polaroid-frame">
+        <img src="${p.ThumbnailUrl || p.ArchivedUri}" alt="${p.Title || p.FileName}" />
+        <p class="polaroid-caption">${p.Title || p.FileName}</p>
+        ${showBuyButtons ? `<button class="buy-button">${buyButtonText}</button>` : ''}
+      </div>` :
+      `      <div class="photo-item">
+        <img src="${p.ThumbnailUrl || p.ArchivedUri}" alt="${p.Title || p.FileName}" />
+        <div class="photo-title">${p.Title || p.FileName}</div>
+        ${showBuyButtons ? `<button class="buy-button">${buyButtonText}</button>` : ''}
+      </div>`
+  )
+  .join('\n')}
+    </div>`}
+  </div>
+</body>
+</html>`;
+  };
+
+  const copyToClipboard = () => {
+    const code = generateEmbedCode();
+    navigator.clipboard.writeText(code);
+    alert('Embed code copied to clipboard!');
+  };
+
   // Auto-load albums when Embed & Sell tool is selected
   useEffect(() => {
     if (selectedTool === 'embed-sell') {
@@ -130,6 +466,13 @@ function HomeContent() {
       }
     }
   }, [selectedTool]);
+
+  // Auto-load photos when moving to Step 2
+  useEffect(() => {
+    if (embedWorkflowStep === 'select-photos' && selectedAlbumsForEmbed.size > 0) {
+      fetchPhotosFromAlbums();
+    }
+  }, [embedWorkflowStep]);
 
   // Filter albums by search term
   const filteredAlbums = albums.filter((album) =>
@@ -592,10 +935,20 @@ function HomeContent() {
               <div>
                 <h2 className="text-2xl font-semibold text-gray-800">Step 2: Select Photos</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Loading photos from selected albums... (Coming soon!)
+                  {loadingPhotos
+                    ? `Loading photos from ${selectedAlbumsForEmbed.size} album${selectedAlbumsForEmbed.size !== 1 ? 's' : ''}...`
+                    : `Select photos from ${photos.length} loaded images`}
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                {selectedPhotos.size > 0 && !loadingPhotos && (
+                  <button
+                    onClick={() => setEmbedWorkflowStep('generate-embed')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors font-medium"
+                  >
+                    Continue with {selectedPhotos.size} Photo{selectedPhotos.size !== 1 ? 's' : ''}
+                  </button>
+                )}
                 <button
                   onClick={() => setEmbedWorkflowStep('select-albums')}
                   className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors font-medium"
@@ -604,11 +957,96 @@ function HomeContent() {
                 </button>
               </div>
             </div>
-            <div className="text-center py-20 text-gray-500">
-              <ImageIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-              <p>Photo selection interface coming soon!</p>
-              <p className="text-sm mt-2">This step will show all photos from your selected albums</p>
-            </div>
+
+            {loadingPhotos && (
+              <div className="text-center py-20 text-gray-500">
+                <ImageIcon className="w-16 h-16 mx-auto mb-4 text-gray-400 animate-pulse" />
+                <p className="text-lg font-medium">Loading photos...</p>
+                <p className="text-sm mt-2">Fetching images from your selected albums</p>
+              </div>
+            )}
+
+            {!loadingPhotos && photos.length === 0 && (
+              <div className="text-center py-20 text-gray-500">
+                <ImageIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <p>No photos found in selected albums</p>
+                <button
+                  onClick={() => setEmbedWorkflowStep('select-albums')}
+                  className="mt-4 text-blue-600 hover:text-blue-700 underline"
+                >
+                  Go back and select different albums
+                </button>
+              </div>
+            )}
+
+            {!loadingPhotos && photos.length > 0 && (
+              <>
+                {/* Selection Controls */}
+                <div className="flex justify-between items-center mb-6 p-4 bg-gray-100 rounded-lg">
+                  <div className="text-sm text-gray-700">
+                    <span className="font-semibold">{selectedPhotos.size}</span> of{' '}
+                    <span className="font-semibold">{photos.length}</span> photos selected
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedPhotos(new Set(photos.map(p => p.ImageKey)))}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={() => setSelectedPhotos(new Set())}
+                      className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
+
+                {/* Photos Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {photos.map((photo) => {
+                    const isSelected = selectedPhotos.has(photo.ImageKey);
+                    return (
+                      <button
+                        key={photo.ImageKey}
+                        onClick={() => {
+                          const newSelection = new Set(selectedPhotos);
+                          if (isSelected) {
+                            newSelection.delete(photo.ImageKey);
+                          } else {
+                            newSelection.add(photo.ImageKey);
+                          }
+                          setSelectedPhotos(newSelection);
+                        }}
+                        className={`relative aspect-square rounded-lg overflow-hidden border-4 transition-all hover:shadow-lg ${
+                          isSelected
+                            ? 'border-purple-500 ring-4 ring-purple-200'
+                            : 'border-gray-200 hover:border-blue-400'
+                        }`}
+                      >
+                        <img
+                          src={photo.ThumbnailUrl || photo.ArchivedUri}
+                          alt={photo.Title || photo.FileName}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 bg-purple-500 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-lg">
+                            <span className="text-xs font-bold">✓</span>
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                          <p className="text-white text-xs truncate">
+                            {photo.Title || photo.FileName}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -619,14 +1057,327 @@ function HomeContent() {
               <div>
                 <h2 className="text-2xl font-semibold text-gray-800">Step 3: Generate Embed Code</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Generate embeddable gallery code (Coming soon!)
+                  Customize and copy your embeddable gallery code
                 </p>
               </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setEmbedWorkflowStep('select-photos')}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors font-medium"
+                >
+                  Back to Photos
+                </button>
+              </div>
             </div>
-            <div className="text-center py-20 text-gray-500">
-              <Code2 className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-              <p>Embed code generation coming soon!</p>
-              <p className="text-sm mt-2">This step will generate HTML, React, and JSON embed codes</p>
+
+            {/* Configuration Options */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {/* Layout Selection */}
+              <div className="bg-white rounded-lg p-6 shadow-md">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">Layout Style</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setEmbedLayout('grid')}
+                    className={`text-center px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                      embedLayout === 'grid'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Grid
+                  </button>
+                  <button
+                    onClick={() => setEmbedLayout('carousel')}
+                    className={`text-center px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                      embedLayout === 'carousel'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Carousel
+                  </button>
+                  <button
+                    onClick={() => setEmbedLayout('masonry')}
+                    className={`text-center px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                      embedLayout === 'masonry'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Collage
+                  </button>
+                  <button
+                    onClick={() => setEmbedLayout('slideshow')}
+                    className={`text-center px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                      embedLayout === 'slideshow'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Slideshow
+                  </button>
+                  <button
+                    onClick={() => setEmbedLayout('polaroid')}
+                    className={`text-center px-3 py-2 rounded-lg transition-all text-sm font-medium col-span-2 ${
+                      embedLayout === 'polaroid'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Polaroid
+                  </button>
+                </div>
+              </div>
+
+              {/* Format Selection */}
+              <div className="bg-white rounded-lg p-6 shadow-md">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">Code Format</h3>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setEmbedFormat('html')}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-all ${
+                      embedFormat === 'html'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <div className="font-semibold">HTML</div>
+                    <div className="text-sm opacity-80">Static HTML page</div>
+                  </button>
+                  <button
+                    onClick={() => setEmbedFormat('react')}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-all ${
+                      embedFormat === 'react'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <div className="font-semibold">React</div>
+                    <div className="text-sm opacity-80">React component</div>
+                  </button>
+                  <button
+                    onClick={() => setEmbedFormat('json')}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-all ${
+                      embedFormat === 'json'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <div className="font-semibold">JSON</div>
+                    <div className="text-sm opacity-80">Data only</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Additional Options */}
+              <div className="bg-white rounded-lg p-6 shadow-md">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">Options</h3>
+                <div className="space-y-4">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showBuyButtons}
+                      onChange={(e) => setShowBuyButtons(e.target.checked)}
+                      className="w-5 h-5 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="ml-3 text-gray-700 font-medium">Show Buy Buttons</span>
+                  </label>
+
+                  {showBuyButtons && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Button Text
+                        </label>
+                        <input
+                          type="text"
+                          value={buyButtonText}
+                          onChange={(e) => setBuyButtonText(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                          placeholder="Buy Now"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Button Color
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="color"
+                            value={buyButtonColor}
+                            onChange={(e) => setBuyButtonColor(e.target.value)}
+                            className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={buyButtonColor}
+                            onChange={(e) => setBuyButtonColor(e.target.value)}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm font-mono"
+                            placeholder="#8b5cf6"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="text-sm text-gray-600">
+                      <strong>{selectedPhotos.size}</strong> photos selected
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Code/Preview Section */}
+            <div className="bg-white rounded-lg p-6 shadow-md">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {showPreview ? 'Live Preview' : 'Generated Code'}
+                </h3>
+                <div className="flex items-center gap-3">
+                  {/* Toggle between Code and Preview */}
+                  <div className="flex bg-gray-200 rounded-lg p-1">
+                    <button
+                      onClick={() => setShowPreview(false)}
+                      className={`px-4 py-2 rounded-lg transition-all font-medium ${
+                        !showPreview
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Code
+                    </button>
+                    <button
+                      onClick={() => setShowPreview(true)}
+                      className={`px-4 py-2 rounded-lg transition-all font-medium ${
+                        showPreview
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Preview
+                    </button>
+                  </div>
+                  {!showPreview && (
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                    >
+                      <Code2 className="w-4 h-4" />
+                      Copy to Clipboard
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Code View */}
+              {!showPreview && (
+                <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm font-mono">
+                  <code className="text-gray-100">{generateEmbedCode()}</code>
+                </pre>
+              )}
+
+              {/* Preview View */}
+              {showPreview && (
+                <div className="border-2 border-gray-200 rounded-lg p-6 bg-gray-50 min-h-[400px]">
+                  {embedLayout === 'slideshow' ? (
+                    <div className="max-w-2xl mx-auto">
+                      <img
+                        src={photos.filter(p => selectedPhotos.has(p.ImageKey))[0]?.ThumbnailUrl || photos.filter(p => selectedPhotos.has(p.ImageKey))[0]?.ArchivedUri}
+                        alt={photos.filter(p => selectedPhotos.has(p.ImageKey))[0]?.Title || photos.filter(p => selectedPhotos.has(p.ImageKey))[0]?.FileName}
+                        className="w-full h-auto rounded-lg shadow-lg"
+                      />
+                      <div className="mt-4 text-center font-semibold text-gray-800">
+                        {photos.filter(p => selectedPhotos.has(p.ImageKey))[0]?.Title || photos.filter(p => selectedPhotos.has(p.ImageKey))[0]?.FileName}
+                      </div>
+                      {showBuyButtons && (
+                        <button
+                          style={{ backgroundColor: buyButtonColor }}
+                          className="mt-3 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity mx-auto block"
+                        >
+                          {buyButtonText}
+                        </button>
+                      )}
+                      <div className="flex justify-center gap-4 mt-6">
+                        <button className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800">
+                          ← Previous
+                        </button>
+                        <button className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800">
+                          Next →
+                        </button>
+                      </div>
+                      <div className="text-center mt-4 text-sm text-gray-600">
+                        Slideshow preview (1 of {selectedPhotos.size} photos)
+                      </div>
+                    </div>
+                  ) : embedLayout === 'polaroid' ? (
+                    <div className="grid grid-cols-3 gap-8">
+                      {photos
+                        .filter(p => selectedPhotos.has(p.ImageKey))
+                        .slice(0, 6)
+                        .map((photo, index) => (
+                          <div
+                            key={photo.ImageKey}
+                            className="bg-white p-4 shadow-lg hover:shadow-xl transition-shadow"
+                            style={{
+                              transform: index % 2 === 0 ? 'rotate(-2deg)' : 'rotate(2deg)'
+                            }}
+                          >
+                            <img
+                              src={photo.ThumbnailUrl || photo.ArchivedUri}
+                              alt={photo.Title || photo.FileName}
+                              className="w-full h-auto"
+                            />
+                            <p className="text-center mt-3 font-handwriting text-gray-800" style={{fontFamily: 'cursive'}}>
+                              {photo.Title || photo.FileName}
+                            </p>
+                            {showBuyButtons && (
+                              <button
+                                style={{ backgroundColor: buyButtonColor }}
+                                className="mt-2 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity w-full"
+                              >
+                                {buyButtonText}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className={embedLayout === 'grid' ? 'grid grid-cols-3 gap-4' : embedLayout === 'carousel' ? 'flex overflow-x-auto gap-4 pb-4' : 'columns-3 gap-4'}>
+                      {photos
+                        .filter(p => selectedPhotos.has(p.ImageKey))
+                        .slice(0, 9)
+                        .map(photo => (
+                          <div key={photo.ImageKey} className={`flex flex-col ${embedLayout === 'masonry' ? 'mb-6 pb-3' : ''}`}>
+                            <img
+                              src={photo.ThumbnailUrl || photo.ArchivedUri}
+                              alt={photo.Title || photo.FileName}
+                              className="w-full h-auto rounded-lg shadow-md"
+                            />
+                            <div className="mt-2 text-sm font-semibold text-gray-700 truncate">
+                              {photo.Title || photo.FileName}
+                            </div>
+                            {showBuyButtons && (
+                              <button
+                                style={{ backgroundColor: buyButtonColor }}
+                                className="mt-2 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+                              >
+                                {buyButtonText}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  {embedLayout !== 'slideshow' && selectedPhotos.size > (embedLayout === 'polaroid' ? 6 : 9) && (
+                    <div className="text-center mt-6 text-sm text-gray-600 font-medium">
+                      Showing {embedLayout === 'polaroid' ? '6' : '9'} of {selectedPhotos.size} photos
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
