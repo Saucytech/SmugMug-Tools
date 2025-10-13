@@ -28,7 +28,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const result = await query<DbUser>(
-          `SELECT id, email, password_hash, name FROM users WHERE email = $1`,
+          `SELECT id, email, password_hash, name FROM public.users WHERE email = $1`,
           [credentials.email]
         );
 

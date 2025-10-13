@@ -15,6 +15,11 @@ function getPool(): Pool {
       ssl: { rejectUnauthorized: false },
       max: Number(process.env.DATABASE_POOL_SIZE ?? 10),
     });
+
+    // Set default schema to public
+    pool.on('connect', (client) => {
+      client.query('SET search_path TO public');
+    });
   }
 
   return pool;
@@ -35,18 +40,18 @@ export async function closePool(): Promise<void> {
 // User management functions
 export const db = {
   async getUserByEmail(email: string) {
-    const result = await query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await query('SELECT * FROM public.users WHERE email = $1', [email]);
     return result.rows[0] || null;
   },
 
   async getUserById(id: number) {
-    const result = await query('SELECT * FROM users WHERE id = $1', [id]);
+    const result = await query('SELECT * FROM public.users WHERE id = $1', [id]);
     return result.rows[0] || null;
   },
 
   async createUser(email: string, passwordHash: string, name?: string) {
     const result = await query(
-      'INSERT INTO users (email, password_hash, name, coin_balance) VALUES ($1, $2, $3, 0) RETURNING *',
+      'INSERT INTO public.users (email, password_hash, name, coin_balance) VALUES ($1, $2, $3, 0) RETURNING *',
       [email, passwordHash, name]
     );
     return result.rows[0];
@@ -54,7 +59,7 @@ export const db = {
 
   async updateUserCoinBalance(userId: number, newBalance: number) {
     const result = await query(
-      'UPDATE users SET coin_balance = $1 WHERE id = $2 RETURNING *',
+      'UPDATE public.users SET coin_balance = $1 WHERE id = $2 RETURNING *',
       [newBalance, userId]
     );
     return result.rows[0];
@@ -62,14 +67,14 @@ export const db = {
 
   async addCoinTransaction(userId: number, amount: number, type: string, description?: string) {
     const result = await query(
-      'INSERT INTO coin_transactions (user_id, amount, type, description) VALUES ($1, $2, $3, $4) RETURNING *',
+      'INSERT INTO public.coin_transactions (user_id, amount, type, description) VALUES ($1, $2, $3, $4) RETURNING *',
       [userId, amount, type, description]
     );
     return result.rows[0];
   },
 
   async updateLastLogin(userId: number) {
-    await query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [userId]);
+    await query('UPDATE public.users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [userId]);
   },
 };
 
