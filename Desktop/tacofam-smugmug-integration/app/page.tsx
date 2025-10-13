@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { ImageIcon, FolderIcon, Book, Database, ShoppingCart, Code2, Wrench, Heart, Sparkles, Brain, Upload, ClipboardCheck } from 'lucide-react';
 import { tokenStorage, smugmugApi } from '@/lib/smugmug-client';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -15,8 +15,7 @@ interface Album {
   UrlName?: string;
 }
 
-
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status } = useSession();
@@ -143,49 +142,17 @@ export default function Home() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
         <div className="text-center max-w-2xl">
-          <Wrench className="w-20 h-20 mx-auto mb-6 text-blue-400" />
-          <h1 className="text-5xl font-bold mb-4">SmugMug Toolbox</h1>
+          <Wrench className="w-20 h-20 mx-auto mb-6 text-purple-400" />
+          <h1 className="text-5xl font-bold mb-4">Smugtools</h1>
           <p className="text-xl mb-8 text-gray-300">
-            Professional tools to enhance your SmugMug workflow
+            Professional SmugMug Tools for Photographers
           </p>
           <button
-            onClick={handleAuth}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-xl"
+            onClick={() => router.push('/auth/signin')}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-xl"
           >
-            Connect SmugMug Account
+            Sign In
           </button>
-          <p className="mt-6 text-sm text-gray-400">
-            Don't have an API key yet?{' '}
-            <a
-              href="https://api.smugmug.com/api/developer/apply"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline"
-            >
-              Apply here
-            </a>
-          </p>
-
-          {/* Developer Tools */}
-          <div className="mt-12 pt-8 border-t border-gray-700">
-            <h3 className="text-lg font-semibold mb-4">Developer Tools</h3>
-            <div className="flex gap-4 justify-center">
-              <a
-                href="/api-reference"
-                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Book className="w-5 h-5" />
-                API Reference
-              </a>
-              <a
-                href="/metadata"
-                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Database className="w-5 h-5" />
-                Metadata Viewer
-              </a>
-            </div>
-          </div>
         </div>
       </main>
     );
@@ -572,5 +539,13 @@ export default function Home() {
       </div>
     </main>
     </>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
