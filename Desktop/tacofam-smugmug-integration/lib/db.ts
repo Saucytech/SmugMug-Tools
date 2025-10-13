@@ -9,9 +9,10 @@ function getPool(): Pool {
       throw new Error('DATABASE_URL is not configured');
     }
 
+    // Neon requires SSL in all environments
     pool = new Pool({
       connectionString,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      ssl: { rejectUnauthorized: false },
       max: Number(process.env.DATABASE_POOL_SIZE ?? 10),
     });
   }
@@ -20,8 +21,8 @@ function getPool(): Pool {
 }
 
 export async function query<T = unknown>(text: string, params: unknown[] = []): Promise<QueryResult<T>> {
-  const db = getPool();
-  return db.query<T>(text, params);
+  const dbPool = getPool();
+  return dbPool.query<T>(text, params);
 }
 
 export async function closePool(): Promise<void> {
@@ -30,3 +31,46 @@ export async function closePool(): Promise<void> {
     pool = null;
   }
 }
+
+// User management functions
+export const db = {
+  async getUserByEmail(email: string) {
+    const result = await query('SELECT * FROM users WHERE email = $1', [email]);
+    return result.rows[0] || null;
+  },
+
+  async getUserById(id: number) {
+    const result = await query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0] || null;
+  },
+
+  async createUser(email: string, passwordHash: string, name?: string) {
+    const result = await query(
+      'INSERT INTO users (email, password_hash, name, coin_balance) VALUES ($1, $2, $3, 0) RETURNING *',
+      [email, passwordHash, name]
+    );
+    return result.rows[0];
+  },
+
+  async updateUserCoinBalance(userId: number, newBalance: number) {
+    const result = await query(
+      'UPDATE users SET coin_balance = $1 WHERE id = $2 RETURNING *',
+      [newBalance, userId]
+    );
+    return result.rows[0];
+  },
+
+  async addCoinTransaction(userId: number, amount: number, type: string, description?: string) {
+    const result = await query(
+      'INSERT INTO coin_transactions (user_id, amount, type, description) VALUES ($1, $2, $3, $4) RETURNING *',
+      [userId, amount, type, description]
+    );
+    return result.rows[0];
+  },
+
+  async updateLastLogin(userId: number) {
+    await query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [userId]);
+  },
+};
+
+export default db;
