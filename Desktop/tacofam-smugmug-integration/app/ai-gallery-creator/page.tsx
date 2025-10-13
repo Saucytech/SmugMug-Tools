@@ -971,30 +971,12 @@ export default function AIGalleryCreatorPage() {
       <ToolboxHeader currentTool="ai-gallery-creator" />
       <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-950 to-black' : 'bg-gradient-to-br from-teal-50 to-cyan-50'}`}>
 
-        {/* Instructions - Compact */}
-        <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 pt-3 pb-2">
-          <div className={`border rounded-lg p-2 sm:p-3 transition-all duration-500 ${destructionMode ? 'bg-red-950/50 border-red-600' : 'bg-teal-50 border-teal-200'}`}>
-            <div className="flex items-center gap-2">
-              {destructionMode ? (
-                <Skull className="w-4 h-4 text-red-500 animate-pulse flex-shrink-0" />
-              ) : (
-                <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              )}
-              <p className={`text-xs sm:text-sm ${destructionMode ? 'text-red-200' : 'text-gray-800'}`}>
-                <span className="font-semibold">{destructionMode ? '⚠️ DESTRUCTION MODE:' : 'How to use:'}</span> {destructionMode ? 'AI can DELETE folders and galleries. Use with EXTREME caution!' : 'Describe what you want to create → Review the structure → Execute'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Header - Compact */}
+        {/* Header - Ultra Compact */}
         <div className={`flex-shrink-0 border-b backdrop-blur-sm transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black/80' : 'border-gray-200 bg-white/80'}`}>
-          <div className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3">
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-600 to-red-900' : 'bg-gradient-to-br from-teal-500 to-cyan-600'}`}>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-600 to-red-900' : 'bg-gradient-to-br from-teal-500 to-cyan-600'}`}>
                   {destructionMode ? (
                     <Flame className="w-4 h-4 text-white animate-pulse" />
                   ) : (
@@ -1002,19 +984,19 @@ export default function AIGalleryCreatorPage() {
                   )}
                 </div>
                 <div>
-                  <h1 className={`text-base sm:text-lg font-bold transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-gray-900'}`}>
+                  <h1 className={`text-sm sm:text-base font-bold transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-gray-900'}`}>
                     AI Gallery Creator {destructionMode && '💀'}
                   </h1>
-                  <p className={`text-xs transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
+                  <p className={`text-[10px] sm:text-xs transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
                     {destructionMode ? 'DESTRUCTION MODE' : 'Chat with AI or create manually'}
                   </p>
                 </div>
               </div>
 
               {/* Destruction Mode Toggle */}
-              <div className="flex items-center gap-2">
-                <label className={`flex items-center gap-1.5 cursor-pointer transition-all duration-500 ${destructionMode ? 'text-red-400' : 'text-gray-700'}`}>
-                  <span className={`text-xs sm:text-sm font-medium ${destructionMode ? 'text-red-300' : 'text-gray-700'}`}>
+              <div className="flex items-center gap-1.5">
+                <label className={`flex items-center gap-1 cursor-pointer transition-all duration-500 ${destructionMode ? 'text-red-400' : 'text-gray-700'}`}>
+                  <span className={`text-[10px] sm:text-xs font-medium ${destructionMode ? 'text-red-300' : 'text-gray-700'}`}>
                     Destruction
                   </span>
                   <div className="relative">
@@ -1024,20 +1006,20 @@ export default function AIGalleryCreatorPage() {
                       onChange={(e) => setDestructionMode(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className={`w-12 h-6 rounded-full transition-all duration-500 peer peer-checked:bg-red-600 ${destructionMode ? 'bg-red-600' : 'bg-gray-300'}`}></div>
-                    <div className={`absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-all duration-300 ${destructionMode ? 'translate-x-6' : ''}`}></div>
+                    <div className={`w-10 h-5 rounded-full transition-all duration-500 peer peer-checked:bg-red-600 ${destructionMode ? 'bg-red-600' : 'bg-gray-300'}`}></div>
+                    <div className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-all duration-300 ${destructionMode ? 'translate-x-5' : ''}`}></div>
                   </div>
-                  {destructionMode && <Skull className="w-4 h-4 text-red-500 animate-pulse" />}
+                  {destructionMode && <Skull className="w-3.5 h-3.5 text-red-500 animate-pulse" />}
                 </label>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Split Layout: 40% Chat | 60% Manual Tools - FIT TO REMAINING HEIGHT */}
+        {/* Split Layout: 55% Chat | 45% Manual Tools - FIT TO REMAINING HEIGHT */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* LEFT: AI Chat Sidebar (40%) */}
-          <div className={`w-full lg:w-[40%] border-r flex flex-col transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black' : 'border-gray-200 bg-white'} h-full lg:h-auto`}>
+          {/* LEFT: AI Chat Sidebar (55%) */}
+          <div className={`w-full lg:w-[55%] border-r flex flex-col transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black' : 'border-gray-200 bg-white'} h-full lg:h-auto`}>
             {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 sm:space-y-3">
               {messages.map((message, idx) => (
@@ -1105,43 +1087,43 @@ export default function AIGalleryCreatorPage() {
             </div>
           </div>
 
-          {/* RIGHT: Manual Creation Tools (60%) */}
-          <div className="w-full lg:w-[60%] bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto flex-1">
-            <div className="p-4 sm:p-6 lg:p-8">
+          {/* RIGHT: Manual Creation Tools (45%) */}
+          <div className="w-full lg:w-[45%] bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto flex-1">
+            <div className="p-3 sm:p-4">
               <div className="max-w-4xl mx-auto">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
-                  <FolderTree className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600" />
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+                  <FolderTree className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
                   Manual Creation Tools
                 </h2>
 
                 {/* Template Management - Always Visible at Top */}
-                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
-                  <h3 className="font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 text-base sm:text-lg">
-                    <BookTemplate className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                <div className="bg-white rounded-lg shadow-lg p-3 mb-3">
+                  <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2 text-sm">
+                    <BookTemplate className="w-4 h-4 text-purple-600" />
                     Template Management
                   </h3>
-                  <div className="flex gap-2 sm:gap-3">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => setShowTemplateBrowser(true)}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:scale-95 text-white px-4 py-3 min-h-[44px] rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:scale-95 text-white px-3 py-2 min-h-[44px] rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
                     >
-                      <BookTemplate className="w-4 h-4" />
+                      <BookTemplate className="w-3.5 h-3.5" />
                       Load Template
                     </button>
                     <button
                       onClick={() => setShowTemplateModal(true)}
                       disabled={manualFolders.length === 0 && manualGalleries.length === 0}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 disabled:from-gray-300 disabled:to-gray-400 text-white px-4 py-3 min-h-[44px] rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 disabled:from-gray-300 disabled:to-gray-400 text-white px-3 py-2 min-h-[44px] rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
                     >
-                      <Save className="w-4 h-4" />
+                      <Save className="w-3.5 h-3.5" />
                       Save as Template
                     </button>
                   </div>
                 </div>
 
                 {/* Preview Structure */}
-                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
-                  <h3 className="font-bold text-gray-900 mb-3 sm:mb-4 flex items-center justify-between text-base sm:text-lg">
+                <div className="bg-white rounded-lg shadow-lg p-3 mb-3">
+                  <h3 className="font-bold text-gray-900 mb-2 flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2">
                       <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
                       Preview Structure
@@ -1332,9 +1314,9 @@ export default function AIGalleryCreatorPage() {
                 </div>
 
                 {/* Add Folder/Gallery Form - Moved Down */}
-                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
-                  <h3 className="font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 text-base sm:text-lg">
-                    <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
+                <div className="bg-white rounded-lg shadow-lg p-3">
+                  <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2 text-sm">
+                    <Plus className="w-4 h-4 text-teal-600" />
                     Add Folders & Galleries
                   </h3>
 
