@@ -967,55 +967,55 @@ export default function AIGalleryCreatorPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col h-screen">
       <ToolboxHeader currentTool="ai-gallery-creator" />
-      <div className={`min-h-screen transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-950 to-black' : 'bg-gradient-to-br from-teal-50 to-cyan-50'}`}>
+      <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-950 to-black' : 'bg-gradient-to-br from-teal-50 to-cyan-50'}`}>
 
-        {/* Instructions */}
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          <div className={`border rounded-lg p-3 sm:p-4 transition-all duration-500 ${destructionMode ? 'bg-red-950/50 border-red-600' : 'bg-teal-50 border-teal-200'}`}>
-            <div className="flex items-center gap-2 sm:gap-3">
+        {/* Instructions - Compact */}
+        <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8 pt-3 pb-2">
+          <div className={`border rounded-lg p-2 sm:p-3 transition-all duration-500 ${destructionMode ? 'bg-red-950/50 border-red-600' : 'bg-teal-50 border-teal-200'}`}>
+            <div className="flex items-center gap-2">
               {destructionMode ? (
-                <Skull className="w-5 h-5 text-red-500 animate-pulse" />
+                <Skull className="w-4 h-4 text-red-500 animate-pulse flex-shrink-0" />
               ) : (
-                <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               )}
-              <p className={`text-sm ${destructionMode ? 'text-red-200' : 'text-gray-800'}`}>
-                <span className="font-semibold">{destructionMode ? '⚠️ DESTRUCTION MODE ACTIVE:' : 'How to use:'}</span> {destructionMode ? 'AI can DELETE folders and galleries. Use with EXTREME caution!' : 'Describe what galleries and folders you want to create (AI understands natural language) → Review the visual hierarchy of your structure → Execute to create all folders and galleries on SmugMug with real-time progress tracking.'}
+              <p className={`text-xs sm:text-sm ${destructionMode ? 'text-red-200' : 'text-gray-800'}`}>
+                <span className="font-semibold">{destructionMode ? '⚠️ DESTRUCTION MODE:' : 'How to use:'}</span> {destructionMode ? 'AI can DELETE folders and galleries. Use with EXTREME caution!' : 'Describe what you want to create → Review the structure → Execute'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Header */}
-        <div className={`border-b backdrop-blur-sm mt-6 transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black/80' : 'border-gray-200 bg-white/80'}`}>
-          <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+        {/* Header - Compact */}
+        <div className={`flex-shrink-0 border-b backdrop-blur-sm transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black/80' : 'border-gray-200 bg-white/80'}`}>
+          <div className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-600 to-red-900' : 'bg-gradient-to-br from-teal-500 to-cyan-600'}`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500 ${destructionMode ? 'bg-gradient-to-br from-red-600 to-red-900' : 'bg-gradient-to-br from-teal-500 to-cyan-600'}`}>
                   {destructionMode ? (
-                    <Flame className="w-5 h-5 text-white animate-pulse" />
+                    <Flame className="w-4 h-4 text-white animate-pulse" />
                   ) : (
-                    <Sparkles className="w-5 h-5 text-white" />
+                    <Sparkles className="w-4 h-4 text-white" />
                   )}
                 </div>
                 <div>
-                  <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-gray-900'}`}>
+                  <h1 className={`text-base sm:text-lg font-bold transition-all duration-500 ${destructionMode ? 'text-red-500' : 'text-gray-900'}`}>
                     AI Gallery Creator {destructionMode && '💀'}
                   </h1>
-                  <p className={`text-xs sm:text-sm transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
-                    {destructionMode ? 'DESTRUCTION MODE - CREATE & DESTROY' : 'Chat with AI or create manually'}
+                  <p className={`text-xs transition-all duration-500 ${destructionMode ? 'text-red-300' : 'text-gray-600'}`}>
+                    {destructionMode ? 'DESTRUCTION MODE' : 'Chat with AI or create manually'}
                   </p>
                 </div>
               </div>
 
               {/* Destruction Mode Toggle */}
-              <div className="flex items-center gap-2 sm:gap-3">
-                <label className={`flex items-center gap-1.5 sm:gap-2 cursor-pointer transition-all duration-500 ${destructionMode ? 'text-red-400' : 'text-gray-700'}`}>
+              <div className="flex items-center gap-2">
+                <label className={`flex items-center gap-1.5 cursor-pointer transition-all duration-500 ${destructionMode ? 'text-red-400' : 'text-gray-700'}`}>
                   <span className={`text-xs sm:text-sm font-medium ${destructionMode ? 'text-red-300' : 'text-gray-700'}`}>
-                    Destruction Mode
+                    Destruction
                   </span>
                   <div className="relative">
                     <input
@@ -1024,8 +1024,8 @@ export default function AIGalleryCreatorPage() {
                       onChange={(e) => setDestructionMode(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className={`w-14 h-8 rounded-full transition-all duration-500 peer peer-checked:bg-red-600 ${destructionMode ? 'bg-red-600' : 'bg-gray-300'}`}></div>
-                    <div className={`absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-all duration-300 ${destructionMode ? 'translate-x-6' : ''}`}></div>
+                    <div className={`w-12 h-6 rounded-full transition-all duration-500 peer peer-checked:bg-red-600 ${destructionMode ? 'bg-red-600' : 'bg-gray-300'}`}></div>
+                    <div className={`absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-all duration-300 ${destructionMode ? 'translate-x-6' : ''}`}></div>
                   </div>
                   {destructionMode && <Skull className="w-4 h-4 text-red-500 animate-pulse" />}
                 </label>
@@ -1034,10 +1034,10 @@ export default function AIGalleryCreatorPage() {
           </div>
         </div>
 
-        {/* Split Layout: 40% Chat | 60% Manual Tools */}
-        <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 140px)' }}>
+        {/* Split Layout: 40% Chat | 60% Manual Tools - FIT TO REMAINING HEIGHT */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           {/* LEFT: AI Chat Sidebar (40%) */}
-          <div className={`w-full lg:w-[40%] border-r flex flex-col transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black' : 'border-gray-200 bg-white'}`}>
+          <div className={`w-full lg:w-[40%] border-r flex flex-col transition-all duration-500 ${destructionMode ? 'border-red-900 bg-black' : 'border-gray-200 bg-white'} h-full lg:h-auto`}>
             {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 sm:space-y-3">
               {messages.map((message, idx) => (
@@ -1074,8 +1074,8 @@ export default function AIGalleryCreatorPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Chat Input */}
-            <div className={`border-t p-3 transition-all duration-500 ${destructionMode ? 'border-red-900 bg-red-950/30' : 'border-gray-200 bg-gray-50'}`}>
+            {/* Chat Input - Fixed at Bottom */}
+            <div className={`flex-shrink-0 border-t p-2 sm:p-3 transition-all duration-500 ${destructionMode ? 'border-red-900 bg-red-950/30' : 'border-gray-200 bg-gray-50'}`}>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1084,7 +1084,7 @@ export default function AIGalleryCreatorPage() {
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder={destructionMode ? "Ask AI to create or DESTROY..." : "Ask AI to create..."}
                   disabled={isLoading || status === 'creating'}
-                  className={`flex-1 px-3 py-3 text-base min-h-[44px] border rounded-lg focus:outline-none focus:ring-2 transition-all duration-500 ${
+                  className={`flex-1 px-3 py-2 text-sm sm:text-base min-h-[44px] border rounded-lg focus:outline-none focus:ring-2 transition-all duration-500 ${
                     destructionMode
                       ? 'border-red-700 bg-red-950 text-red-100 placeholder-red-400 focus:ring-red-600 disabled:bg-red-950/50 disabled:text-red-500'
                       : 'border-gray-300 focus:ring-teal-500 disabled:bg-gray-100 disabled:text-gray-500'
@@ -1093,7 +1093,7 @@ export default function AIGalleryCreatorPage() {
                 <button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isLoading || status === 'creating'}
-                  className={`text-white px-4 py-3 min-h-[44px] min-w-[44px] rounded-lg font-medium transition-all duration-500 flex items-center justify-center gap-1 text-sm ${
+                  className={`text-white px-3 py-2 min-h-[44px] min-w-[44px] rounded-lg font-medium transition-all duration-500 flex items-center justify-center gap-1 text-sm ${
                     destructionMode
                       ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:bg-red-900'
                       : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:bg-teal-400'
@@ -1106,7 +1106,7 @@ export default function AIGalleryCreatorPage() {
           </div>
 
           {/* RIGHT: Manual Creation Tools (60%) */}
-          <div className="w-full lg:w-[60%] bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto">
+          <div className="w-full lg:w-[60%] bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto flex-1">
             <div className="p-4 sm:p-6 lg:p-8">
               <div className="max-w-4xl mx-auto">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
